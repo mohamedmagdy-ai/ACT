@@ -306,6 +306,11 @@ tr:hover td{background:#fafafa;}
   <button onclick="adjustZoom(-1)" title="تصغير الخط" style="background:none;border:none;color:rgba(255,255,255,.8);font-size:12px;cursor:pointer;padding:3px 7px;font-family:Arial;font-weight:bold;">A-</button>
   <button onclick="adjustZoom(1)" title="تكبير الخط" style="background:none;border:none;color:rgba(255,255,255,.8);font-size:15px;cursor:pointer;padding:3px 7px;font-family:Arial;font-weight:bold;">A+</button>
 </span>
+<span style="display:flex;align-items:center;gap:3px;background:rgba(255,255,255,0.08);border-radius:5px;padding:2px 5px;" title="عدد نسخ الطباعة">
+  <span style="font-size:10px;color:rgba(255,255,255,.7);">نسخ</span>
+  <input id="print-copies-input" type="number" min="1" max="50" value="2" onchange="setSavedPrintCopies(this.value)" style="width:32px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:4px;padding:2px 2px;font-size:11px;text-align:center;font-family:Arial;">
+  <button onclick="downloadLastPrintAsPdf()" title="تحميل آخر مستند طباعة كـ PDF" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,.9);border-radius:4px;padding:3px 7px;font-size:11px;cursor:pointer;font-family:Arial;">⬇️ PDF</button>
+</span>
 <span style="font-size:12px;color:rgba(255,255,255,0.85);" id="topbar-user-badge">👤 Admin</span>
 <select id="branch-switcher" onchange="switchBranch(this.value)" style="display:none;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:5px;padding:4px 8px;font-size:11px;font-family:Arial;"></select>
 <button onclick="openM('m-pending-wa');renderPendingWhatsappList();" style="position:relative;background:rgba(37,211,102,0.15);border:1px solid #25D366;color:#25D366;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:Arial;">📱 واتساب<span id="pending-wa-badge" style="display:none;background:#c62828;color:white;border-radius:10px;padding:0 6px;font-size:10px;margin-right:4px;"></span></button>
@@ -2647,9 +2652,28 @@ tr:hover td{background:#fafafa;}
 <div id="print-output"></div>
 <script>
 const $ = id => document.getElementById(id);
+// ======= إعداد "عدد النسخ" للطباعة السريعة (محفوظ لكل جهاز) =======
+// بلاغ من صاحب المحل: بيطبع نسختين في كل مرة تقريبًا (واحدة للعميل وواحدة للمحاسب)،
+// فبدل ما يعدّل عدد النسخ يدويًا من نافذة الطباعة كل مرة، بنحفظ القيمة دي محليًا
+// (زي بالظبط مستوى التكبير sz_zoom_level) ونبعتها جاهزة لأمر الطباعة نفسه.
+const PRINT_COPIES_MIN=1, PRINT_COPIES_MAX=50, PRINT_COPIES_DEFAULT=2;
+function getSavedPrintCopies(){
+  const v=parseInt(localStorage.getItem('sz_print_copies'),10);
+  return (v&&v>=PRINT_COPIES_MIN&&v<=PRINT_COPIES_MAX)?v:PRINT_COPIES_DEFAULT;
+}
+function setSavedPrintCopies(v){
+  let n=parseInt(v,10);
+  if(!n||isNaN(n))n=PRINT_COPIES_DEFAULT;
+  n=Math.max(PRINT_COPIES_MIN,Math.min(PRINT_COPIES_MAX,n));
+  try{localStorage.setItem('sz_print_copies',String(n));}catch(e){}
+  try{const inp=$('print-copies-input');if(inp)inp.value=n;}catch(e){}
+  return n;
+}
 // دالة طباعة موحّدة: لو البرنامج شغال جوه Electron (فيه window.electronAPI من preload.js)،
-// نستخدم معاينة PDF حقيقية بدل الطباعة المباشرة على طول. لو البرنامج شغال في متصفح عادي
-// (كروم مثلاً)، نستخدم window.print() العادية اللي أصلاً بتفتح معاينة كروم المدمجة.
+// نستخدم طباعة مباشرة وسريعة (نافذة طباعة نظام التشغيل الأصلية، بعدد النسخ المحفوظ)
+// بدل المسار القديم اللي كان بيولّد PDF كامل + يفتح نافذة معاينة جديدة (بطيء — ده
+// بالظبط سبب بلاغ "الطباعة بتاخد وقت كبير"). لو البرنامج شغال في متصفح عادي (كروم
+// مثلاً)، نستخدم window.print() العادية اللي أصلاً بتفتح معاينة كروم المدمجة.
 function doPrintPreview(){
   // مهم جدًا: مستوى التكبير (Zoom) بيتطبّق كـ inline style مباشر على body (زي
   // document.body.style.zoom=1.1 مثلاً)، والـ inline style ده أولويته أعلى من أي
@@ -2663,8 +2687,10 @@ function doPrintPreview(){
   const _restoreZoom=()=>{ try{ document.body.style.zoom=_savedZoom||''; }catch(_rz){} };
   const _doActualPrint=()=>{
     try{
-      if(window.electronAPI && typeof window.electronAPI.printPreview==='function'){
-        Promise.resolve(window.electronAPI.printPreview()).finally(_restoreZoom);
+      if(window.electronAPI && typeof window.electronAPI.printDirect==='function'){
+        Promise.resolve(window.electronAPI.printDirect(getSavedPrintCopies()))
+          .then(res=>{ if(res&&res.success===false&&res.failureReason)try{toast('⚠ الطباعة اتلغت: '+res.failureReason);}catch(_t){} })
+          .finally(_restoreZoom);
         return;
       }
     }catch(_e){ _restoreZoom(); return; }
@@ -2675,6 +2701,35 @@ function doPrintPreview(){
   // للصفحة وهي لسه بالزووم القديم قبل ما التغيير يتطبّق بصريًا فعلاً. الـ
   // requestAnimationFrame المزدوج بيضمن إن فريم كامل اترسم بالزووم الجديد قبل الالتقاط.
   requestAnimationFrame(()=>requestAnimationFrame(_doActualPrint));
+}
+// ======= تحميل آخر مستند اتطبع كملف PDF (لإرسال نسخة للعميل مثلاً) =======
+// بتشتغل على نفس محتوى #print-output اللي آخر عملية طباعة حطّته (كل دوال الطباعة في
+// البرنامج بتحط الفاتورة/التقرير هناك قبل ما تنده doPrintPreview مباشرة)، فمش محتاجة
+// أي تعديل في الاثني عشر موضع اللي بينده الطباعة في الكود كله.
+function downloadLastPrintAsPdf(){
+  try{
+    const box=$('print-output');
+    if(!box||!box.innerHTML||!box.innerHTML.trim()){
+      toast('⚠ افتح فاتورة أو مستند للطباعة الأول، وبعدين حمّل الـPDF');
+      return;
+    }
+  }catch(_e){}
+  if(!window.electronAPI||typeof window.electronAPI.savePdf!=='function'){
+    toast('⚠ تحميل PDF متاح بس من نسخة سطح المكتب');
+    return;
+  }
+  const _savedZoom=document.body.style.zoom;
+  document.body.style.zoom=1;
+  const _restoreZoom=()=>{ try{ document.body.style.zoom=_savedZoom||''; }catch(_rz){} };
+  const _doSave=()=>{
+    let suggested='مستند-'+todayStr;
+    try{ suggested=(CURRENT_BRANCH?CURRENT_BRANCH+'-':'')+'مستند-'+todayStr; }catch(_s){}
+    Promise.resolve(window.electronAPI.savePdf(suggested)).then(res=>{
+      if(res&&res.success){ try{toast('✅ اتحفظ PDF بنجاح');}catch(_t){} }
+      else if(res&&!res.canceled){ try{toast('⚠ حصلت مشكلة في حفظ الـPDF');}catch(_t){} }
+    }).finally(_restoreZoom);
+  };
+  requestAnimationFrame(()=>requestAnimationFrame(_doSave));
 }
 const now = new Date();
 $('topDate').textContent = now.toLocaleDateString('ar-EG',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
@@ -4450,6 +4505,7 @@ function _rawEmergencyAlert(text){
   }
 }
 document.addEventListener('DOMContentLoaded',()=>{try{applyZoom(getSavedZoom());}catch(e){}
+try{const _pci=$('print-copies-input');if(_pci)_pci.value=getSavedPrintCopies();}catch(e){}
 // === FALLBACK ضمان تشغيل زر الدخول + مفتاح Enter — حتى لو حصل نزع لـ onclick attribute من أي سبب ===
 try{
   const lb=document.querySelector('#login-screen button.login-btn')||document.querySelector('button.login-btn');

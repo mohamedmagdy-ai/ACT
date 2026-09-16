@@ -3,6 +3,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   printPreview: () => ipcRenderer.invoke('print-preview'),
+  // طباعة سريعة مباشرة (بدون توليد PDF/نافذة معاينة وسيطة) — بتفتح نافذة طباعة نظام
+  // التشغيل الأصلية على طول، وبتاخد عدد النسخ المطلوبة كمعامل
+  printDirect: (copies) => ipcRenderer.invoke('print-direct', copies),
+  // تحميل آخر مستند اتطبع كملف PDF (نافذة "حفظ باسم" حقيقية)
+  savePdf: (suggestedName) => ipcRenderer.invoke('print-save-pdf', suggestedName),
   syncToSqlite: (dbObject) => ipcRenderer.invoke('sync-to-sqlite', dbObject),
   loadFromSqlite: () => ipcRenderer.invoke('load-from-sqlite'),
   // فتح أدوات المطوّر — بس بعد ما الواجهة نفسها تتأكد إن اللي بيطلب ده أدمن حقيقي

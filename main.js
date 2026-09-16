@@ -627,6 +627,60 @@ ipcMain.handle('print-preview', async (event) => {
   return true;
 });
 
+// (2ب) طباعة مباشرة وسريعة — بلاغ من صاحب المحل: نظام المعاينة القديم (فوق) كان بياخد
+// وقت طويل قبل ما الفاتورة تتفتح، لأنه بيعمل: توليد PDF كامل + كتابته كملف مؤقت على
+// القرص + إنشاء نافذة Electron جديدة بالكامل (عارض Chromium جديد) + تحميل الـPDF من
+// جواه — أربع خطوات ثقيلة على كل عملية طباعة واحدة. الحل: نستخدم contents.print()
+// مباشرة (زي أي برنامج عادي بيبعت للطابعة) وده بيفتح نافذة الطباعة الأصلية بتاعة نظام
+// التشغيل على طول من غير أي خطوة وسيطة. silent:false عمدًا (مش true) عشان المستخدم
+// يشوف نافذة الطباعة ويتأكد من الطابعة/الإعدادات قبل ما يطبع فعليًا — أسرع بكتير من
+// القديم بس من غير ما نفقد الأمان (تأكيد المستخدم الأخير قبل الطباعة الفعلية).
+// عدد النسخ (copies) بييجي من إعداد محفوظ عند المستخدم (افتراضيًا نسختين، لأن صاحب
+// المحل بيطبع نسخة للعميل ونسخة تانية للمحاسب في كل مرة تقريبًا).
+ipcMain.handle('print-direct', async (event, copies) => {
+  const contents = event.sender;
+  const n = Math.max(1, Math.min(50, Number(copies) || 1));
+  return new Promise((resolve) => {
+    try {
+      contents.print(
+        { silent: false, printBackground: true, copies: n, pageSize: 'A4', margins: { marginType: 'none' } },
+        (success, failureReason) => {
+          resolve({ success, failureReason: failureReason || null });
+        }
+      );
+    } catch (e) {
+      resolve({ success: false, failureReason: String(e && e.message || e) });
+    }
+  });
+});
+
+// (2ج) تحميل نسخة PDF من آخر مستند اتطبع — عشان صاحب المحل يقدر يبعتها (واتساب/إيميل)
+// من غير ما يعدي على نافذة معاينة وسيطة. بيسأل المستخدم فين يحفظ الملف (Save As) وبعدين
+// يولّد الـPDF من نفس محتوى الصفحة الحالي ويكتبه في المكان ده مباشرة.
+ipcMain.handle('print-save-pdf', async (event, suggestedName) => {
+  const contents = event.sender;
+  const win = BrowserWindow.fromWebContents(contents);
+  const defaultName = (suggestedName && String(suggestedName).replace(/[\\/:*?"<>|]/g, '_')) || `مستند-${Date.now()}`;
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'حفظ الفاتورة كـ PDF',
+    defaultPath: `${defaultName}.pdf`,
+    filters: [{ name: 'PDF', extensions: ['pdf'] }],
+  });
+  if (canceled || !filePath) return { success: false, canceled: true };
+  try {
+    const pdfBuffer = await contents.printToPDF({
+      printBackground: true,
+      landscape: false,
+      pageSize: 'A4',
+      margins: { marginType: 'none' },
+    });
+    fs.writeFileSync(filePath, pdfBuffer);
+    return { success: true, filePath };
+  } catch (e) {
+    return { success: false, canceled: false, error: String(e && e.message || e) };
+  }
+});
+
 app.whenReady().then(() => {
   if (process.env.SZ_COMPARE === '1') {
     (async () => {
