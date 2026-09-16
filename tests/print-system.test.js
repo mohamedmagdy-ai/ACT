@@ -1,18 +1,22 @@
-// ======= اختبار: نظام الطباعة الجديد (سريع + منفصل عن تحميل PDF) =======
-// السياق (بلاغ من صاحب المحل): الطباعة القديمة كانت بتاخد وقت كبير عقبال ما الفاتورة
-// تتفتح (توليد PDF كامل + نافذة معاينة جديدة في كل مرة)، وطلب: (١) زرار طباعة مباشرة
-// سريع بيحفظ عدد النسخ اللي بيطبعها عادةً (نسختين: عميل + محاسب)، و(٢) زرار منفصل
-// لتحميل نفس المستند كـ PDF عشان يقدر يبعته. الاختبار ده بيتأكد من:
-// - getSavedPrintCopies/setSavedPrintCopies بيحفظوا ويقروا صح من localStorage (مع حدود
-//   القيمة المسموحة 1-50 والقيمة الافتراضية 2).
-// - doPrintPreview() بينده window.electronAPI.printDirect بعدد النسخ المحفوظ (مش
-//   printPreview القديمة البطيئة) لو electronAPI متاحة.
-// - downloadLastPrintAsPdf() بينده window.electronAPI.savePdf لو فيه محتوى في
-//   #print-output، وبيرفض (تحذير بس، من غير أي نداء) لو #print-output فاضي.
-// ملحوظة: مفيش عملية Electron حقيقية (main process/طابعة نظام تشغيل فعلية) متاحة في
-// بيئة الاختبار دي (Playwright/Chromium بس) — فالاختبار بيتحقق من إن الكود بينده
-// الدوال الصح بالمعاملات الصح، مش من سلوك الطباعة الفعلي على جهاز حقيقي (ده محتاج
-// تجربة يدوية من صاحب المحل على نسخة سطح المكتب الحقيقية).
+// ======= اختبار: نظام الطباعة الجديد (معاينة داخل البرنامج + طباعة سريعة + PDF) =======
+// السياق (بلاغين من صاحب المحل):
+// (١) الطباعة القديمة كانت بتاخد وقت كبير عقبال ما الفاتورة تتفتح (توليد PDF كامل +
+//     نافذة معاينة Electron جديدة في كل مرة).
+// (٢) بعد أول تعديل (طباعة مباشرة فورية)، لقى إن نافذة طباعة ويندوز نفسها بتقول
+//     "This app doesn't support print preview" — قيد معروف في Electron نفسه مش قابل
+//     للإصلاح من جوه نافذة الطباعة دي — وكمان مالقاش زرار تحميل PDF بسهولة.
+// الحل النهائي: doPrintPreview() (اللي كل الفواتير/الإيصالات بتنده عليها) بقت تفتح
+// نفس مودال معاينة التقارير الموجود بالفعل ("m-report-preview" — شغال ومُختبر من زمان
+// لكل التقارير) بدل ما تطبع على طول، فالمستخدم يشوف شكل المستند فعليًا جوه البرنامج
+// (سريع، من غير توليد PDF)، وبعدين يختار "🖨️ طباعة" أو "⬇️ PDF" من نفس المكان.
+// الاختبار ده بيتأكد من:
+// - getSavedPrintCopies/setSavedPrintCopies بيحفظوا ويقروا صح من localStorage.
+// - doPrintPreview() بتفتح مودال المعاينة (م-report-preview) بمحتوى الفاتورة، من
+//   غير ما تنده printDirect على طول (يعني معندهاش "طباعة صامتة" غير متوقعة).
+// - زرار "🖨️ طباعة" جوه المودال (rpPrint) هو اللي بينده فعليًا electronAPI.printDirect
+//   بعدد النسخ المحفوظ.
+// - زرار "⬇️ PDF" جوه المودال (downloadLastPrintAsPdf) بينده electronAPI.savePdf.
+// - زرار Excel بيتخفي تلقائيًا لو المحتوى مفيهوش جدول (زي فاتورة عادية).
 const { openApp, TestReporter } = require('./helpers');
 
 (async () => {
@@ -42,39 +46,61 @@ const { openApp, TestReporter } = require('./helpers');
   r.eq('قيمة مش رقمية بترجع للقيمة الافتراضية (2)', t1.nonNumeric, 2);
 
   // ============================================================
-  // ===== ٢) doPrintPreview() بينده printDirect بعدد النسخ المحفوظ =====
+  // ===== ٢) doPrintPreview() بتفتح مودال المعاينة، مش طباعة فورية =====
   // ============================================================
   const t2 = await page.evaluate(() => {
-    setSavedPrintCopies(3);
-    let calledWith = null;
-    let oldPreviewCalled = false;
+    let printDirectCalled = false;
     window.electronAPI = {
-      printDirect: (copies) => { calledWith = copies; return Promise.resolve({ success: true }); },
-      printPreview: () => { oldPreviewCalled = true; return Promise.resolve(true); },
+      printDirect: () => { printDirectCalled = true; return Promise.resolve({ success: true }); },
       savePdf: () => Promise.resolve({ success: true, filePath: '/tmp/x.pdf' }),
     };
-    $('print-output').innerHTML = '<div>فاتورة اختبار</div>';
-    doPrintPreview();
+    $('print-output').innerHTML = '<div class="inv-wrap">فاتورة اختبار رقم ١٢٣</div>';
+    doPrintPreview('فاتورة اختبار');
+    const modal = $('m-report-preview');
+    return {
+      modalOpen: modal && modal.classList.contains('open'),
+      titleText: $('rp-title') ? $('rp-title').textContent : '',
+      bodyHtml: $('rp-body') ? $('rp-body').innerHTML : '',
+      printDirectCalled,
+    };
+  });
+  r.ok('doPrintPreview() فتحت مودال المعاينة فعليًا', t2.modalOpen);
+  r.ok('عنوان المودال بيوضح اسم المستند اللي اتبعت', t2.titleText.includes('فاتورة اختبار'));
+  r.ok('محتوى الفاتورة فعليًا ظاهر جوه المودال', t2.bodyHtml.includes('فاتورة اختبار رقم ١٢٣'));
+  r.ok('doPrintPreview() لوحدها متنديش على printDirect (لسه محتاجة تأكيد المستخدم بالضغط على طباعة)', !t2.printDirectCalled);
+
+  // ============================================================
+  // ===== ٣) زرار "🖨️ طباعة" جوه المودال (rpPrint) بينده printDirect بعدد النسخ =====
+  // ============================================================
+  const t3 = await page.evaluate(() => {
+    setSavedPrintCopies(3);
+    let calledWith = null;
+    window.electronAPI = {
+      printDirect: (copies) => { calledWith = copies; return Promise.resolve({ success: true }); },
+      savePdf: () => Promise.resolve({ success: true, filePath: '/tmp/x.pdf' }),
+    };
+    $('print-output').innerHTML = '<div>فاتورة تانية</div>';
+    doPrintPreview('فاتورة تانية');
+    rpPrint();
     return new Promise(resolve => {
-      // نستنى فريمين (زي المنطق الداخلي) قبل ما نتأكد من النتيجة
       requestAnimationFrame(() => requestAnimationFrame(() => {
-        setTimeout(() => resolve({ calledWith, oldPreviewCalled }), 30);
+        setTimeout(() => resolve({ calledWith }), 30);
       }));
     });
   });
-  r.eq('doPrintPreview بينده printDirect بعدد النسخ المحفوظ (3)', t2.calledWith, 3);
-  r.ok('doPrintPreview مبقاش بينده printPreview القديمة البطيئة', !t2.oldPreviewCalled);
+  r.eq('زرار الطباعة جوه المودال بينده printDirect بعدد النسخ المحفوظ (3)', t3.calledWith, 3);
 
   // ============================================================
-  // ===== ٣) downloadLastPrintAsPdf() =====
+  // ===== ٤) زرار "⬇️ PDF" جوه المودال (downloadLastPrintAsPdf) =====
   // ============================================================
-  const t3 = await page.evaluate(() => {
+  const t4 = await page.evaluate(() => {
     let savePdfCalled = false;
     window.electronAPI = {
       printDirect: () => Promise.resolve({ success: true }),
       savePdf: () => { savePdfCalled = true; return Promise.resolve({ success: true, filePath: '/tmp/x.pdf' }); },
     };
-    $('print-output').innerHTML = '<div>فاتورة اختبار للـPDF</div>';
+    $('print-output').innerHTML = '<div>فاتورة للـPDF</div>';
+    doPrintPreview('فاتورة للـPDF');
     downloadLastPrintAsPdf();
     return new Promise(resolve => {
       requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -82,9 +108,9 @@ const { openApp, TestReporter } = require('./helpers');
       }));
     });
   });
-  r.ok('downloadLastPrintAsPdf بينده savePdf لما فيه محتوى في print-output', t3.savePdfCalled);
+  r.ok('زرار PDF جوه المودال بينده savePdf فعليًا', t4.savePdfCalled);
 
-  const t4 = await page.evaluate(() => {
+  const t5 = await page.evaluate(() => {
     let savePdfCalled = false;
     window.electronAPI = {
       printDirect: () => Promise.resolve({ success: true }),
@@ -94,19 +120,40 @@ const { openApp, TestReporter } = require('./helpers');
     downloadLastPrintAsPdf();
     return { savePdfCalled };
   });
-  r.ok('downloadLastPrintAsPdf متبقتش تنده savePdf لو print-output فاضي (تحذير بس)', !t4.savePdfCalled);
+  r.ok('downloadLastPrintAsPdf متبقتش تنده savePdf لو print-output فاضي (تحذير بس)', !t5.savePdfCalled);
 
   // ============================================================
-  // ===== ٤) عنصر إدخال عدد النسخ في الـtopbar بيتحدّث صح =====
+  // ===== ٥) زرار Excel بيتخفي تلقائيًا لو المحتوى فاتورة (مفيهوش جدول) =====
   // ============================================================
-  const t5 = await page.evaluate(() => {
-    const inp = $('print-copies-input');
-    const existsBeforeChange = !!inp;
-    if (inp) { inp.value = 7; inp.dispatchEvent(new Event('change')); }
-    return { existsBeforeChange, savedAfterChange: getSavedPrintCopies() };
+  const t6 = await page.evaluate(() => {
+    $('print-output').innerHTML = '<div class="inv-wrap">فاتورة من غير جدول HTML (تفاصيلها في divs)</div>';
+    doPrintPreview('فاتورة');
+    const excelBtnHiddenForInvoice = $('rp-excel-btn') ? getComputedStyle($('rp-excel-btn')).display === 'none' : null;
+    $('print-output').innerHTML = '<table><tr><td>صف تقرير</td></tr></table>';
+    doPrintPreview('تقرير');
+    const excelBtnVisibleForReport = $('rp-excel-btn') ? getComputedStyle($('rp-excel-btn')).display !== 'none' : null;
+    return { excelBtnHiddenForInvoice, excelBtnVisibleForReport };
   });
-  r.ok('عنصر إدخال عدد النسخ موجود فعليًا في الصفحة', t5.existsBeforeChange);
-  r.eq('تغيير القيمة من الـtopbar بيتحفظ فعليًا', t5.savedAfterChange, 7);
+  r.ok('زرار Excel مختفي لو الفاتورة مفيهاش جدول', t6.excelBtnHiddenForInvoice === true);
+  r.ok('زرار Excel ظاهر لو التقرير فيه جدول فعلي', t6.excelBtnVisibleForReport === true);
+
+  // ============================================================
+  // ===== ٦) عنصر إدخال عدد النسخ موجود جوه مودال المعاينة بس (مش في الشريط العلوي =====
+  // =====    العام — بناءً على طلب المستخدم إن الخيار يظهر وهو بيطبع الفاتورة بس) =====
+  // ============================================================
+  const t7 = await page.evaluate(() => {
+    const topbarInp = $('print-copies-input');
+    const modalInp = $('rp-copies-input');
+    if (modalInp) { modalInp.value = 7; modalInp.dispatchEvent(new Event('change')); }
+    return {
+      topbarRemoved: !topbarInp,
+      modalExists: !!modalInp,
+      savedAfterModalChange: getSavedPrintCopies(),
+    };
+  });
+  r.ok('عنصر النسخ اتشال من الشريط العلوي العام (زي ما المستخدم طلب)', t7.topbarRemoved);
+  r.ok('عنصر إدخال عدد النسخ جوه مودال المعاينة موجود (بيظهر وقت الطباعة بس)', t7.modalExists);
+  r.eq('تغيير القيمة من جوه المودال بيتحفظ فعليًا', t7.savedAfterModalChange, 7);
 
   r.ok('لا يوجد أي خطأ JS غير متوقع أثناء تشغيل الاختبار', pageErrors.length === 0);
   if (pageErrors.length) console.log('  Page errors:', pageErrors);

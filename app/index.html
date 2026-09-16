@@ -306,11 +306,6 @@ tr:hover td{background:#fafafa;}
   <button onclick="adjustZoom(-1)" title="تصغير الخط" style="background:none;border:none;color:rgba(255,255,255,.8);font-size:12px;cursor:pointer;padding:3px 7px;font-family:Arial;font-weight:bold;">A-</button>
   <button onclick="adjustZoom(1)" title="تكبير الخط" style="background:none;border:none;color:rgba(255,255,255,.8);font-size:15px;cursor:pointer;padding:3px 7px;font-family:Arial;font-weight:bold;">A+</button>
 </span>
-<span style="display:flex;align-items:center;gap:3px;background:rgba(255,255,255,0.08);border-radius:5px;padding:2px 5px;" title="عدد نسخ الطباعة">
-  <span style="font-size:10px;color:rgba(255,255,255,.7);">نسخ</span>
-  <input id="print-copies-input" type="number" min="1" max="50" value="2" onchange="setSavedPrintCopies(this.value)" style="width:32px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:4px;padding:2px 2px;font-size:11px;text-align:center;font-family:Arial;">
-  <button onclick="downloadLastPrintAsPdf()" title="تحميل آخر مستند طباعة كـ PDF" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,.9);border-radius:4px;padding:3px 7px;font-size:11px;cursor:pointer;font-family:Arial;">⬇️ PDF</button>
-</span>
 <span style="font-size:12px;color:rgba(255,255,255,0.85);" id="topbar-user-badge">👤 Admin</span>
 <select id="branch-switcher" onchange="switchBranch(this.value)" style="display:none;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:5px;padding:4px 8px;font-size:11px;font-family:Arial;"></select>
 <button onclick="openM('m-pending-wa');renderPendingWhatsappList();" style="position:relative;background:rgba(37,211,102,0.15);border:1px solid #25D366;color:#25D366;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:Arial;">📱 واتساب<span id="pending-wa-badge" style="display:none;background:#c62828;color:white;border-radius:10px;padding:0 6px;font-size:10px;margin-right:4px;"></span></button>
@@ -2404,8 +2399,12 @@ tr:hover td{background:#fafafa;}
 <div class="mo" id="m-report-preview"><div class="md" style="width:900px;max-width:97vw;">
 <div class="mh"><span class="mt" id="rp-title">📄 تقرير</span>
 <span style="display:flex;gap:6px;align-items:center;">
+<span style="display:flex;align-items:center;gap:3px;font-size:11px;color:#555;" title="عدد نسخ الطباعة">نسخ
+  <input id="rp-copies-input" type="number" min="1" max="50" value="2" onchange="setSavedPrintCopies(this.value)" style="width:38px;padding:2px 3px;border:1px solid #ccc;border-radius:4px;text-align:center;font-size:12px;">
+</span>
 <button class="btn btn-sm btn-t" onclick="rpPrint()">🖨️ طباعة</button>
-<button class="btn btn-sm btn-g" onclick="rpExcel()">⬇️ Excel</button>
+<button class="btn btn-sm btn-g" onclick="downloadLastPrintAsPdf()">⬇️ PDF</button>
+<button class="btn btn-sm btn-g" id="rp-excel-btn" onclick="rpExcel()">⬇️ Excel</button>
 <button class="xbtn" onclick="closeM('m-report-preview')">✕</button>
 </span></div>
 <div class="mb" style="max-height:74vh;overflow-y:auto;background:#eef1f4;padding:10px;">
@@ -2666,15 +2665,27 @@ function setSavedPrintCopies(v){
   if(!n||isNaN(n))n=PRINT_COPIES_DEFAULT;
   n=Math.max(PRINT_COPIES_MIN,Math.min(PRINT_COPIES_MAX,n));
   try{localStorage.setItem('sz_print_copies',String(n));}catch(e){}
-  try{const inp=$('print-copies-input');if(inp)inp.value=n;}catch(e){}
+  try{const inp=$('rp-copies-input');if(inp)inp.value=n;}catch(e){}
   return n;
 }
-// دالة طباعة موحّدة: لو البرنامج شغال جوه Electron (فيه window.electronAPI من preload.js)،
-// نستخدم طباعة مباشرة وسريعة (نافذة طباعة نظام التشغيل الأصلية، بعدد النسخ المحفوظ)
-// بدل المسار القديم اللي كان بيولّد PDF كامل + يفتح نافذة معاينة جديدة (بطيء — ده
-// بالظبط سبب بلاغ "الطباعة بتاخد وقت كبير"). لو البرنامج شغال في متصفح عادي (كروم
-// مثلاً)، نستخدم window.print() العادية اللي أصلاً بتفتح معاينة كروم المدمجة.
-function doPrintPreview(){
+// ======= دالة طباعة موحّدة لكل الفواتير/الإيصالات (وليس التقارير فقط) =======
+// بلاغ من صاحب المحل: (١) الطباعة كانت بتاخد وقت كبير عقبال ما الفاتورة تتفتح، و(٢)
+// نافذة طباعة ويندوز نفسها كانت بتظهر رسالة "This app doesn't support print preview"
+// (معناها إن Electron مش بيقدر يورّي معاينة حقيقية جوه نافذة الطباعة بتاعة نظام
+// التشغيل — ده قيد معروف في Electron نفسه، مش حاجة نقدر نصلحها من جوّه نافذة
+// الطباعة دي). الحل: بدل ما ننده الطباعة الفعلية على طول، بنفتح نفس مودال المعاينة
+// اللي التقارير أصلاً بتستخدمه (وشغال تمام فيها من زمان) عشان يشوف شكل الفاتورة
+// فعليًا جوه البرنامج نفسه (سريع جدًا — مجرد نسخ HTML، من غير توليد PDF ولا نافذة
+// جديدة)، وبعدين يختار "🖨️ طباعة" (تفتح نافذة طباعة النظام) أو "⬇️ PDF" (تحميل
+// مباشر) من نفس المكان.
+function doPrintPreview(title){
+  try{ showReportFromPrintOutput(title||'طباعة'); }catch(e){}
+}
+// التنفيذ الفعلي للطباعة (بينده لما تدوس "🖨️ طباعة" جوه مودال المعاينة) — بيستخدم
+// طباعة مباشرة وسريعة (نافذة طباعة نظام التشغيل الأصلية، بعدد النسخ المحفوظ) بدل
+// المسار القديم اللي كان بيولّد PDF كامل + يفتح نافذة معاينة جديدة (بطيء). لو
+// البرنامج شغال في متصفح عادي (كروم مثلاً)، نستخدم window.print() العادية.
+function executePrintNow(){
   // مهم جدًا: مستوى التكبير (Zoom) بيتطبّق كـ inline style مباشر على body (زي
   // document.body.style.zoom=1.1 مثلاً)، والـ inline style ده أولويته أعلى من أي
   // قاعدة CSS عادية — حتى قاعدة "@media print{body{zoom:1}}" الموجودة أصلاً. يعني
@@ -4505,7 +4516,6 @@ function _rawEmergencyAlert(text){
   }
 }
 document.addEventListener('DOMContentLoaded',()=>{try{applyZoom(getSavedZoom());}catch(e){}
-try{const _pci=$('print-copies-input');if(_pci)_pci.value=getSavedPrintCopies();}catch(e){}
 // === FALLBACK ضمان تشغيل زر الدخول + مفتاح Enter — حتى لو حصل نزع لـ onclick attribute من أي سبب ===
 try{
   const lb=document.querySelector('#login-screen button.login-btn')||document.querySelector('button.login-btn');
@@ -7446,18 +7456,25 @@ function printTaxStockBalance(){
   </div>`;
   showReportFromPrintOutput('الميزان الضريبي للأصناف');
 }
-// ======= معاينة التقارير: قراءة على الشاشة + طباعة عند الطلب + تنزيل Excel =======
+// ======= معاينة موحّدة (فواتير + إيصالات + تقارير): قراءة على الشاشة + طباعة عند =======
+// ======= الطلب + تنزيل PDF/Excel — نفس المودال ده بقى بيُستخدم من doPrintPreview() =======
+// ======= كمان (كل الفواتير)، مش التقارير بس زي ما كان قبل كده =======
 function showReportFromPrintOutput(name){
   window._rpName=name||'تقرير';
-  // اقفل أي مودال تاني مفتوح (زي شاشة المسحوبات) عشان التقرير يظهر فوق مش تحته
+  // اقفل أي مودال تاني مفتوح (زي شاشة المسحوبات) عشان التقرير/الفاتورة تظهر فوق مش تحته
   document.querySelectorAll('.mo.open').forEach(m=>{if(m.id!=='m-report-preview')m.classList.remove('open');});
   if($('rp-title'))$('rp-title').textContent='📄 '+window._rpName;
   if($('rp-body'))$('rp-body').innerHTML=$('print-output').innerHTML;
+  // زرار Excel مفيدش إلا لو فيه جدول فعلي — نخفيه لو مفيش (زي فواتير أ4 اللي مش جداول)
+  try{
+    const hasTable=!!($('print-output')&&$('print-output').querySelector('table'));
+    if($('rp-excel-btn'))$('rp-excel-btn').style.display=hasTable?'':'none';
+  }catch(e){}
+  try{const cpi=$('rp-copies-input');if(cpi)cpi.value=getSavedPrintCopies();}catch(e){}
   openM('m-report-preview');
 }
 function rpPrint(){
-  $('print-output').innerHTML=$('rp-body').innerHTML;
-  doPrintPreview();
+  executePrintNow();
 }
 function rpExcel(){
   const body=$('rp-body');if(!body)return;
