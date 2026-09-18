@@ -206,8 +206,10 @@ tr:hover td{background:#fafafa;}
 .login-box{background:white;border-radius:16px;padding:36px 40px;width:360px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.4);}
 .login-logo{text-align:center;margin-bottom:24px;} .login-logo h2{font-size:22px;color:#1a3a5c;font-weight:bold;margin-top:8px;} .login-logo p{font-size:12px;color:#888;margin-top:4px;}
 .login-field{margin-bottom:14px;} .login-field label{display:block;font-size:12px;color:#555;font-weight:bold;margin-bottom:5px;}
-.login-field input{width:100%;padding:10px 12px;border:1px solid #ccc;border-radius:7px;font-size:13px;font-family:Arial;direction:rtl;outline:none;}
-.login-field input:focus{border-color:#1a3a5c;}
+.login-field input,.login-field select{width:100%;padding:10px 12px;border:1px solid #ccc;border-radius:7px;font-size:13px;font-family:Arial;direction:rtl;outline:none;background:white;}
+.login-field input:focus,.login-field select:focus{border-color:#1a3a5c;}
+.login-remember{display:flex;align-items:center;gap:8px;justify-content:center;font-size:12px;color:#777;margin:2px 0 4px;cursor:pointer;user-select:none;}
+.login-remember input{width:15px;height:15px;cursor:pointer;}
 .login-btn{width:100%;padding:11px;background:#1a3a5c;color:white;border:none;border-radius:7px;font-size:14px;font-weight:bold;cursor:pointer;font-family:Arial;margin-top:6px;} .login-btn:hover{background:#0f2540;}
 .login-err{background:#ffebee;color:#c62828;border:1px solid #ef9a9a;border-radius:6px;padding:8px 12px;font-size:12px;margin-top:10px;display:none;text-align:center;}
 .settings-tabs{display:flex;border-bottom:2px solid #eee;margin-bottom:14px;} .stab{padding:8px 16px;font-size:12px;border:none;background:none;cursor:pointer;color:#666;border-bottom:3px solid transparent;font-family:Arial;} .stab.active{color:#1a3a5c;border-bottom-color:#1a3a5c;font-weight:bold;} .stab-content{display:none;} .stab-content.active{display:block;}
@@ -223,8 +225,9 @@ tr:hover td{background:#fafafa;}
 <div id="login-screen">
   <div class="login-box">
     <div class="login-logo"><div class="brand-logo-circle" id="login-logo-circle">ACT</div><h2 id="login-store-name">الشركة المتحدة للتجارة</h2><p id="login-branch-name">بيع وصيانة أجهزة كهربائية</p></div>
-    <div class="login-field"><label>اسم المستخدم</label><input id="login-user" type="text" placeholder="admin" autocomplete="off"/></div>
+    <div class="login-field"><label>المستخدم</label><select id="login-user"></select></div>
     <div class="login-field"><label>كلمة المرور</label><input id="login-pass" type="password" placeholder="كلمة المرور" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+    <label class="login-remember"><input type="checkbox" id="login-remember"/> حفظ بيانات تسجيل الدخول</label>
     <button class="login-btn" onclick="doLogin()">🔐 دخول</button>
     <div class="login-err" id="login-err">اسم المستخدم أو كلمة المرور غير صحيحة</div>
   </div>
@@ -10984,6 +10987,54 @@ function _loginClearFails(uname){
     if(all[uname]){ delete all[uname]; _loginFailsSave(all); }
   }catch(_e){}
 }
+// ======= اختيار المستخدم من قائمة + حفظ بيانات تسجيل الدخول =======
+// بدل ما المستخدم يكتب اسمه في كل مرة، بنملأ قائمة (select) بكل المستخدمين المسجّلين
+// (من loadUsers())، وبنسيبله اختيار "حفظ بيانات تسجيل الدخول" يخزّن اسم المستخدم وكلمة
+// المرور اللي كتبها محليًا (localStorage على جهازه بس) عشان يدخل بدوسة زرار واحدة المرة
+// الجاية. القيمة المحفوظة هي نفس كلمة المرور اللي كتبها (مش الهاش)، لأن checkPass محتاجة
+// النص الأصلي عشان تقارنه بالهاش وقت الدخول — القيمة دي بتتخزن على جهاز المستخدم بس، زي
+// باقي بيانات sz_* الموجودة بالفعل في localStorage.
+const LOGIN_REMEMBER_KEY='sz_remembered_login';
+function saveRememberedLogin(username,password){
+  try{ localStorage.setItem(LOGIN_REMEMBER_KEY,JSON.stringify({username,password})); }catch(_e){}
+}
+function clearRememberedLogin(){
+  try{ localStorage.removeItem(LOGIN_REMEMBER_KEY); }catch(_e){}
+}
+function getRememberedLogin(){
+  try{ return JSON.parse(localStorage.getItem(LOGIN_REMEMBER_KEY)||'null'); }catch(_e){ return null; }
+}
+function fillLoginUserOptions(){
+  const sel=$('login-user');
+  if(!sel)return;
+  let users=[];
+  try{ users=loadUsers()||[]; }catch(_e){ users=[]; }
+  if(!users.length){ try{ users=JSON.parse(JSON.stringify(DEFAULT_USERS)); }catch(_f){ users=[]; } }
+  const ROLE_LBL={admin:'مدير',user:'مستخدم'};
+  sel.innerHTML=users.map(u=>`<option value="${escapeHtml(u.username)}">${escapeHtml(u.name||u.username)} — ${escapeHtml(ROLE_LBL[u.role]||u.role||'مستخدم')}</option>`).join('');
+}
+// بتتنادى وقت أول تحميل للصفحة، وكل مرة تتفتح فيها شاشة الدخول تاني (بعد تسجيل خروج) —
+// بتملأ القائمة بأحدث المستخدمين، وبترجّع بيانات الدخول المحفوظة (لو موجودة ومتطابقة
+// مع مستخدم لسه موجود فعلاً في القائمة).
+function initLoginScreen(){
+  try{ fillLoginUserOptions(); }catch(_e){}
+  try{
+    const remembered=getRememberedLogin();
+    const sel=$('login-user');
+    if(remembered&&remembered.username&&sel&&Array.from(sel.options).some(o=>o.value===remembered.username)){
+      sel.value=remembered.username;
+      if($('login-pass'))$('login-pass').value=remembered.password||'';
+      if($('login-remember'))$('login-remember').checked=true;
+    }else{
+      if($('login-pass'))$('login-pass').value='';
+      if($('login-remember'))$('login-remember').checked=false;
+    }
+  }catch(_e2){}
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  try{ if(!document.body.classList.contains('tracking-mode'))initLoginScreen(); }catch(_e){}
+});
+
 async function doLogin(){
   // === تغليف حماية: أي خطأ غير متوقع في عملية الدخول بالكامل هيتعرض بوضوح على الشاشة
   // بدل ما يختفي بصمت (مشكلة كانت موجودة: أي استثناء جوه async function زي دي كان
@@ -11101,6 +11152,13 @@ async function _doLoginInner(){
   }catch(_eUp){ /* silent: password upgrade is optional */ }
   // === ٤) تعيين الحالة العالمية (الخطوات دي 100% لازم تنجح — منفصلة عن الستايل) ===
   CURRENT_USER=found;
+  // حفظ/مسح بيانات تسجيل الدخول المحلية حسب حالة تشييك "حفظ بيانات تسجيل الدخول" —
+  // بعد نجاح الدخول الفعلي بس (مش هنا لو الدخول محتاج تغيير كلمة سر إجباري، لأن الكود
+  // ده بيرجع من الدالة قبل ما يوصل هنا في حالة mustChangePass/isDefaultCreds فوق).
+  try{
+    if($('login-remember')&&$('login-remember').checked) saveRememberedLogin(uname,pass);
+    else clearRememberedLogin();
+  }catch(_remSave){}
   try{ CURRENT_BRANCH=found.branch||((DB.branches||[]).find(b=>b.isDefault)||{}).id||'BR-MAIN'; }catch(_eBr){ CURRENT_BRANCH='BR-MAIN'; }
   try{ setTimeout(checkDraftOnLogin,600); }catch(_dcCall){} // فحص أي مسودة محفوظة من جلسة سابقة اتقفلت فجأة
   try{ setTimeout(()=>{try{autoSnapshotTick();}catch(_e){}},3000); }catch(_asCall){} // نسخة احتياطية تلقائية صامتة (مرة كل يوم بس)
@@ -11192,7 +11250,7 @@ async function confirmPassChange(){
     await doLogin(); // أعادة استدعاء doLogin بعد تحديث البيانات (await ضروري دلوقتي بعد ما بقت async)
   }catch(_eRetry){try{location.reload();}catch(_eR){}}
 }
-function doLogout(){showDangerConfirm('تأكيد الخروج؟',()=>{CURRENT_USER=null;CURRENT_BRANCH=null;$('login-user').value='';$('login-pass').value='';$('login-err').style.display='none';$('login-screen').classList.remove('hidden');});}
+function doLogout(){showDangerConfirm('تأكيد الخروج؟',()=>{CURRENT_USER=null;CURRENT_BRANCH=null;try{initLoginScreen();}catch(_e){try{$('login-pass').value='';}catch(_f){}}$('login-err').style.display='none';$('login-screen').classList.remove('hidden');try{$('login-pass').focus();}catch(_g){}});}
 function canAccess(tab){if(!CURRENT_USER)return false;if(CURRENT_USER.role==='admin'||CURRENT_USER.perms.all)return true;return !!CURRENT_USER.perms[tab];}
 function applyUserPerms(){document.querySelectorAll('.ntab').forEach(btn=>{const fn=btn.getAttribute('onclick')||'';const m=fn.match(/showTab\('(\w+)'/);if(m&&m[1]!=='dash'){btn.style.display=canAccess(m[1])?'':'none';}});
   const isAdm=!!(CURRENT_USER&&CURRENT_USER.role==='admin');
