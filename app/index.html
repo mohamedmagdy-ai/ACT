@@ -274,7 +274,7 @@ tr:hover td{background:#fafafa;}
 
 <button class="ntab-group-header" onclick="toggleNavGroup('grp-inv',this)">📦 المخزون والمشتريات <span class="ntab-group-arrow">▾</span></button>
 <div class="ntab-group" id="grp-inv">
-  <button class="ntab ntab-sub" onclick="showTab('products',this)">🔌 المنتجات</button>
+  <button class="ntab ntab-sub" onclick="showTab('products',this)">🔌 المخزن</button>
   <button class="ntab ntab-sub" onclick="showTab('purch',this)">🚚 المشتريات</button>
 </div>
 
@@ -1722,6 +1722,14 @@ tr:hover td{background:#fafafa;}
 <div class="fg full" id="pr-price-suggestion" style="display:none;background:#f0f7ff;border:1px solid #90caf9;border-radius:6px;padding:8px 12px;font-size:12px;"></div>
 <div class="fg"><label>الكمية الحالية</label><input id="pr-qty" placeholder="0" type="number"/></div>
 <div class="fg"><label>حد التنبيه</label><input id="pr-alrt" type="number" value="5"/></div>
+<div class="fg full" style="background:#f0f7ff;border:1px solid #90caf9;border-radius:6px;padding:10px 12px;">
+  <label style="font-weight:bold;color:#1a3a5c;margin-bottom:8px;display:block;">🛒 المتجر الأونلاين</label>
+  <div class="fgrid" style="margin:0;">
+    <div class="fg"><label>💻 سعر أونلاين (اختياري)</label><input id="pr-online-price" placeholder="فاضي = نفس سعر البيع" type="number"/></div>
+    <div class="fg"><label>📦 حجم الشحن</label><select id="pr-ship-size"><option value="small">صغير</option><option value="medium">متوسط</option><option value="large">كبير</option></select></div>
+    <div class="fg" style="display:flex;align-items:end;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0;"><input type="checkbox" id="pr-online-visible" style="width:auto;"/> يظهر في المتجر الأونلاين</label></div>
+  </div>
+</div>
 <div class="fg full"><label>ملاحظات</label><input id="pr-notes" placeholder="..." type="text"/></div>
 </div>
 </div>
@@ -9247,6 +9255,9 @@ function openProdModal(editId){
     if($('pr-section'))$('pr-section').value=p.section||'devices';
     if($('pr-margin'))$('pr-margin').value='';
     if($('pr-price-suggestion'))$('pr-price-suggestion').style.display='none';
+    if($('pr-online-price'))$('pr-online-price').value=(p.onlinePrice!=null)?p.onlinePrice:'';
+    if($('pr-ship-size'))$('pr-ship-size').value=p.shipSize||'small';
+    if($('pr-online-visible'))$('pr-online-visible').checked=!!p.onlineVisible;
     const _bw=$('pr-buy')?$('pr-buy').closest('.fg'):null;if(_bw)_bw.style.display=(CURRENT_USER&&CURRENT_USER.role==='admin')?'':'none';
   } else {
     $('prod-modal-title').textContent='🔌 إضافة منتج جديد';
@@ -9254,6 +9265,9 @@ function openProdModal(editId){
     $('pr-sell').value=''; $('pr-qty').value=''; $('pr-alrt').value=5; $('pr-notes').value='';
     if($('pr-margin'))$('pr-margin').value='';
     if($('pr-price-suggestion'))$('pr-price-suggestion').style.display='none';
+    if($('pr-online-price'))$('pr-online-price').value='';
+    if($('pr-ship-size'))$('pr-ship-size').value='small';
+    if($('pr-online-visible'))$('pr-online-visible').checked=false;
     updateSubCats();
   }
   openM('m-prod');
@@ -14104,23 +14118,27 @@ function editProd(id){
   if(!canEditProducts()){toast('عرض بس — مفيش صلاحية تعديل المنتجات ⚠️','warn');return;}
   initProdCatSelect();const brands=[...new Set(DB.products.map(p=>p.brand).filter(Boolean))];const dl=$('brand-list');if(dl)dl.innerHTML=brands.map(b=>`<option value="${e(b)}">`).join('');
   $('pr-edit-id').value=id||'';
-  if(id){const p=DB.products.find(x=>x.id===id);if(!p)return;$('prod-modal-title').textContent='✏️ تعديل منتج';if($('pr-section'))$('pr-section').value=p.section||'devices';$('pr-nm').value=p.name;if($('pr-egs'))$('pr-egs').value=p.egs||'';$('pr-cat').value=p.cat||'';updateSubCats();if(p.subcat)$('pr-subcat').value=p.subcat;$('pr-brand').value=p.brand||'';$('pr-buy').value=p.buy||0;$('pr-sell').value=p.sell||0;$('pr-qty').value=getProdQty(p);$('pr-alrt').value=p.alert||5;$('pr-notes').value=p.notes||'';}
-  else{$('prod-modal-title').textContent='🔌 إضافة منتج';if($('pr-section'))$('pr-section').value='devices';if($('pr-egs'))$('pr-egs').value='';['pr-nm','pr-brand','pr-buy','pr-sell','pr-qty','pr-notes'].forEach(id=>$(id)&&($(id).value=''));$('pr-alrt')&&($('pr-alrt').value=5);updateSubCats();}
+  if(id){const p=DB.products.find(x=>x.id===id);if(!p)return;$('prod-modal-title').textContent='✏️ تعديل منتج';if($('pr-section'))$('pr-section').value=p.section||'devices';$('pr-nm').value=p.name;if($('pr-egs'))$('pr-egs').value=p.egs||'';$('pr-cat').value=p.cat||'';updateSubCats();if(p.subcat)$('pr-subcat').value=p.subcat;$('pr-brand').value=p.brand||'';$('pr-buy').value=p.buy||0;$('pr-sell').value=p.sell||0;$('pr-qty').value=getProdQty(p);$('pr-alrt').value=p.alert||5;$('pr-notes').value=p.notes||'';if($('pr-online-price'))$('pr-online-price').value=(p.onlinePrice!=null)?p.onlinePrice:'';if($('pr-ship-size'))$('pr-ship-size').value=p.shipSize||'small';if($('pr-online-visible'))$('pr-online-visible').checked=!!p.onlineVisible;}
+  else{$('prod-modal-title').textContent='🔌 إضافة منتج';if($('pr-section'))$('pr-section').value='devices';if($('pr-egs'))$('pr-egs').value='';['pr-nm','pr-brand','pr-buy','pr-sell','pr-qty','pr-notes'].forEach(id=>$(id)&&($(id).value=''));$('pr-alrt')&&($('pr-alrt').value=5);if($('pr-online-price'))$('pr-online-price').value='';if($('pr-ship-size'))$('pr-ship-size').value='small';if($('pr-online-visible'))$('pr-online-visible').checked=false;updateSubCats();}
   openM('m-prod');
 }
 function saveProd(){
   if(!canEditProducts()){toast('عرض بس — مفيش صلاحية تعديل المنتجات ⚠️','warn');return;}
   const nm=$('pr-nm').value.trim();if(!nm){toast('أدخل اسم المنتج','warn');return;}
   const editId=$('pr-edit-id').value,sec=$('pr-section')?$('pr-section').value:'devices',subcat=$('pr-subcat').value;
+  const _onlinePriceRaw=$('pr-online-price')?$('pr-online-price').value.trim():'';
+  const _onlinePrice=_onlinePriceRaw!==''?(parseFloat(_onlinePriceRaw)||0):null;
+  const _shipSize=$('pr-ship-size')?$('pr-ship-size').value:'small';
+  const _onlineVisible=$('pr-online-visible')?!!$('pr-online-visible').checked:false;
   if(editId){const p=DB.products.find(x=>x.id===editId);if(p){const _oldBuy=p.buy,_oldSell=p.sell;p.name=nm;if($('pr-egs'))p.egs=$('pr-egs').value.trim();p.cat=$('pr-cat').value;p.subcat=subcat||'';p.section=sec;p.brand=$('pr-brand').value;p.buy=(CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy;
-  if(_oldBuy!==p.buy||_oldSell!==(parseFloat($('pr-sell').value)||0))addLog('تعديل أسعار "'+nm+'": شراء '+_oldBuy+'→'+((CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy)+' | بيع '+_oldSell+'→'+(parseFloat($('pr-sell').value)||0));p.sell=parseFloat($('pr-sell').value)||0;setProdQty(p,parseFloat($('pr-qty').value)||0);p.alert=parseFloat($('pr-alrt').value)||5;p.notes=$('pr-notes').value;}saveDB();closeM('m-prod');renderProds();toast('✓ تم تحديث المنتج');}
+  if(_oldBuy!==p.buy||_oldSell!==(parseFloat($('pr-sell').value)||0))addLog('تعديل أسعار "'+nm+'": شراء '+_oldBuy+'→'+((CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy)+' | بيع '+_oldSell+'→'+(parseFloat($('pr-sell').value)||0));p.sell=parseFloat($('pr-sell').value)||0;setProdQty(p,parseFloat($('pr-qty').value)||0);p.alert=parseFloat($('pr-alrt').value)||5;p.notes=$('pr-notes').value;p.onlinePrice=_onlinePrice;p.shipSize=_shipSize;p.onlineVisible=_onlineVisible;}saveDB();closeM('m-prod');renderProds();toast('✓ تم تحديث المنتج');}
   else{
     // توليد ID فريد بصيغة PRD-D (أجهزة) أو PRD-P (قطع غيار) لمنع التضارب مع الأصناف الموجودة
     const prefix=sec==='parts'?'PRD-P':'PRD-D';
     const newId=nextFreeId(prefix,'products',3);
     if($('prod-search'))$('prod-search').value='';
     const _newQty=parseFloat($('pr-qty').value)||0;
-    const _newProd={id:newId,name:nm,egs:($('pr-egs')?$('pr-egs').value.trim():''),cat:$('pr-cat').value,subcat:subcat||'',section:sec,brand:$('pr-brand').value,buy:parseFloat($('pr-buy').value)||0,sell:parseFloat($('pr-sell').value)||0,qty:_newQty,qtyByBranch:{[activeBranchKey()]:_newQty},alert:parseFloat($('pr-alrt').value)||5,notes:$('pr-notes').value};
+    const _newProd={id:newId,name:nm,egs:($('pr-egs')?$('pr-egs').value.trim():''),cat:$('pr-cat').value,subcat:subcat||'',section:sec,brand:$('pr-brand').value,buy:parseFloat($('pr-buy').value)||0,sell:parseFloat($('pr-sell').value)||0,qty:_newQty,qtyByBranch:{[activeBranchKey()]:_newQty},alert:parseFloat($('pr-alrt').value)||5,notes:$('pr-notes').value,onlinePrice:_onlinePrice,shipSize:_shipSize,onlineVisible:_onlineVisible};
     DB.products.unshift(_newProd);
     saveDB();closeM('m-prod');renderProds();toast('✓ تم إضافة المنتج');
   }
