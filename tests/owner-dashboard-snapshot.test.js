@@ -1,16 +1,18 @@
 // ======= اختبار: ملخص "لوحة متابعة المالك" على الموبايل (buildOwnerDashboardSnapshot) =======
 // أول تجربة لفكرة "صاحب المحل يشوف الوضع من على الموبايل": البرنامج بيحسب ملخص صغير
-// (مبيعات النهارده كاش/فيزا/آجل، الخزنة، النواقص، الفواتير الآجلة، واتساب المعلّق)
-// ويكتبه في مستند Firestore منفصل (sz_data/_dashboard) — صفحة الموبايل هتقرا المستند
-// ده بس، مش كل بيانات المحل. الاختبار ده بيتأكد إن الحساب صح، وإن الكتابة لـFirestore
-// بتحصل صح ومحدودة (مش كل مرة تتعمل فيها أي حفظة صغيرة في البرنامج).
+// (مبيعات النهارده كاش/فيزا/آجل، الخزنة، النواقص، الفواتير الآجلة، واتساب المعلّق، وبعد
+// طلب المستخدم زوّدناه بتقرير شامل مختصر للشهر (زي شاشة "📊 التقارير")، مصروفات الشهر،
+// مسحوباتي، وملخص الموظفين (HR)) ويكتبه في مستند Firestore منفصل (sz_data/_dashboard) —
+// صفحة الموبايل هتقرا المستند ده بس، مش كل بيانات المحل. الاختبار ده بيتأكد إن الحساب
+// صح، وإن الكتابة لـFirestore بتحصل صح ومحدودة (مش كل مرة تتعمل فيها أي حفظة صغيرة).
 const { openApp, TestReporter } = require('./helpers');
 
 (async () => {
   const r = new TestReporter('owner-dashboard-snapshot');
   const { browser, page, pageErrors } = await openApp();
 
-  // ===== تجهيز: بيانات معروفة (مبيعات كاش وفيزا وآجل، صنف بمخزون منخفض، رسالة واتساب معلّقة) =====
+  // ===== تجهيز: بيانات معروفة (مبيعات، صنف منخفض، واتساب معلّق، مشتريات آجلة، مصروفات،
+  // مسحوبات، موظفين) — عشان نغطي كل بنود الملخص الجديدة زي ما طلب المستخدم =====
   const seed = await page.evaluate(() => {
     localStorage.setItem('sz_store_cfg', JSON.stringify({ name: 'محل الاختبار' }));
     DB.products = [{ id: 'PRD-1', name: 'صنف منخفض', qty: 2, alert: 5, buy: 10, sell: 20 }];
@@ -21,9 +23,20 @@ const { openApp, TestReporter } = require('./helpers');
     ];
     DB.maintInvoices = [];
     DB.taxInvoices = [];
-    DB.purchases = [];
-    DB.expenses = [];
-    DB.withdrawals = [];
+    DB.payments = [];
+    DB.purchases = [{ id: 'PUR-1', date: todayStr, supplier: 'مورد ١', total: 400, payment: 'آجل' }];
+    DB.expenses = [
+      { id: 'EXP-1', date: todayStr, type: 'إيجار', amount: 1000, payment: 'كاش' },
+      { id: 'EXP-2', date: todayStr, type: 'كهرباء وماء', amount: 300, payment: 'كاش' },
+    ];
+    DB.withdrawals = [
+      { id: 'WD-1', date: todayStr, amount: 200, partner: 'الشريك أ', type: 'withdraw' },
+      { id: 'WD-2', date: todayStr, amount: 100, partner: 'الشريك أ', type: 'deposit' },
+    ];
+    DB.employees = [
+      { id: 'EMP-1', name: 'موظف نشط', status: 'active', salary: 3000, leaveRequests: [{ type: 'unpaid', settled: false }] },
+      { id: 'EMP-2', name: 'موظف متوقف', status: 'inactive', salary: 2000, leaveRequests: [] },
+    ];
     DB.receipts = [];
     DB.workOrders = [];
     DB.openingBalances = [];
@@ -48,6 +61,29 @@ const { openApp, TestReporter } = require('./helpers');
   r.eq('عدد الفواتير الآجلة المستحقة = 1', snap.deferredCount, 1);
   r.eq('عدد رسائل الواتساب المعلّقة = 1', snap.pendingWhatsappCount, 1);
   r.ok('فيه بصمة وقت (updatedAt)', typeof snap.updatedAt === 'number' && snap.updatedAt > 0);
+
+  // ===== ١.أ) التقرير الشامل للشهر (monthReport) — نفس منطق شاشة "📊 التقارير" =====
+  r.ok('فيه monthReport', !!snap.monthReport);
+  r.eq('إيراد الشهر = 950 (300+150+500)', snap.monthReport.revenue, 950);
+  r.eq('مستحق عليا (مشتريات آجلة) = 400', snap.monthReport.debtOnMe, 400);
+  r.eq('مستحق ليا في monthReport = نفس deferredTotal (500)', snap.monthReport.debtToMe, snap.deferredTotal);
+  r.ok('فيه رقم ربح (موجب أو سالب)', typeof snap.monthReport.profit === 'number');
+  r.ok('فيه رقم سيولة', typeof snap.monthReport.liquidityNet === 'number');
+
+  // ===== ١.ب) مصروفات الشهر (expensesMonth) =====
+  r.eq('إجمالي مصروفات الشهر = 1300 (1000+300)', snap.expensesMonth.total, 1300);
+  r.eq('أكبر بند مصروف = إيجار بقيمة 1000', snap.expensesMonth.byType[0].type, 'إيجار');
+  r.eq('قيمة بند الإيجار = 1000', snap.expensesMonth.byType[0].amount, 1000);
+
+  // ===== ١.ج) مسحوباتي الشهر (withdrawalsMonth) — الإيداع لا يُحسب ضمن إجمالي السحب =====
+  r.eq('إجمالي مسحوبات الشهر = 200 (الإيداع مش محسوب)', snap.withdrawalsMonth.total, 200);
+  r.eq('آخر الحركات فيها السحب والإيداع مع بعض (2 حركة)', snap.withdrawalsMonth.recent.length, 2);
+
+  // ===== ١.د) ملخص الموظفين (hr) =====
+  r.eq('عدد الموظفين = 2', snap.hr.employeesCount, 2);
+  r.eq('عدد النشطين = 1', snap.hr.activeCount, 1);
+  r.eq('إجمالي رواتب الشهر (نشطين بس) = 3000', snap.hr.monthlySalariesTotal, 3000);
+  r.eq('عدد الإجازات بدون أجر المعلّقة = 1', snap.hr.pendingUnpaidLeaves, 1);
 
   // ===== ٢) لا يوجد صنف تحت حد التنبيه = 0 ومفيش قايمة =====
   const t2 = await page.evaluate(() => {
@@ -74,6 +110,7 @@ const { openApp, TestReporter } = require('./helpers');
   r.eq('عملية كتابة واحدة اتسجّلت', t3.length, 1);
   r.eq('اتكتبت في مستند "_dashboard" بالظبط', t3[0] && t3[0].id, '_dashboard');
   r.ok('البيانات المكتوبة فيها todaySales', !!(t3[0] && t3[0].data && t3[0].data.todaySales));
+  r.ok('البيانات المكتوبة فيها monthReport/expensesMonth/withdrawalsMonth/hr', !!(t3[0] && t3[0].data && t3[0].data.monthReport && t3[0].data.expensesMonth && t3[0].data.withdrawalsMonth && t3[0].data.hr));
 
   // ===== ٤) التحديد الزمني: نداءين متتاليين سريعين = كتابة فورية واحدة بس (التانية بتتأجل) =====
   const t4 = await page.evaluate(() => {

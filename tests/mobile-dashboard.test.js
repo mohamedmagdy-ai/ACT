@@ -66,6 +66,32 @@ function normDigits(s) {
   });
   r.ok('محاولة الحفظ من غير بيانات = رسالة تنبيه واضحة', t3.visible && t3.text.includes('املا'));
 
+  // ===== ٣.أ) إصلاح باج فعلي حصل مع المستخدم: لو مكتبة Firebase ما اتحمّلتش (زي لما
+  // الصفحة بتتفتح جوه تطبيق تاني بدل المتصفح نفسه)، الشاشة كانت بتفضل "بيتم الاتصال..."
+  // للأبد من غير أي رسالة. هنا في بيئة الاختبار السكريبتات الخارجية (gstatic.com) ممنوعة
+  // فعليًا (page.route بيرفض أي حاجة مش file://)، يعني firebase فعلاً undefined — بنتأكد
+  // إن الصفحة بتكتشف ده فورًا وتوري رسالة خطأ واضحة بدل ما تفضل عالقة على شاشة التحميل =====
+  const t3b = await page.evaluate(() => {
+    document.getElementById('in-apiKey').value = 'dummy-key';
+    document.getElementById('in-projectId').value = 'dummy-project';
+    document.getElementById('in-authDomain').value = 'dummy.firebaseapp.com';
+    document.getElementById('in-storageBucket').value = 'dummy.appspot.com';
+    document.getElementById('in-messagingSenderId').value = '123';
+    document.getElementById('in-appId').value = '1:123:web:abc';
+    document.getElementById('in-email').value = 'owner@example.com';
+    document.getElementById('in-pass').value = 'password123';
+    document.getElementById('setup-save-btn').click();
+    return new Promise((resolve) => setTimeout(() => {
+      resolve({
+        stuckOnLoading: !document.getElementById('loading-screen').hidden,
+        errVisible: !document.getElementById('setup-err').hidden,
+        errText: document.getElementById('setup-err').textContent,
+      });
+    }, 300));
+  });
+  r.ok('مكتبة Firebase مش محمّلة = مش فاضل واقف على شاشة "بيتم الاتصال" للأبد', !t3b.stuckOnLoading);
+  r.ok('بدل الشاشة العالقة، ظهرت رسالة خطأ واضحة تشرح المشكلة', t3b.errVisible && (t3b.errText.includes('Firebase') || t3b.errText.includes('مكتبة')));
+
   // ===== ٤) دالة render() بترسم بيانات صحيحة صح (بمعزل عن أي اتصال Firebase حقيقي) =====
   const t4 = await page.evaluate(() => {
     render({
@@ -79,6 +105,10 @@ function normDigits(s) {
       deferredTotal: 500,
       deferredCount: 1,
       pendingWhatsappCount: 2,
+      monthReport: { revenue: 9000, cost: 4000, profit: 5000, purchases: 1000, expenses: 1300, debtToMe: 500, debtOnMe: 400, liquidityNet: 3200 },
+      expensesMonth: { total: 1300, byType: [{ type: 'إيجار', amount: 1000 }, { type: 'كهرباء وماء', amount: 300 }] },
+      withdrawalsMonth: { total: 200, recent: [{ date: '2026-09-01', partner: 'الشريك أ', amount: 200, type: 'سحب' }] },
+      hr: { employeesCount: 2, activeCount: 1, monthlySalariesTotal: 3000, pendingUnpaidLeaves: 1 },
     });
     return {
       shopName: document.getElementById('dash-shop-name').textContent,
@@ -92,6 +122,17 @@ function normDigits(s) {
       lowStockHtml: document.getElementById('lowstock-list').innerHTML,
       deferredBadge: document.getElementById('deferred-badge').textContent,
       waBadge: document.getElementById('wa-badge').textContent,
+      rpProfit: document.getElementById('rp-profit').textContent,
+      rpRevenue: document.getElementById('rp-revenue').textContent,
+      rpDebtOnMe: document.getElementById('rp-debt-on-me').textContent,
+      expBadge: document.getElementById('exp-badge').textContent,
+      expHtml: document.getElementById('exp-list').innerHTML,
+      wdBadge: document.getElementById('wd-badge').textContent,
+      wdHtml: document.getElementById('wd-list').innerHTML,
+      hrCount: document.getElementById('hr-count').textContent,
+      hrActive: document.getElementById('hr-active').textContent,
+      hrSalaries: document.getElementById('hr-salaries').textContent,
+      hrLeavesHtml: document.getElementById('hr-leaves-box').innerHTML,
     };
   });
   r.eq('اسم المحل اترسم صح', t4.shopName, 'محل الاختبار');
@@ -105,19 +146,40 @@ function normDigits(s) {
   r.ok('اسم الصنف المنخفض ظاهر في القايمة', t4.lowStockHtml.includes('صنف منخفض'));
   r.eq('عداد الفواتير الآجلة = 1', t4.deferredBadge, '1');
   r.eq('عداد واتساب المعلّق = 2', t4.waBadge, '2');
+  // === التقرير الشامل / المصروفات / المسحوبات / HR — الميزات الجديدة اللي طلبها المستخدم ===
+  r.eq('صافي الربح في التقرير الشامل ظاهر صح', normDigits(t4.rpProfit), '5000.00 ج');
+  r.eq('إجمالي الإيراد ظاهر صح', normDigits(t4.rpRevenue), '9000.00 ج');
+  r.eq('مستحق عليا (موردين) ظاهر صح', normDigits(t4.rpDebtOnMe), '400.00 ج');
+  r.eq('عداد مصروفات الشهر = 1300.00', normDigits(t4.expBadge), '1300.00');
+  r.ok('أكبر بند مصروف (إيجار) ظاهر في القايمة', t4.expHtml.includes('إيجار'));
+  r.eq('عداد مسحوبات الشهر = 200.00', normDigits(t4.wdBadge), '200.00');
+  r.ok('حركة السحب الأخيرة ظاهرة في القايمة', t4.wdHtml.includes('الشريك أ'));
+  r.eq('عدد الموظفين = 2', t4.hrCount, '2');
+  r.eq('عدد الموظفين النشطين = 1', t4.hrActive, '1');
+  r.eq('إجمالي رواتب الشهر ظاهر صح', normDigits(t4.hrSalaries), '3000.00');
+  r.ok('عدد الإجازات بدون أجر المعلّقة ظاهر', t4.hrLeavesHtml.includes('1'));
 
-  // ===== ٥) لا يوجد صنف تحت الحد = رسالة "المخزون تمام" بدل جدول فاضي =====
+  // ===== ٥) لا يوجد صنف تحت الحد = رسالة "المخزون تمام" بدل جدول فاضي (وكذلك حالة عدم وجود مصروفات/مسحوبات/إجازات معلّقة) =====
   const t5 = await page.evaluate(() => {
-    render({ shopName: 'محل الاختبار', todaySales: {}, lowStockCount: 0, lowStockItems: [], deferredCount: 0, pendingWhatsappCount: 0 });
+    render({
+      shopName: 'محل الاختبار', todaySales: {}, lowStockCount: 0, lowStockItems: [], deferredCount: 0, pendingWhatsappCount: 0,
+      expensesMonth: { total: 0, byType: [] }, withdrawalsMonth: { total: 0, recent: [] }, hr: { employeesCount: 0, activeCount: 0, monthlySalariesTotal: 0, pendingUnpaidLeaves: 0 },
+    });
     return {
       lowStockHtml: document.getElementById('lowstock-list').innerHTML,
       deferredHtml: document.getElementById('deferred-box').innerHTML,
       waHtml: document.getElementById('wa-box').innerHTML,
+      expHtml: document.getElementById('exp-list').innerHTML,
+      wdHtml: document.getElementById('wd-list').innerHTML,
+      hrLeavesHtml: document.getElementById('hr-leaves-box').innerHTML,
     };
   });
   r.ok('مفيش نواقص = رسالة "المخزون تمام"', t5.lowStockHtml.includes('تمام'));
   r.ok('مفيش فواتير آجلة = رسالة إيجابية', t5.deferredHtml.includes('✅'));
   r.ok('مفيش واتساب معلّق = رسالة إيجابية', t5.waHtml.includes('✅'));
+  r.ok('مفيش مصروفات = رسالة إيجابية', t5.expHtml.includes('✅'));
+  r.ok('مفيش مسحوبات = رسالة إيجابية', t5.wdHtml.includes('✅'));
+  r.ok('مفيش إجازات بدون أجر معلّقة = رسالة إيجابية', t5.hrLeavesHtml.includes('✅'));
 
   // ===== ٦) esc() بتمنع XSS من اسم صنف خبيث =====
   const t6 = await page.evaluate(() => {

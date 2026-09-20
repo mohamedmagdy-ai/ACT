@@ -205,6 +205,16 @@
     </div>
 
     <div class="card">
+      <div class="section-title">📊 التقرير الشامل — الشهر الحالي</div>
+      <div class="row"><div class="name">صافي الربح</div><div class="amt num" id="rp-profit">0</div></div>
+      <div class="row"><div class="name">إجمالي الإيراد</div><div class="amt num" id="rp-revenue">0</div></div>
+      <div class="row"><div class="name">إجمالي التكلفة</div><div class="amt num" id="rp-cost">0</div></div>
+      <div class="row"><div class="name">مستحق ليا (عملاء)</div><div class="amt num" id="rp-debt-to-me" style="color:var(--good);">0</div></div>
+      <div class="row"><div class="name">مستحق عليا (موردين)</div><div class="amt num" id="rp-debt-on-me" style="color:var(--bad);">0</div></div>
+      <div class="row"><div class="name">السيولة (محصّل − مدفوع)</div><div class="amt num" id="rp-liquidity">0</div></div>
+    </div>
+
+    <div class="card">
       <div class="section-title">⚠️ أصناف محتاجة شراء <span class="badge warn num" id="lowstock-badge">0</span></div>
       <div id="lowstock-list"></div>
     </div>
@@ -212,6 +222,26 @@
     <div class="card">
       <div class="section-title">🧾 فواتير آجلة مستحقة <span class="badge bad num" id="deferred-badge">0</span></div>
       <div id="deferred-box"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">💸 مصروفات الشهر <span class="badge bad num" id="exp-badge">0</span></div>
+      <div id="exp-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">🤲 مسحوباتي (الشهر) <span class="badge warn num" id="wd-badge">0</span></div>
+      <div id="wd-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">👥 الموظفين (HR)</div>
+      <div class="hero-grid" style="margin-top:0;">
+        <div class="hero-tile" style="background:var(--surface-2);border-color:var(--line);color:var(--ink);"><div class="lbl" style="color:var(--muted);">👥 العدد</div><div class="val num" id="hr-count" style="color:var(--ink);">0</div></div>
+        <div class="hero-tile" style="background:var(--surface-2);border-color:var(--line);color:var(--ink);"><div class="lbl" style="color:var(--muted);">✅ نشطين</div><div class="val num" id="hr-active" style="color:var(--ink);">0</div></div>
+        <div class="hero-tile" style="background:var(--surface-2);border-color:var(--line);color:var(--ink);"><div class="lbl" style="color:var(--muted);">💵 رواتب الشهر</div><div class="val num" id="hr-salaries" style="color:var(--ink);">0</div></div>
+      </div>
+      <div id="hr-leaves-box" style="margin-top:10px;"></div>
     </div>
 
     <div class="card">
@@ -278,26 +308,47 @@
     return { firebase:firebase_cfg, email:$('in-email').value.trim(), pass:$('in-pass').value };
   }
 
-  var app=null, db=null, unsub=null;
+  var app=null, db=null, unsub=null, _connectTimer=null;
 
+  // إصلاح: لو حصل أي خطأ غير متوقع (زي إن مكتبة Firebase ما اتحمّلتش خالص — بيحصل لو
+  // الصفحة اتفتحت من جوه تطبيق تاني (واتساب/درايف) بدل ما تتفتح فعليًا من Chrome/Safari
+  // نفسهم)، كانت الشاشة بتفضل "بيتم الاتصال..." للأبد من غير أي رسالة خطأ. دلوقتي:
+  // ١) الاتصال كله جوه try/catch شامل. ٢) مؤقّت ٢٠ ثانية — لو لسه واقف على شاشة التحميل
+  // لحد ما يخلص، نوريه رسالة واضحة بدل ما يفضل يستنى للأبد.
   function connectAndStart(cfg){
     showScreen('loading');
+    if(_connectTimer)clearTimeout(_connectTimer);
+    _connectTimer=setTimeout(function(){
+      fail('الاتصال طوّل أكتر من اللازم. لو فتحت الصفحة من جوه واتساب أو تطبيق تاني، جرّب تفتحها من المتصفح نفسه (Chrome أو Safari) مباشرة بدل الفتح من جوه التطبيق، وتأكد إن الموبايل متصل بالإنترنت.');
+    },20000);
     try{
-      if(!app){ app=firebase.initializeApp(cfg.firebase); }
-      db=firebase.firestore();
-    }catch(e){
-      // ممكن يكون firebase.initializeApp اتنادت قبل كده (زي لو رجعنا من شاشة الإعدادات) — نتجاهل
-      try{ db=firebase.firestore(); }catch(e2){ return fail('تعذّر الاتصال ببيانات Firebase — راجع البيانات وجرّب تاني.'); }
+      if(typeof firebase==='undefined'){
+        clearTimeout(_connectTimer);
+        return fail('تعذّر تحميل مكتبة Firebase — تأكد إن الموبايل متصل بالإنترنت، وإنك فاتح الصفحة من المتصفح نفسه (Chrome أو Safari) مش من جوه تطبيق تاني زي واتساب.');
+      }
+      try{
+        if(!app){ app=firebase.initializeApp(cfg.firebase); }
+        db=firebase.firestore();
+      }catch(e){
+        // ممكن يكون firebase.initializeApp اتنادت قبل كده (زي لو رجعنا من شاشة الإعدادات) — نتجاهل
+        try{ db=firebase.firestore(); }catch(e2){ clearTimeout(_connectTimer); return fail('تعذّر الاتصال ببيانات Firebase — راجع البيانات وجرّب تاني.'); }
+      }
+      firebase.auth().signInWithEmailAndPassword(cfg.email, cfg.pass).then(function(){
+        clearTimeout(_connectTimer);
+        showScreen('dash');
+        startListening();
+      }).catch(function(err){
+        clearTimeout(_connectTimer);
+        fail('فشل الدخول: '+(err&&err.message?err.message:'تأكد من الإيميل وكلمة السر'));
+      });
+    }catch(eOuter){
+      clearTimeout(_connectTimer);
+      fail('حصل خطأ غير متوقع أثناء الاتصال: '+(eOuter&&eOuter.message?eOuter.message:'جرّب تاني')+'. لو المشكلة استمرت، جرّب تفتح الصفحة من المتصفح نفسه مباشرة.');
     }
-    firebase.auth().signInWithEmailAndPassword(cfg.email, cfg.pass).then(function(){
-      showScreen('dash');
-      startListening();
-    }).catch(function(err){
-      fail('فشل الدخول: '+(err&&err.message?err.message:'تأكد من الإيميل وكلمة السر'));
-    });
   }
 
   function fail(msg){
+    if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
     showScreen('setup');
     var box=$('setup-err');
     box.hidden=false;
@@ -361,6 +412,45 @@
     $('wa-box').innerHTML = waCount>0
       ? '<div class="row"><div class="name">رسائل لسه محتاجة تتبعت</div><div class="amt" style="color:var(--warn);">'+waCount+'</div></div>'
       : '<div class="empty">✅ مفيش رسائل معلّقة</div>';
+
+    // ===== التقرير الشامل (الشهر) =====
+    var rp=d.monthReport||{};
+    var profitColor=(rp.profit||0)>=0?'var(--good)':'var(--bad)';
+    $('rp-profit').textContent=fmtN(rp.profit||0)+' ج';
+    $('rp-profit').style.color=profitColor;
+    $('rp-revenue').textContent=fmtN(rp.revenue||0)+' ج';
+    $('rp-cost').textContent=fmtN(rp.cost||0)+' ج';
+    $('rp-debt-to-me').textContent=fmtN(rp.debtToMe||0)+' ج';
+    $('rp-debt-on-me').textContent=fmtN(rp.debtOnMe||0)+' ج';
+    var liqColor=(rp.liquidityNet||0)>=0?'var(--good)':'var(--bad)';
+    $('rp-liquidity').textContent=fmtN(rp.liquidityNet||0)+' ج';
+    $('rp-liquidity').style.color=liqColor;
+
+    // ===== مصروفات الشهر =====
+    var expM=d.expensesMonth||{total:0,byType:[]};
+    $('exp-badge').textContent=fmtN(expM.total||0);
+    var expTypes=expM.byType||[];
+    $('exp-list').innerHTML = expTypes.length ? expTypes.map(function(x){
+      return '<div class="row"><div class="name">'+esc(x.type)+'</div><div class="amt" style="color:var(--bad);">'+fmtN(x.amount)+' ج</div></div>';
+    }).join('') : '<div class="empty">✅ مفيش مصروفات مسجّلة الشهر ده</div>';
+
+    // ===== مسحوباتي (الشهر) =====
+    var wdM=d.withdrawalsMonth||{total:0,recent:[]};
+    $('wd-badge').textContent=fmtN(wdM.total||0);
+    var wdRecent=wdM.recent||[];
+    $('wd-list').innerHTML = wdRecent.length ? wdRecent.map(function(w){
+      return '<div class="row"><div><div class="name">'+esc(w.type||'سحب')+(w.partner?' — '+esc(w.partner):'')+'</div><div class="sub">'+esc(w.date||'')+'</div></div><div class="amt" style="color:'+(w.type==='إيداع'?'var(--good)':'var(--warn)')+';">'+fmtN(w.amount)+' ج</div></div>';
+    }).join('') : '<div class="empty">✅ مفيش مسحوبات مسجّلة</div>';
+
+    // ===== الموظفين (HR) =====
+    var hr=d.hr||{};
+    $('hr-count').textContent=String(hr.employeesCount||0);
+    $('hr-active').textContent=String(hr.activeCount||0);
+    $('hr-salaries').textContent=fmtN(hr.monthlySalariesTotal||0);
+    var pendingLv=hr.pendingUnpaidLeaves||0;
+    $('hr-leaves-box').innerHTML = pendingLv>0
+      ? '<div class="row"><div class="name">إجازات بدون أجر لسه معلّقة (لسه ما اتخصمتش من راتب)</div><div class="amt" style="color:var(--warn);">'+pendingLv+'</div></div>'
+      : '<div class="empty">✅ مفيش إجازات بدون أجر معلّقة</div>';
 
     if(d.updatedAt){
       var mins=Math.round((Date.now()-d.updatedAt)/60000);

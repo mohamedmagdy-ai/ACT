@@ -11217,6 +11217,10 @@ async function _doLoginInner(){
     try{ if(typeof renderDash==='function')renderDash(); }catch(_e6){ /* Chart.js CDN غالبًا ما يسبب هنا لو لم يحمل بعد — هيسجل كـ warning بس مش حاجة توقف الدخول */ try{ logger.warn('renderDash skipped (probably Chart.js CDN pending):',_e6&&_e6.message);}catch(_sink){} }
     try{ if(typeof renderMaintInvStats==='function')renderMaintInvStats(); }catch(_e7){}
     try{ if(typeof renderMaintInvs==='function')renderMaintInvs(); }catch(_e8){}
+    // إصلاح: "لوحة متابعة المحل" على الموبايل كانت بتفضل من غير بيانات لحد ما تحصل أول
+    // حفظة (saveDB) بعد الدخول — دلوقتي بندفع أول نسخة من الملخص فور تسجيل الدخول كمان،
+    // مش بس عند كل حفظة، عشان الأرقام تظهر على طول من غير ما ينتظر أي عملية جديدة
+    try{ if(typeof pushOwnerDashboardSnapshot==='function')pushOwnerDashboardSnapshot(); }catch(_e8b){}
     try{ if(typeof addLog==='function')addLog('دخول المستخدم: '+(found.name||found.username||'')+' ('+uname+')'); }catch(_e9){}
     // === ٧.أ) تنبيهات انتهاء الضمان والولاء (الميزات الجديدة) ===
     try{if(typeof _checkWarrantyExpirySoon==='function')_checkWarrantyExpirySoon();}catch(_we){}
@@ -18301,17 +18305,47 @@ function buildOwnerDashboardSnapshot(){
     const debtToMe=[...DB.sales,...(DB.taxInvoices||[]).filter(t=>t.taxType==='sale')].filter(x=>isDeferredInv(x)&&isMyBranch(x)).reduce((a,s)=>a+getRemain('sale',s.id,s.total||0),0)+
       [...(DB.maintInvoices||[]).filter(m=>m.exit!=='warranty'),...(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&t.exit!=='warranty')].filter(x=>isDeferredInv(x)&&isMyBranch(x)).reduce((a,m)=>a+getRemain('maint',m.id,(m.cost||m.total||0)),0);
     const pendingWa=(DB.pendingWhatsapp||[]).filter(m=>!m.sent&&!m.dismissed).length;
+    const rnd=n=>Math.round((n||0)*100)/100;
+    // === تقرير شامل مختصر للشهر الحالي (نفس منطق شاشة "📊 التقارير" — صافي الربح،
+    // الإيراد، التكلفة، مستحق ليا/عليا، السيولة) — عشان صاحب المحل يشوف نفس الأرقام من الموبايل ===
+    const debtOnMe=DB.purchases.filter(p=>isDeferredInv(p)&&isMyBranch(p)).reduce((s,p)=>s+getRemain('purch',p.id,p.total||0),0);
+    // === مصروفات الشهر — إجمالي + أكبر ٦ بنود (نفس فلتر calcT: بدون توريد الضريبة/التحويلات الداخلية/العهدة) ===
+    const expRowsM=DB.expenses.filter(r=>isM(r.date)&&isMyBranch(r)&&r.type!=='🏛 توريد ضريبة ق.م'&&r.type!=='تحويل بين الحسابات'&&!r.pendingCustody&&!r.excludedAsInventoryPurchase);
+    const expByType={};expRowsM.forEach(r=>{const t=r.type||'أخرى';expByType[t]=(expByType[t]||0)+(r.amount||0);});
+    const expTop=Object.entries(expByType).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([type,amount])=>({type,amount:rnd(amount)}));
+    const expensesMonthTotal=expRowsM.reduce((s,r)=>s+(r.amount||0),0);
+    // === مسحوباتي (المسحوبات الشخصية) — إجمالي الشهر + آخر ٥ حركات (كل الفروع، زي شاشة الخزنة) ===
+    const wdMonthRows=(DB.withdrawals||[]).filter(w=>isM(w.date)&&w.type!=='deposit');
+    const wdMonthTotal=wdMonthRows.reduce((s,w)=>s+(w.amount||0),0);
+    const wdRecent=(DB.withdrawals||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5).map(w=>({date:w.date||'',partner:w.partner||'',amount:rnd(w.amount||0),type:w.type==='deposit'?'إيداع':'سحب'}));
+    // === الموظفين (HR) — عدد، نشطين، إجمالي الرواتب الشهرية، إجازات بدون أجر لسه معلّقة (مخصومتش من راتب بعد) ===
+    const empActive=(DB.employees||[]).filter(e=>e.status==='active');
+    const monthlySalariesTotal=empActive.reduce((s,e)=>s+(e.salary||0),0);
+    const pendingUnpaidLeaves=(DB.employees||[]).reduce((s,e)=>s+((e.leaveRequests||[]).filter(r=>r.type==='unpaid'&&!r.settled).length),0);
     return {
       shopName:(getStoreCfg().name)||'المحل',
       updatedAt:Date.now(),
-      todaySales:{cash:Math.round(todayCash*100)/100,visa:Math.round(todayVisa*100)/100,credit:Math.round(todayCreditTotal*100)/100,count:todayInvCount},
-      monthSalesTotal:Math.round((tm.sm+tm.mm)*100)/100,
-      cashNow:Math.round(cashNow*100)/100,
+      todaySales:{cash:rnd(todayCash),visa:rnd(todayVisa),credit:rnd(todayCreditTotal),count:todayInvCount},
+      monthSalesTotal:rnd(tm.sm+tm.mm),
+      cashNow:rnd(cashNow),
       lowStockCount:lowStock.length,
       lowStockItems:lowStock.slice(0,15).map(p=>({name:p.name,qty:p.qty||0,alert:p.alert||0})),
-      deferredTotal:Math.round(debtToMe*100)/100,
+      deferredTotal:rnd(debtToMe),
       deferredCount:deferredSalesCount+deferredMaintCount,
       pendingWhatsappCount:pendingWa,
+      monthReport:{
+        revenue:rnd(tm.rev),
+        cost:rnd(tm.cost),
+        profit:rnd(tm.profit),
+        purchases:rnd(tm.pm),
+        expenses:rnd(tm.em),
+        debtToMe:rnd(debtToMe),
+        debtOnMe:rnd(debtOnMe),
+        liquidityNet:rnd(liqM.net),
+      },
+      expensesMonth:{total:rnd(expensesMonthTotal),byType:expTop},
+      withdrawalsMonth:{total:rnd(wdMonthTotal),recent:wdRecent},
+      hr:{employeesCount:(DB.employees||[]).length,activeCount:empActive.length,monthlySalariesTotal:rnd(monthlySalariesTotal),pendingUnpaidLeaves},
     };
   }catch(e){try{logger.warn('buildOwnerDashboardSnapshot failed:',e&&e.message);}catch(_n){}return null;}
 }
@@ -18875,6 +18909,10 @@ setInterval(()=>{
     if(typeof CURRENT_USER==='undefined'||!CURRENT_USER)return; // لسه ما سجّلتش دخول
     loadFromFirebase(true);
     if(!_fsRealtimeUnsub)try{startFirebaseRealtimeSync();}catch(_e){} // لو الاشتراك واقع، نجرب نرجّعه
+    // تحديث دوري لملخص "لوحة متابعة المحل" على الموبايل كمان — حتى لو مفيش أي حفظة
+    // جديدة حصلت (مفيش بيع/فاتورة)، عشان طابع "آخر تحديث" وباقي الأرقام (زي الخزنة
+    // اللي بتتغيّر مع دوران اليوم) تفضل حديثة بدل ما تقف على آخر حفظة قديمة
+    try{ if(typeof pushOwnerDashboardSnapshot==='function')pushOwnerDashboardSnapshot(); }catch(_ePush){}
   }catch(e){}
 },120000);
 </script>
