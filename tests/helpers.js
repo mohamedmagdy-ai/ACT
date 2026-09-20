@@ -6,7 +6,23 @@ const { chromium } = require('playwright');
 const path = require('path');
 
 async function openApp(opts = {}) {
-  const browser = await chromium.launch();
+  let browser;
+  try {
+    browser = await chromium.launch();
+  } catch (e) {
+    // بيئة التشغيل ممكن يكون فيها نسخة Playwright (npm) أحدث من نسخة Chromium المثبّتة
+    // مسبقًا على الجهاز — بدل ما نحاول ننزّل نسخة جديدة (ممكن ما ينفعش من غير إنترنت)،
+    // نستخدم المتصفح الجاهز أصلاً على الجهاز مباشرة.
+    const fs = require('fs');
+    const fallback = process.env.PLAYWRIGHT_BROWSERS_PATH
+      ? path.join(process.env.PLAYWRIGHT_BROWSERS_PATH, 'chromium')
+      : '/opt/pw-browsers/chromium';
+    if (fs.existsSync(fallback)) {
+      browser = await chromium.launch({ executablePath: fallback });
+    } else {
+      throw e;
+    }
+  }
   const page = await browser.newPage();
   await page.route('**/*', route => {
     if (route.request().url().startsWith('file://')) route.continue();

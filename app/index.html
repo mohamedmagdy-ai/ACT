@@ -2426,10 +2426,10 @@ tr:hover td{background:#fafafa;}
 </div>
 <div style="border-top:1px dashed #ccc;margin:8px 0;padding-top:8px;font-weight:bold;font-size:13px;">القطع الناتجة:</div>
 <div class="fgrid">
-  <div class="fg full">
-    <label>القطعة (ابحث في قطع الغيار أو اكتب اسم جديد)</label>
-    <input id="dm-part" type="text" list="dm-part-list" autocomplete="off" placeholder="اكتب اسم القطعة..." oninput="dmPickPart()" onchange="dmPickPart()" style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:5px;font-size:13px;font-family:Arial;direction:rtl;"/>
-    <datalist id="dm-part-list"></datalist>
+  <div class="fg full" style="position:relative;">
+    <label>القطعة (ابحث بالاسم أو برقم الموديل، زي mg510 — أو اكتب اسم جديد)</label>
+    <input id="dm-part" type="text" autocomplete="off" placeholder="اكتب اسم القطعة أو رقم الموديل..." oninput="dmPickPart()" onfocus="dmPickPart()" onblur="setTimeout(dmHidePartSuggest,150)" style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:5px;font-size:13px;font-family:Arial;" dir="auto"/>
+    <div id="dm-part-suggest" style="display:none;position:absolute;z-index:50;background:#fff;border:1px solid #ccc;border-radius:5px;max-height:220px;overflow-y:auto;width:100%;box-shadow:0 3px 10px rgba(0,0,0,.15);"></div>
     <input id="dm-part-id" type="hidden"/>
   </div>
   <div class="fg"><label>الكمية</label><input id="dm-pqty" type="number" min="1" value="1"/></div>
@@ -12914,16 +12914,41 @@ function openDismantle(pid){
   $('dm-dev-info').innerHTML='🔌 الجهاز: <strong>'+p.name+'</strong> &nbsp;|&nbsp; الرصيد: <strong>'+fmtN(p.qty||0)+'</strong> &nbsp;|&nbsp; تكلفة الوحدة (متوسط): <strong>'+fmtN(p.buy||0)+' ج</strong>';
   $('dm-qty').value=1;$('dm-notes').value='';if($('dm-dt'))$('dm-dt').value=todayStr;
   $('dm-part').value='';$('dm-part-id').value='';$('dm-pqty').value=1;$('dm-psell').value=0;$('dm-pcost').value=0;
-  const dl=$('dm-part-list');if(dl)dl.innerHTML=DB.products.filter(x=>x.section!=='devices').map(x=>`<option value="${e(x.name)}">`).join('');
+  dmHidePartSuggest();
   dmRender();dmHistory();
   openM('m-dismantle');
 }
+// ======= قايمة اقتراحات القطعة (تفكيك) — بديل عن <datalist> الأصلية، لأن الفلترة المدمجة
+// في المتصفح لـdatalist كانت بتفشل مع أرقام موديلات لاتينية جوه اسم عربي (زي "جيربوكس
+// kmm770") — بعض إصدارات Chromium/Electron بتتصرف بمطابقة أول الاسم بس مش أي جزء منه،
+// فالبحث برقم الموديل (زي mg510) كان بيرجّع القايمة كاملة (كل قطع الغيار) بدل ما يفلترها.
+// الحل: بحث نصي جوانا بالـJS نفسه (substring، بيتجاهل الكابيتال وفروق أ/إ/آ وة/ه وى/ي)،
+// ومفيش اعتماد على سلوك المتصفح الأصلي للـdatalist خالص.
+function _dmPartOptions(){ return DB.products.filter(x=>x.section!=='devices'); }
 function dmPickPart(){
-  const val=$('dm-part').value.trim();
-  const prod=findProdByAny(val);
-  $('dm-part-id').value=prod?prod.id:'';
-  if(prod&&prod.sell>0)$('dm-psell').value=prod.sell;
+  const raw=$('dm-part').value.trim();
+  const exact=findProdByAny(raw);
+  $('dm-part-id').value=exact?exact.id:'';
+  if(exact&&exact.sell>0)$('dm-psell').value=exact.sell;
+  dmRenderPartSuggest(raw);
 }
+function dmRenderPartSuggest(q){
+  const box=$('dm-part-suggest');if(!box)return;
+  const nq=normName(q);
+  if(!nq){dmHidePartSuggest();return;}
+  const matches=_dmPartOptions().filter(p=>normName(p.name).indexOf(nq)>=0).slice(0,30);
+  if(!matches.length){dmHidePartSuggest();return;}
+  box.innerHTML=matches.map(p=>`<div onmousedown="dmChoosePart('${p.id}')" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='#fff'" style="padding:6px 10px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:12.5px;background:#fff;">${e(p.name)} <span style="color:#999;font-size:10.5px;">(متاح: ${fmtN(p.qty||0)})</span></div>`).join('');
+  box.style.display='block';
+}
+function dmChoosePart(id){
+  const p=DB.products.find(x=>x.id===id);if(!p)return;
+  $('dm-part').value=p.name;$('dm-part-id').value=p.id;
+  if(p.sell>0)$('dm-psell').value=p.sell;
+  dmHidePartSuggest();
+  $('dm-pqty').focus();
+}
+function dmHidePartSuggest(){const box=$('dm-part-suggest');if(box){box.style.display='none';box.innerHTML='';}}
 function dmAddPart(){
   const name=$('dm-part').value.trim();
   if(!name){toast('اكتب اسم القطعة الأول','warn');return;}
@@ -12936,6 +12961,7 @@ function dmAddPart(){
   if(ex){ex.qty+=q;if(sell>0)ex.sellPrice=sell;ex.cost+=cost;}
   else DM_ITEMS.push({prodId:prod?prod.id:'',name:nm,qty:q,sellPrice:sell,cost:cost});
   $('dm-part').value='';$('dm-part-id').value='';$('dm-pqty').value=1;$('dm-psell').value=0;$('dm-pcost').value=0;
+  dmHidePartSuggest();
   dmRender();$('dm-part').focus();
 }
 function dmRemovePart(i){DM_ITEMS.splice(i,1);dmRender();}
@@ -18463,6 +18489,14 @@ function processFirebaseDoc(doc,silent){
       // تانية تتضاف في المستقبل هتتغطى تلقائيًا هنا من غير ما حد يفتكر يضيفها هنا)
       if(typeof CURRENT_USER!=='undefined'&&CURRENT_USER){
         try{reconcileStockOnce();reconcileMaintV2();}catch(e){}
+        // إصلاح: عداد "واتساب" فوق (pending-wa-badge) كان بيتحدّث بس عند تسجيل الدخول أو
+        // عند إرسال/تجاهل رسالة من نفس الجهاز — مفيش أي تحديث ليه لما تحديث سحابي (فرع/جهاز
+        // تاني عمل تجاهل أو إرسال لنفس الرسالة) بيوصل هنا ويغيّر DB.pendingWhatsapp فعليًا.
+        // النتيجة: العداد بيفضل واقف على رقم قديم (زي ٥) حتى لو الحقيقة الحالية بعد
+        // المزامنة إن مفيش رسائل معلّقة خالص — وده بالظبط اللي بيبان لما تفتح القايمة
+        // (renderPendingWhatsappList بتحسب من DB.pendingWhatsapp الطازة كل مرة تتفتح،
+        // فبتورّي الصح، بعكس العداد الجامد). الحل: نحدّث العداد هنا كمان مع كل تحديث سحابي.
+        try{renderPendingWhatsappBadge();}catch(_pwbSync){}
         try{
           renderDash();
           const activeSection=document.querySelector('.section.active');
