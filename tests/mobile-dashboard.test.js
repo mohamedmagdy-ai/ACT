@@ -113,10 +113,17 @@ function normDigits(s) {
       hr: { employeesCount: 2, activeCount: 1, monthlySalariesTotal: 3000, pendingUnpaidLeaves: 1 },
       treasury: { cash: 4200, instapay: 250, visa: 150, bankTransfer: 0, check: 0 },
       recentSales: [{ id: 'S-1', customer: 'عميل ١', total: 300, date: '2026-09-01', payment: 'كاش', status: '' }],
-      recentMaintenance: [{ id: 'M-1', customer: 'عميل ٢', device: 'جهاز', cost: 250, date: '2026-09-01', status: 'pending', exit: 'normal' }],
       recentMaintInvoices: [{ id: 'MI-1', customer: 'عميل ٣', device: 'جهاز', cost: 400, date: '2026-09-01' }],
-      recentWorkOrders: [{ id: 'WO-1', customer: 'عميل ٤', device: 'جهاز', total: 500, date: '2026-09-01', status: 'pending', exit: 'normal' }],
-      recentReceipts: [{ id: 'RCPT-1', customer: 'عميل ٥', device: 'جهاز', date: '2026-09-01', status: 'pending' }],
+      recentWorkOrders: [
+        { id: 'WO-1', customer: 'عميل ٤', device: 'جهاز', total: 500, date: '2026-09-01', status: 'open', exit: 'normal' },
+        { id: 'WO-2', customer: 'عميل ٦', device: 'جهاز', total: 300, date: '2026-09-02', status: 'done', exit: 'normal' },
+      ],
+      recentReceipts: [
+        { id: 'RCPT-1', customer: 'عميل ٥', device: 'جهاز', date: '2026-09-01', status: 'open' },
+        { id: 'RCPT-2', customer: 'عميل ٧', device: 'جهاز', date: '2026-09-02', status: 'done' },
+      ],
+      openWorkOrders: [{ id: 'WO-1', customer: 'عميل ٤', device: 'جهاز', total: 500, date: '2026-09-01', status: 'open' }],
+      openReceipts: [{ id: 'RCPT-1', customer: 'عميل ٥', device: 'جهاز', date: '2026-09-01', status: 'open' }],
       serviceCenters: { count: 1, top: [{ name: 'مركز الدلتا', debt: 600 }] },
       bestSellers: [{ name: 'صنف منخفض', qty: 2, val: 200 }],
       stagnant: [{ name: 'صنف راكد', stock: 10, capital: 500, ago: 90 }],
@@ -151,10 +158,16 @@ function normDigits(s) {
       trInstapay: document.getElementById('tr-instapay').textContent,
       trVisa: document.getElementById('tr-visa').textContent,
       salesHtml: document.getElementById('sales-list').innerHTML,
-      maintHtml: document.getElementById('maint-list').innerHTML,
       maintInvHtml: document.getElementById('maintinv-list').innerHTML,
+      maintinvBadge: document.getElementById('maintinv-badge').textContent,
       woHtml: document.getElementById('wo-list').innerHTML,
+      woBadge: document.getElementById('wo-badge').textContent,
+      woOpenHtml: document.getElementById('wo-open-list').innerHTML,
+      woOpenBadge: document.getElementById('wo-open-badge').textContent,
       rcptHtml: document.getElementById('rcpt-list').innerHTML,
+      rcptBadge: document.getElementById('rcpt-badge').textContent,
+      rcptOpenHtml: document.getElementById('rcpt-open-list').innerHTML,
+      rcptOpenBadge: document.getElementById('rcpt-open-badge').textContent,
       svcBadge: document.getElementById('svc-badge').textContent,
       svcHtml: document.getElementById('svc-list').innerHTML,
       bestHtml: document.getElementById('best-list').innerHTML,
@@ -171,6 +184,14 @@ function normDigits(s) {
       mtFinanceTotal: document.getElementById('mt-finance-total').textContent,
       mtHrCount: document.getElementById('mt-hr-count').textContent,
       mtWaBadge: document.getElementById('mt-wa-badge').textContent,
+      mt2MaintinvCount: document.getElementById('mt2-maintinv-count').textContent,
+      mt2WoCount: document.getElementById('mt2-wo-count').textContent,
+      mt2WoOpenBadge: document.getElementById('mt2-wo-open-badge').textContent,
+      mt2RcptCount: document.getElementById('mt2-rcpt-count').textContent,
+      mt2RcptOpenBadge: document.getElementById('mt2-rcpt-open-badge').textContent,
+      mt2LowstockBadge: document.getElementById('mt2-lowstock-badge').textContent,
+      mt2ExpTotal: document.getElementById('mt2-exp-total').textContent,
+      mt2WdTotal: document.getElementById('mt2-wd-total').textContent,
     };
   });
   r.eq('اسم المحل اترسم صح', t4.shopName, 'محل الاختبار');
@@ -204,10 +225,16 @@ function normDigits(s) {
   r.eq('تفصيل الخزنة (انستا باي) ظاهر صح', normDigits(t4.trInstapay), '250.00');
   r.eq('تفصيل الخزنة (فيزا) ظاهر صح', normDigits(t4.trVisa), '150.00');
   r.ok('كشف المبيعات فيه الفاتورة اللي بعتناها', t4.salesHtml.includes('S-1') && t4.salesHtml.includes('عميل ١'));
-  r.ok('كشف الصيانة الجارية فيه السجل اللي بعتناه', t4.maintHtml.includes('M-1'));
   r.ok('كشف فواتير الصيانة فيه الفاتورة اللي بعتناها', t4.maintInvHtml.includes('MI-1'));
-  r.ok('كشف أوامر الشغل فيه الأمر اللي بعتناه', t4.woHtml.includes('WO-1'));
-  r.ok('كشف إذن الاستلام فيه الإذن اللي بعتناه', t4.rcptHtml.includes('RCPT-1'));
+  r.eq('عداد فواتير الصيانة = 1', t4.maintinvBadge, '1');
+  r.ok('كشف كل أوامر الشغل (الشهر) فيه الاتنين', t4.woHtml.includes('WO-1') && t4.woHtml.includes('WO-2'));
+  r.eq('عداد كل أوامر الشغل (الشهر) = 2', t4.woBadge, '2');
+  r.ok('كشف "أوامر الشغل المفتوحة دلوقتي" فيه WO-1 بس (مش WO-2 المنتهي)', t4.woOpenHtml.includes('WO-1') && !t4.woOpenHtml.includes('WO-2'));
+  r.eq('عداد أوامر الشغل المفتوحة = 1', t4.woOpenBadge, '1');
+  r.ok('كشف كل إذونات الاستلام (الشهر) فيه الاتنين', t4.rcptHtml.includes('RCPT-1') && t4.rcptHtml.includes('RCPT-2'));
+  r.eq('عداد كل إذونات الاستلام (الشهر) = 2', t4.rcptBadge, '2');
+  r.ok('كشف "إذونات الاستلام المفتوحة دلوقتي" فيه RCPT-1 بس (مش RCPT-2 المُسلّم)', t4.rcptOpenHtml.includes('RCPT-1') && !t4.rcptOpenHtml.includes('RCPT-2'));
+  r.eq('عداد إذونات الاستلام المفتوحة = 1', t4.rcptOpenBadge, '1');
   r.eq('عداد مراكز الخدمة = 1', t4.svcBadge, '1');
   r.ok('اسم مركز الخدمة ظاهر في القايمة', t4.svcHtml.includes('مركز الدلتا'));
   r.ok('الصنف الأكثر مبيعًا ظاهر في القايمة', t4.bestHtml.includes('صنف منخفض'));
@@ -219,12 +246,22 @@ function normDigits(s) {
   r.eq('زرار "مستحق ليا" بيوري الإجمالي', normDigits(t4.mtRcvTotal), '500.00');
   r.eq('زرار "مستحق عليا" بيوري العداد', t4.mtPayBadge, '1');
   r.eq('زرار "مستحق عليا" بيوري الإجمالي', normDigits(t4.mtPayTotal), '400.00');
-  r.eq('زرار "الصيانة" بيوري عدد السجلات الجارية', t4.mtMaintBadge, '1');
+  r.eq('زرار "الصيانة" بيوري عدد المفتوح دلوقتي (أوامر شغل + إذونات استلام)', t4.mtMaintBadge, '2');
   r.eq('زرار "المخزون" بيوري عداد النواقص', t4.mtLowstockBadge, '1');
   r.eq('زرار "مراكز الخدمة" بيوري العداد', t4.mtSvcBadge, '1');
   r.eq('زرار "المصروفات والمسحوبات" بيوري إجمالي المصروفات', normDigits(t4.mtFinanceTotal), '1300.00');
   r.eq('زرار "الموظفين" بيوري العدد', t4.mtHrCount, '2');
   r.eq('زرار "واتساب" بيوري عدد الرسائل المعلّقة', t4.mtWaBadge, '2');
+  // === زراير القوائم الفرعية (جوه شاشات الصيانة/المخزون/المصروفات) — طلب المستخدم إن
+  // فواتير الصيانة/أوامر الشغل/إذن الاستلام تبقى اختيارات منفصلة تتفتح لوحدها ===
+  r.eq('زرار "فواتير الصيانة" الفرعي بيوري عدد فواتير الشهر', t4.mt2MaintinvCount, '1');
+  r.eq('زرار "أوامر الشغل" الفرعي بيوري عدد أوامر الشهر', t4.mt2WoCount, '2');
+  r.eq('زرار "أوامر الشغل" الفرعي بيوري عداد المفتوح', t4.mt2WoOpenBadge, '1');
+  r.eq('زرار "إذن الاستلام" الفرعي بيوري عدد إذونات الشهر', t4.mt2RcptCount, '2');
+  r.eq('زرار "إذن الاستلام" الفرعي بيوري عداد المفتوح', t4.mt2RcptOpenBadge, '1');
+  r.eq('زرار "أصناف محتاجة شراء" الفرعي بيوري عداد النواقص', t4.mt2LowstockBadge, '1');
+  r.eq('زرار "مصروفات الشهر" الفرعي بيوري الإجمالي', normDigits(t4.mt2ExpTotal), '1300.00');
+  r.eq('زرار "مسحوباتي" الفرعي بيوري الإجمالي', normDigits(t4.mt2WdTotal), '200.00');
 
   // ===== ٤.أ) التنقل: الشاشة الرئيسية ↔ شاشات التفاصيل =====
   // الشكل القديم كان كل الكروت متعروضة مرة واحدة في صفحة طويلة — اتغيّر
@@ -238,7 +275,7 @@ function normDigits(s) {
   const t4a = await page.evaluate(() => ({
     homeVisible: !document.getElementById('home-view').hidden,
     allDetailScreensHidden: Array.from(document.querySelectorAll('.detail-screen')).every((s) => s.hidden),
-    tileCount: document.querySelectorAll('.menu-tile[data-target]').length,
+    tileCount: document.querySelectorAll('#home-view .menu-tile[data-target]').length,
   }));
   r.ok('الشاشة الرئيسية ظاهرة أول ما تدخل الداشبورد', t4a.homeVisible);
   r.ok('كل شاشات التفاصيل مخفية في البداية', t4a.allDetailScreensHidden);
@@ -258,13 +295,41 @@ function normDigits(s) {
     r.ok(`زرار الرجوع من "${screenId}" بيرجّع الشريط العلوي الرئيسي تاني`, nav.afterBack.topbarHidden === false);
   }
 
+  // ===== ٤.ب) التنقل المتداخل: الصيانة/المخزون/المصروفات بقوا قوائم فرعية بزراير —
+  // كل بند (فواتير الصيانة/أوامر الشغل/إذن الاستلام، وهكذا) بقى اختيار مستقل يتفتح
+  // لوحده، وزرار الرجوع منه بيرجع لقايمة القسم (مش للرئيسية على طول) — طلب المستخدم =====
+  const NESTED_SCREENS = [
+    { parent: 'screen-maintenance', children: ['screen-maintinv', 'screen-workorders', 'screen-receipts'] },
+    { parent: 'screen-inventory', children: ['screen-lowstock', 'screen-bestsellers', 'screen-stagnant'] },
+    { parent: 'screen-finance', children: ['screen-expenses', 'screen-withdrawals'] },
+  ];
+  for (const { parent, children } of NESTED_SCREENS) {
+    const subTileCount = await page.evaluate((p) => document.querySelectorAll(`#${p} .menu-tile[data-target]`).length, parent);
+    r.eq(`شاشة "${parent}" بقت قايمة فرعية فيها ${children.length} اختيار`, subTileCount, children.length);
+    for (const childId of children) {
+      const nav = await page.evaluate(({ p, c }) => {
+        document.querySelector(`.menu-tile[data-target="${p}"]`).click(); // رجّع من الرئيسية لقايمة القسم
+        document.querySelector(`.menu-tile[data-target="${c}"]`).click(); // ادخل الاختيار الفرعي
+        const afterOpen = { parentHidden: document.getElementById(p).hidden, childVisible: !document.getElementById(c).hidden };
+        document.querySelector(`#${c} .back-btn`).click(); // زرار الرجوع من الفرعي
+        const afterBack = { parentVisible: !document.getElementById(p).hidden, childHidden: document.getElementById(c).hidden, homeHidden: document.getElementById('home-view').hidden };
+        return { afterOpen, afterBack };
+      }, { p: parent, c: childId });
+      r.ok(`الدوس على اختيار "${childId}" بيفتحه ويخفي قايمة القسم`, nav.afterOpen.parentHidden === true && nav.afterOpen.childVisible === true);
+      r.ok(`زرار الرجوع من "${childId}" بيرجع لقايمة القسم "${parent}" (مش للرئيسية على طول)`, nav.afterBack.parentVisible === true && nav.afterBack.childHidden === true && nav.afterBack.homeHidden === true);
+    }
+    // ارجع للرئيسية تاني عشان الاختبار اللي بعده يبدأ من حالة معروفة
+    await page.evaluate((p) => { document.querySelector(`#${p} .back-btn`).click(); }, parent);
+  }
+
   // ===== ٥) لا يوجد صنف تحت الحد = رسالة "المخزون تمام" بدل جدول فاضي (وكذلك حالة عدم وجود مصروفات/مسحوبات/إجازات معلّقة) =====
   const t5 = await page.evaluate(() => {
     render({
       shopName: 'محل الاختبار', todaySales: {}, lowStockCount: 0, lowStockItems: [], deferredCount: 0, pendingWhatsappCount: 0,
       receivables: { total: 0, count: 0, items: [] }, payables: { total: 0, count: 0, items: [] },
       expensesMonth: { total: 0, byType: [] }, withdrawalsMonth: { total: 0, recent: [] }, hr: { employeesCount: 0, activeCount: 0, monthlySalariesTotal: 0, pendingUnpaidLeaves: 0 },
-      recentSales: [], recentMaintenance: [], recentMaintInvoices: [], recentWorkOrders: [], recentReceipts: [],
+      recentSales: [], recentMaintInvoices: [], recentWorkOrders: [], recentReceipts: [],
+      openWorkOrders: [], openReceipts: [],
       serviceCenters: { count: 0, top: [] }, bestSellers: [], stagnant: [],
     });
     return {
@@ -276,10 +341,11 @@ function normDigits(s) {
       wdHtml: document.getElementById('wd-list').innerHTML,
       hrLeavesHtml: document.getElementById('hr-leaves-box').innerHTML,
       salesHtml: document.getElementById('sales-list').innerHTML,
-      maintHtml: document.getElementById('maint-list').innerHTML,
       maintInvHtml: document.getElementById('maintinv-list').innerHTML,
       woHtml: document.getElementById('wo-list').innerHTML,
+      woOpenHtml: document.getElementById('wo-open-list').innerHTML,
       rcptHtml: document.getElementById('rcpt-list').innerHTML,
+      rcptOpenHtml: document.getElementById('rcpt-open-list').innerHTML,
       svcHtml: document.getElementById('svc-list').innerHTML,
       bestHtml: document.getElementById('best-list').innerHTML,
       stagnantHtml: document.getElementById('stagnant-list').innerHTML,
@@ -293,10 +359,11 @@ function normDigits(s) {
   r.ok('مفيش مسحوبات = رسالة إيجابية', t5.wdHtml.includes('✅'));
   r.ok('مفيش إجازات بدون أجر معلّقة = رسالة إيجابية', t5.hrLeavesHtml.includes('✅'));
   r.ok('كشف المبيعات فاضي = رسالة واضحة', t5.salesHtml.includes('مفيش'));
-  r.ok('كشف الصيانة الجارية فاضي = رسالة واضحة', t5.maintHtml.includes('مفيش'));
   r.ok('كشف فواتير الصيانة فاضي = رسالة واضحة', t5.maintInvHtml.includes('مفيش'));
-  r.ok('كشف أوامر الشغل فاضي = رسالة واضحة', t5.woHtml.includes('مفيش'));
-  r.ok('كشف إذن الاستلام فاضي = رسالة واضحة', t5.rcptHtml.includes('مفيش'));
+  r.ok('كشف كل أوامر الشغل فاضي = رسالة واضحة', t5.woHtml.includes('مفيش'));
+  r.ok('كشف أوامر الشغل المفتوحة فاضي = رسالة إيجابية', t5.woOpenHtml.includes('✅'));
+  r.ok('كشف كل إذونات الاستلام فاضي = رسالة واضحة', t5.rcptHtml.includes('مفيش'));
+  r.ok('كشف إذونات الاستلام المفتوحة فاضي = رسالة إيجابية', t5.rcptOpenHtml.includes('✅'));
   r.ok('مفيش مراكز خدمة عليها مستحق = رسالة إيجابية', t5.svcHtml.includes('✅'));
   r.ok('مفيش مبيعات للأكثر مبيعًا = رسالة واضحة', t5.bestHtml.includes('مفيش'));
   r.ok('مفيش أصناف راكدة = رسالة إيجابية', t5.stagnantHtml.includes('✅'));

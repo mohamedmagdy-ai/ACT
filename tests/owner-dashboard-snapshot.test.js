@@ -26,7 +26,6 @@ const { openApp, TestReporter } = require('./helpers');
       { id: 'S-4', date: todayStr, total: 600, payment: 'آجل', customer: 'مركز الدلتا' },
     ];
     DB.maintInvoices = [];
-    DB.maintenance = [{ id: 'M-1', customer: 'عميل ١', device: 'جهاز ١', cost: 250, date: todayStr, status: 'pending', exit: 'normal' }];
     DB.taxInvoices = [];
     DB.payments = [];
     DB.purchases = [{ id: 'PUR-1', date: todayStr, supplier: 'مورد ١', total: 400, payment: 'آجل' }];
@@ -42,8 +41,14 @@ const { openApp, TestReporter } = require('./helpers');
       { id: 'EMP-1', name: 'موظف نشط', status: 'active', salary: 3000, leaveRequests: [{ type: 'unpaid', settled: false }] },
       { id: 'EMP-2', name: 'موظف متوقف', status: 'inactive', salary: 2000, leaveRequests: [] },
     ];
-    DB.receipts = [{ id: 'RCPT-1', customer: 'عميل ١', device: 'جهاز ١', date: todayStr, status: 'pending' }];
-    DB.workOrders = [{ id: 'WO-1', customer: 'عميل ١', device: 'جهاز ١', total: 300, date: todayStr, status: 'pending', exit: 'normal' }];
+    DB.receipts = [
+      { id: 'RCPT-1', customer: 'عميل ١', device: 'جهاز ١', date: todayStr, status: 'open' },
+      { id: 'RCPT-2', customer: 'عميل ٢', device: 'جهاز ٢', date: todayStr, status: 'done' },
+    ];
+    DB.workOrders = [
+      { id: 'WO-1', customer: 'عميل ١', device: 'جهاز ١', total: 300, date: todayStr, status: 'open', exit: 'normal' },
+      { id: 'WO-2', customer: 'عميل ٢', device: 'جهاز ٢', total: 250, date: todayStr, status: 'done', exit: 'normal' },
+    ];
     DB.serviceCenters = [{ id: 'SC-1', name: 'مركز الدلتا', phone: '' }];
     DB.openingBalances = [];
     DB.pendingWhatsapp = [
@@ -94,13 +99,16 @@ const { openApp, TestReporter } = require('./helpers');
   r.eq('فيزا الخزنة = 150 (مبيعة S-2)', snap.treasury.visa, 150);
   r.eq('انستا باي الخزنة = 0 (مفيش حركات انستا في البيانات التجريبية)', snap.treasury.instapay, 0);
 
-  // ===== ١.و) كشوف حديثة — مبيعات/صيانة جارية/فواتير صيانة/أوامر شغل/إذن استلام =====
-  r.eq('كشف المبيعات الحديث فيه 4 فواتير', snap.recentSales.length, 4);
-  r.eq('كشف الصيانة الجارية فيه سجل الصيانة اللي عملناه', snap.recentMaintenance.length, 1);
-  r.eq('اسم عميل الصيانة الجارية ظاهر صح', snap.recentMaintenance[0].customer, 'عميل ١');
-  r.eq('كشف أوامر الشغل فيه أمر الشغل اللي عملناه', snap.recentWorkOrders.length, 1);
-  r.eq('كشف إذن الاستلام فيه الإذن اللي عملناه', snap.recentReceipts.length, 1);
+  // ===== ١.و) كشوف الشهر الحالي كاملة — مبيعات/فواتير صيانة/أوامر شغل/إذن استلام
+  // (مش آخر ١٥ بس، ده كان طلب المستخدم) + المفتوح دلوقتي من أوامر الشغل وإذونات الاستلام =====
+  r.eq('كشف المبيعات الشهري فيه 4 فواتير', snap.recentSales.length, 4);
+  r.eq('كشف أوامر الشغل الشهري فيه الاتنين (مفتوح ومنتهي)', snap.recentWorkOrders.length, 2);
+  r.eq('كشف إذن الاستلام الشهري فيه الاتنين (مفتوح ومنتهي)', snap.recentReceipts.length, 2);
   r.eq('كشف فواتير الصيانة فاضي (مفيش فواتير صيانة مسجّلة في البيانات التجريبية)', snap.recentMaintInvoices.length, 0);
+  r.eq('أوامر الشغل المفتوحة = أمر واحد بس (WO-1)', snap.openWorkOrders.length, 1);
+  r.eq('أمر الشغل المفتوح هو WO-1', snap.openWorkOrders[0].id, 'WO-1');
+  r.eq('إذونات الاستلام المفتوحة = إذن واحد بس (RCPT-1)', snap.openReceipts.length, 1);
+  r.eq('إذن الاستلام المفتوح هو RCPT-1', snap.openReceipts[0].id, 'RCPT-1');
 
   // ===== ١.ز) مراكز الخدمة — عدد + أكبر مركز بالمستحق (مركز الدلتا بيه فاتورة آجلة 600) =====
   r.eq('عدد مراكز الخدمة = 1', snap.serviceCenters.count, 1);

@@ -18339,18 +18339,25 @@ function buildOwnerDashboardSnapshot(){
       const mt=(typeof calcMethodTotals==='function')?calcMethodTotals():null;
       if(mt)treasury={cash:rnd(_ob+(mt['كاش']||0)),instapay:rnd(mt['انستا باي']||0),visa:rnd(mt['فيزا']||0),bankTransfer:rnd(mt['تحويل بنكي']||0),check:rnd(mt['شيك']||0)};
     }catch(_eMt){}
-    // === كشوف حديثة (آخر ١٥ حركة لكل نوع) — مبيعات/صيانة جارية/فواتير صيانة/أوامر شغل/إذن استلام ===
+    // === كشوف الشهر الحالي كاملة (مش آخر ١٥ بس) — مبيعات/فواتير صيانة/أوامر شغل/إذن
+    // استلام. سقف الأمان (500) موجود بس عشان حجم مستند Firestore، مش قيد فعلي على شهر
+    // عادي لمحل — طلب المستخدم كان "مش آخر ١٥ بس، يظهر معايا معاملات الشهر" ===
+    const SAFETY_CAP=500;
     const sortDesc=(arr)=>arr.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-    const recentSales=sortDesc([...DB.sales.filter(isMyBranch),...(DB.taxInvoices||[]).filter(t=>t.taxType==='sale'&&isMyBranch(t))])
-      .slice(0,15).map(s=>({id:s.id,customer:s.customer||'',total:rnd(s.total||0),date:s.date||'',payment:s.payment||'',status:s.status||''}));
-    const recentMaintenance=sortDesc((DB.maintenance||[]).filter(isMyBranch))
-      .slice(0,15).map(m=>({id:m.id,customer:m.customer||'',device:m.device||'',cost:rnd(m.cost||0),date:m.date||'',status:m.status||'',exit:m.exit||''}));
-    const recentMaintInvoices=sortDesc([...(DB.maintInvoices||[]).filter(m=>m.exit!=='warranty'&&isMyBranch(m)),...(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&t.exit!=='warranty'&&isMyBranch(t))])
-      .slice(0,15).map(m=>({id:m.id,customer:m.customer||'',device:m.device||'',cost:rnd(m.cost||m.total||0),date:m.date||''}));
-    const recentWorkOrders=sortDesc((DB.workOrders||[]).filter(isMyBranch))
-      .slice(0,15).map(w=>({id:w.id,customer:w.customer||'',device:w.device||'',total:rnd(w.total||((w.cost||0)+(w.labor||0))),date:w.date||'',status:w.status||'',exit:w.exit||''}));
-    const recentReceipts=sortDesc((DB.receipts||[]).filter(isMyBranch))
-      .slice(0,15).map(r=>({id:r.id,customer:r.customer||'',device:r.device||'',date:r.date||'',status:r.status||''}));
+    const recentSales=sortDesc([...DB.sales.filter(s=>isMyBranch(s)&&isM(s.date)),...(DB.taxInvoices||[]).filter(t=>t.taxType==='sale'&&isMyBranch(t)&&isM(t.date))])
+      .slice(0,SAFETY_CAP).map(s=>({id:s.id,customer:s.customer||'',total:rnd(s.total||0),date:s.date||'',payment:s.payment||'',status:s.status||''}));
+    const recentMaintInvoices=sortDesc([...(DB.maintInvoices||[]).filter(m=>m.exit!=='warranty'&&isMyBranch(m)&&isM(m.date)),...(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&t.exit!=='warranty'&&isMyBranch(t)&&isM(t.date))])
+      .slice(0,SAFETY_CAP).map(m=>({id:m.id,customer:m.customer||'',device:m.device||'',cost:rnd(m.cost||m.total||0),date:m.date||''}));
+    const recentWorkOrders=sortDesc((DB.workOrders||[]).filter(w=>isMyBranch(w)&&isM(w.date)))
+      .slice(0,SAFETY_CAP).map(w=>({id:w.id,customer:w.customer||'',device:w.device||'',total:rnd(w.total||((w.cost||0)+(w.labor||0))),date:w.date||'',status:w.status||'',exit:w.exit||''}));
+    const recentReceipts=sortDesc((DB.receipts||[]).filter(r=>isMyBranch(r)&&isM(r.date)))
+      .slice(0,SAFETY_CAP).map(r=>({id:r.id,customer:r.customer||'',device:r.device||'',date:r.date||'',status:r.status||''}));
+    // === المفتوح دلوقتي — أوامر شغل وإذونات استلام لسه معلّقة (كل الوقت، مش الشهر بس،
+    // لأن أمر شغل ممكن يتفتح الشهر اللي فات ولسه معلّق) — طلب المستخدم صراحةً ===
+    const openWorkOrders=sortDesc((DB.workOrders||[]).filter(w=>isMyBranch(w)&&(w.status==='open'||w.status==='waiting')))
+      .slice(0,SAFETY_CAP).map(w=>({id:w.id,customer:w.customer||'',device:w.device||'',total:rnd(w.total||((w.cost||0)+(w.labor||0))),date:w.date||'',status:w.status||''}));
+    const openReceipts=sortDesc((DB.receipts||[]).filter(r=>isMyBranch(r)&&(r.status==='open'||r.status==='in_wo')))
+      .slice(0,SAFETY_CAP).map(r=>({id:r.id,customer:r.customer||'',device:r.device||'',date:r.date||'',status:r.status||''}));
     // === مراكز الخدمة — عدد + أكبر ٨ مراكز بالمستحق ليا (نفس منطق المطابقة بالاسم
     // المستخدم في "كشف حساب" — كل مركز بيتسجّل زي أي طرف تاني بس باسمه) ===
     let serviceCenters={count:(DB.serviceCenters||[]).length,top:[]};
@@ -18393,12 +18400,12 @@ function buildOwnerDashboardSnapshot(){
       monthSalesTotal:rnd(tm.sm+tm.mm),
       cashNow:rnd(cashNow),
       lowStockCount:lowStock.length,
-      lowStockItems:lowStock.slice(0,15).map(p=>({name:p.name,qty:p.qty||0,alert:p.alert||0})),
+      lowStockItems:lowStock.slice(0,SAFETY_CAP).map(p=>({name:p.name,qty:p.qty||0,alert:p.alert||0})),
       deferredTotal:rnd(debtToMe),
       deferredCount:deferredSalesCount+deferredMaintCount,
       pendingWhatsappCount:pendingWa,
-      receivables:{total:rnd(debtToMe),count:receivablesItems.length,items:receivablesItems.slice(0,15).map(x=>({id:x.id,party:x.party,remain:rnd(x.remain)}))},
-      payables:{total:rnd(debtOnMe),count:payablesItems.length,items:payablesItems.slice(0,15).map(x=>({id:x.id,party:x.party,remain:rnd(x.remain)}))},
+      receivables:{total:rnd(debtToMe),count:receivablesItems.length,items:receivablesItems.slice(0,SAFETY_CAP).map(x=>({id:x.id,party:x.party,remain:rnd(x.remain)}))},
+      payables:{total:rnd(debtOnMe),count:payablesItems.length,items:payablesItems.slice(0,SAFETY_CAP).map(x=>({id:x.id,party:x.party,remain:rnd(x.remain)}))},
       monthReport:{
         revenue:rnd(tm.rev),
         cost:rnd(tm.cost),
@@ -18414,10 +18421,11 @@ function buildOwnerDashboardSnapshot(){
       hr:{employeesCount:(DB.employees||[]).length,activeCount:empActive.length,monthlySalariesTotal:rnd(monthlySalariesTotal),pendingUnpaidLeaves},
       treasury:treasury,
       recentSales:recentSales,
-      recentMaintenance:recentMaintenance,
       recentMaintInvoices:recentMaintInvoices,
       recentWorkOrders:recentWorkOrders,
       recentReceipts:recentReceipts,
+      openWorkOrders:openWorkOrders,
+      openReceipts:openReceipts,
       serviceCenters:serviceCenters,
       bestSellers:bestSellers,
       stagnant:stagnant,

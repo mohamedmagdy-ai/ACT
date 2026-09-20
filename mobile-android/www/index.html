@@ -347,20 +347,59 @@
   <div id="screen-maintenance" class="detail-screen" hidden>
     <div class="detail-header"><button type="button" class="back-btn" data-back>→</button><div class="detail-title">🔧 الصيانة وأوامر الشغل</div></div>
     <main>
-      <div class="card">
-        <div class="section-title">🔧 صيانة جارية <span style="font-size:10.5px;font-weight:400;color:var(--muted);">(آخر ١٥)</span></div>
-        <div id="maint-list" class="list-scroll"></div>
+      <div class="menu-grid">
+        <button type="button" class="menu-tile" data-target="screen-maintinv" data-back="screen-maintenance">
+          <div class="menu-tile-top"><span class="menu-icon">🧾</span></div>
+          <div class="menu-label">فواتير الصيانة</div>
+          <div class="menu-value num" id="mt2-maintinv-count">0</div>
+        </button>
+        <button type="button" class="menu-tile" data-target="screen-workorders" data-back="screen-maintenance">
+          <div class="menu-tile-top"><span class="menu-icon">🔩</span><span class="badge warn num" id="mt2-wo-open-badge">0</span></div>
+          <div class="menu-label">أوامر الشغل</div>
+          <div class="menu-value num" id="mt2-wo-count">0</div>
+        </button>
+        <button type="button" class="menu-tile" data-target="screen-receipts" data-back="screen-maintenance">
+          <div class="menu-tile-top"><span class="menu-icon">📄</span><span class="badge warn num" id="mt2-rcpt-open-badge">0</span></div>
+          <div class="menu-label">إذن الاستلام</div>
+          <div class="menu-value num" id="mt2-rcpt-count">0</div>
+        </button>
       </div>
+    </main>
+  </div>
+
+  <div id="screen-maintinv" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back="screen-maintenance">→</button><div class="detail-title">🧾 فواتير الصيانة — الشهر الحالي</div></div>
+    <main>
       <div class="card">
-        <div class="section-title">🧾 فواتير صيانة مكتملة <span style="font-size:10.5px;font-weight:400;color:var(--muted);">(آخر ١٥)</span></div>
+        <div class="section-title">فواتير الشهر <span class="badge num" id="maintinv-badge">0</span></div>
         <div id="maintinv-list" class="list-scroll"></div>
       </div>
+    </main>
+  </div>
+
+  <div id="screen-workorders" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back="screen-maintenance">→</button><div class="detail-title">🔩 أوامر الشغل</div></div>
+    <main>
       <div class="card">
-        <div class="section-title">🔩 أوامر الشغل <span style="font-size:10.5px;font-weight:400;color:var(--muted);">(آخر ١٥)</span></div>
-        <div id="wo-list" class="list-scroll"></div>
+        <div class="section-title">🔓 مفتوحة دلوقتي <span class="badge warn num" id="wo-open-badge">0</span></div>
+        <div id="wo-open-list" class="list-scroll"></div>
       </div>
       <div class="card">
-        <div class="section-title">📄 إذن الاستلام <span style="font-size:10.5px;font-weight:400;color:var(--muted);">(آخر ١٥)</span></div>
+        <div class="section-title">كل أوامر الشغل — الشهر الحالي <span class="badge num" id="wo-badge">0</span></div>
+        <div id="wo-list" class="list-scroll"></div>
+      </div>
+    </main>
+  </div>
+
+  <div id="screen-receipts" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back="screen-maintenance">→</button><div class="detail-title">📄 إذن الاستلام</div></div>
+    <main>
+      <div class="card">
+        <div class="section-title">🔓 مفتوح دلوقتي <span class="badge warn num" id="rcpt-open-badge">0</span></div>
+        <div id="rcpt-open-list" class="list-scroll"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">كل إذونات الاستلام — الشهر الحالي <span class="badge num" id="rcpt-badge">0</span></div>
         <div id="rcpt-list" class="list-scroll"></div>
       </div>
     </main>
@@ -369,16 +408,48 @@
   <div id="screen-inventory" class="detail-screen" hidden>
     <div class="detail-header"><button type="button" class="back-btn" data-back>→</button><div class="detail-title">📦 المخزون</div></div>
     <main>
+      <div class="menu-grid">
+        <button type="button" class="menu-tile" data-target="screen-lowstock" data-back="screen-inventory">
+          <div class="menu-tile-top"><span class="menu-icon">⚠️</span><span class="badge warn num" id="mt2-lowstock-badge">0</span></div>
+          <div class="menu-label">أصناف محتاجة شراء</div>
+        </button>
+        <button type="button" class="menu-tile" data-target="screen-bestsellers" data-back="screen-inventory">
+          <div class="menu-tile-top"><span class="menu-icon">📈</span></div>
+          <div class="menu-label">الأكثر مبيعًا (الشهر)</div>
+        </button>
+        <button type="button" class="menu-tile" data-target="screen-stagnant" data-back="screen-inventory">
+          <div class="menu-tile-top"><span class="menu-icon">🐢</span></div>
+          <div class="menu-label">راكد بالمخزون</div>
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <div id="screen-lowstock" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back="screen-inventory">→</button><div class="detail-title">⚠️ أصناف محتاجة شراء</div></div>
+    <main>
       <div class="card">
-        <div class="section-title">⚠️ أصناف محتاجة شراء <span class="badge warn num" id="lowstock-badge">0</span></div>
+        <div class="section-title">النواقص <span class="badge warn num" id="lowstock-badge">0</span></div>
         <div id="lowstock-list"></div>
       </div>
+    </main>
+  </div>
+
+  <div id="screen-bestsellers" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back="screen-inventory">→</button><div class="detail-title">📈 الأكثر مبيعًا — الشهر الحالي</div></div>
+    <main>
       <div class="card">
-        <div class="section-title">📈 الأكثر مبيعًا (الشهر)</div>
+        <div class="section-title">أعلى ٥ أصناف مبيعًا</div>
         <div id="best-list"></div>
       </div>
+    </main>
+  </div>
+
+  <div id="screen-stagnant" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back="screen-inventory">→</button><div class="detail-title">🐢 راكد بالمخزون</div></div>
+    <main>
       <div class="card">
-        <div class="section-title">🐢 راكد بالمخزون <span style="font-size:10.5px;font-weight:400;color:var(--muted);">(بدون حركة ٦٠ يوم+)</span></div>
+        <div class="section-title">بدون حركة ٦٠ يوم فأكتر</div>
         <div id="stagnant-list"></div>
       </div>
     </main>
@@ -397,12 +468,36 @@
   <div id="screen-finance" class="detail-screen" hidden>
     <div class="detail-header"><button type="button" class="back-btn" data-back>→</button><div class="detail-title">💸 المصروفات والمسحوبات</div></div>
     <main>
+      <div class="menu-grid">
+        <button type="button" class="menu-tile" data-target="screen-expenses" data-back="screen-finance">
+          <div class="menu-tile-top"><span class="menu-icon">💸</span></div>
+          <div class="menu-label">مصروفات الشهر</div>
+          <div class="menu-value num" id="mt2-exp-total">0</div>
+        </button>
+        <button type="button" class="menu-tile" data-target="screen-withdrawals" data-back="screen-finance">
+          <div class="menu-tile-top"><span class="menu-icon">🤲</span></div>
+          <div class="menu-label">مسحوباتي (الشهر)</div>
+          <div class="menu-value num" id="mt2-wd-total">0</div>
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <div id="screen-expenses" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back="screen-finance">→</button><div class="detail-title">💸 مصروفات الشهر</div></div>
+    <main>
       <div class="card">
-        <div class="section-title">💸 مصروفات الشهر <span class="badge bad num" id="exp-badge">0</span></div>
+        <div class="section-title">حسب البند <span class="badge bad num" id="exp-badge">0</span></div>
         <div id="exp-list"></div>
       </div>
+    </main>
+  </div>
+
+  <div id="screen-withdrawals" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back="screen-finance">→</button><div class="detail-title">🤲 مسحوباتي (الشهر)</div></div>
+    <main>
       <div class="card">
-        <div class="section-title">🤲 مسحوباتي (الشهر) <span class="badge warn num" id="wd-badge">0</span></div>
+        <div class="section-title">آخر الحركات <span class="badge warn num" id="wd-badge">0</span></div>
         <div id="wd-list"></div>
       </div>
     </main>
@@ -639,34 +734,47 @@
     $('tr-bank').textContent=fmtN(tr.bankTransfer||0);
     $('tr-check').textContent=fmtN(tr.check||0);
 
-    // ===== كشوف حديثة (آخر ١٥ لكل نوع) =====
+    // ===== كشوف الشهر الحالي (كاملة، مش آخر ١٥ بس) =====
     var listRow=function(title,sub,amount,amountColor){
       return '<div class="row"><div><div class="name">'+esc(title)+'</div>'+(sub?'<div class="sub">'+esc(sub)+'</div>':'')+'</div>'+(amount!=null?'<div class="amt" style="color:'+(amountColor||'var(--ink)')+';">'+fmtN(amount)+' ج</div>':'')+'</div>';
     };
+    var woStatusLabel=function(s){return {open:'🔓 مفتوح',waiting:'⏳ منتظر رد العميل',done:'✅ منتهي'}[s]||s||'';};
+    var rcptStatusLabel=function(s){return {open:'🔓 مستلم',in_wo:'🔧 في أمر شغل',done:'✅ تم التسليم',cancelled:'🚫 ملغي'}[s]||s||'';};
+
     var salesRows=d.recentSales||[];
     $('sales-list').innerHTML = salesRows.length ? salesRows.map(function(s){
       return listRow(s.id+' — '+(s.customer||''), (s.date||'')+(s.payment?' • '+s.payment:''), s.total);
-    }).join('') : '<div class="empty">مفيش فواتير مبيعات مسجّلة</div>';
-
-    var maintRows=d.recentMaintenance||[];
-    $('maint-list').innerHTML = maintRows.length ? maintRows.map(function(m){
-      return listRow(m.id+' — '+(m.customer||''), (m.device||'')+' • '+(m.date||'')+(m.status?' • '+m.status:''), m.cost);
-    }).join('') : '<div class="empty">مفيش صيانة جارية مسجّلة</div>';
+    }).join('') : '<div class="empty">مفيش فواتير مبيعات مسجّلة الشهر ده</div>';
 
     var maintInvRows=d.recentMaintInvoices||[];
     $('maintinv-list').innerHTML = maintInvRows.length ? maintInvRows.map(function(m){
       return listRow(m.id+' — '+(m.customer||''), (m.device||'')+' • '+(m.date||''), m.cost);
-    }).join('') : '<div class="empty">مفيش فواتير صيانة مسجّلة</div>';
+    }).join('') : '<div class="empty">مفيش فواتير صيانة مسجّلة الشهر ده</div>';
+    $('maintinv-badge').textContent=String(maintInvRows.length||0);
 
     var woRows=d.recentWorkOrders||[];
     $('wo-list').innerHTML = woRows.length ? woRows.map(function(w){
-      return listRow(w.id+' — '+(w.customer||''), (w.device||'')+' • '+(w.date||'')+(w.status?' • '+w.status:''), w.total);
-    }).join('') : '<div class="empty">مفيش أوامر شغل مسجّلة</div>';
+      return listRow(w.id+' — '+(w.customer||''), (w.device||'')+' • '+(w.date||'')+(w.status?' • '+woStatusLabel(w.status):''), w.total);
+    }).join('') : '<div class="empty">مفيش أوامر شغل مسجّلة الشهر ده</div>';
+    $('wo-badge').textContent=String(woRows.length||0);
+
+    var woOpenRows=d.openWorkOrders||[];
+    $('wo-open-list').innerHTML = woOpenRows.length ? woOpenRows.map(function(w){
+      return listRow(w.id+' — '+(w.customer||''), (w.device||'')+' • '+(w.date||'')+(w.status?' • '+woStatusLabel(w.status):''), w.total);
+    }).join('') : '<div class="empty">✅ مفيش أوامر شغل مفتوحة دلوقتي</div>';
+    $('wo-open-badge').textContent=String(woOpenRows.length||0);
 
     var rcptRows=d.recentReceipts||[];
     $('rcpt-list').innerHTML = rcptRows.length ? rcptRows.map(function(rc){
-      return listRow(rc.id+' — '+(rc.customer||''), (rc.device||'')+' • '+(rc.date||'')+(rc.status?' • '+rc.status:''));
-    }).join('') : '<div class="empty">مفيش إذونات استلام مسجّلة</div>';
+      return listRow(rc.id+' — '+(rc.customer||''), (rc.device||'')+' • '+(rc.date||'')+(rc.status?' • '+rcptStatusLabel(rc.status):''));
+    }).join('') : '<div class="empty">مفيش إذونات استلام مسجّلة الشهر ده</div>';
+    $('rcpt-badge').textContent=String(rcptRows.length||0);
+
+    var rcptOpenRows=d.openReceipts||[];
+    $('rcpt-open-list').innerHTML = rcptOpenRows.length ? rcptOpenRows.map(function(rc){
+      return listRow(rc.id+' — '+(rc.customer||''), (rc.device||'')+' • '+(rc.date||'')+(rc.status?' • '+rcptStatusLabel(rc.status):''));
+    }).join('') : '<div class="empty">✅ مفيش إذونات استلام مفتوحة دلوقتي</div>';
+    $('rcpt-open-badge').textContent=String(rcptOpenRows.length||0);
 
     // ===== مراكز الخدمة =====
     var svc=d.serviceCenters||{count:0,top:[]};
@@ -706,12 +814,22 @@
     $('mt-pay-badge').textContent=String(pay.count||0);
     $('mt-pay-total').textContent=fmtN(pay.total||0);
     $('mt-month').textContent=fmtN(d.monthSalesTotal);
-    $('mt-maint-badge').textContent=String(maintRows.length||0);
+    $('mt-maint-badge').textContent=String((woOpenRows.length||0)+(rcptOpenRows.length||0));
     $('mt-lowstock-badge').textContent=String(d.lowStockCount||0);
     $('mt-svc-badge').textContent=String(svc.count||0);
     $('mt-finance-total').textContent=fmtN(expM.total||0);
     $('mt-hr-count').textContent=String(hr.employeesCount||0);
     $('mt-wa-badge').textContent=String(waCount||0);
+
+    // ===== القيم المصغّرة على زراير الشاشات الفرعية (الصيانة/المخزون/المصروفات) =====
+    $('mt2-maintinv-count').textContent=String(maintInvRows.length||0);
+    $('mt2-wo-count').textContent=String(woRows.length||0);
+    $('mt2-wo-open-badge').textContent=String(woOpenRows.length||0);
+    $('mt2-rcpt-count').textContent=String(rcptRows.length||0);
+    $('mt2-rcpt-open-badge').textContent=String(rcptOpenRows.length||0);
+    $('mt2-lowstock-badge').textContent=String(d.lowStockCount||0);
+    $('mt2-exp-total').textContent=fmtN(expM.total||0);
+    $('mt2-wd-total').textContent=fmtN(wdM.total||0);
 
     if(d.updatedAt){
       var mins=Math.round((Date.now()-d.updatedAt)/60000);
@@ -762,8 +880,15 @@
   document.querySelectorAll('.menu-tile[data-target]').forEach(function(btn){
     btn.addEventListener('click', function(){ showDetailScreen(btn.getAttribute('data-target')); });
   });
+  // زرار الرجوع (→): لو الشاشة دي فرع من شاشة تانية (data-back="screen-xxx")، يرجّع لها
+  // هي بدل ما يرجع للشاشة الرئيسية على طول — عشان مثلاً "فواتير الصيانة" ترجع لقايمة
+  // "الصيانة وأوامر الشغل" مش للرئيسية مباشرة.
   document.querySelectorAll('.back-btn[data-back]').forEach(function(btn){
-    btn.addEventListener('click', showHome);
+    btn.addEventListener('click', function(){
+      var parent=btn.getAttribute('data-back');
+      if(parent && $(parent)) showDetailScreen(parent);
+      else showHome();
+    });
   });
 
   $('settings-btn').addEventListener('click', function(){

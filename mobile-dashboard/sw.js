@@ -2,7 +2,7 @@
 // وتشتغل حتى لو النت بطيء لحظة الفتح. البيانات نفسها (فايرستور) مبتتخزنش
 // هنا خالص وبتيجي لايف على طول عشان تفضل دايمًا صح ومحدّثة.
 
-const CACHE_NAME = 'act-mobile-dashboard-v1.3.15';
+const CACHE_NAME = 'act-mobile-dashboard-v1.3.16';
 const APP_SHELL = [
   './',
   './index.html',
