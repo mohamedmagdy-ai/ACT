@@ -40,8 +40,23 @@ jobs:
         working-directory: mobile-android/android
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Upload APK (build artifact, for manual download)
         uses: actions/upload-artifact@v4
         with:
           name: ACT-Mobile-Dashboard-debug-apk
           path: mobile-android/android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Read app version
+        id: appver
+        run: echo "version=$(cat mobile-android/www/version.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Publish update release (public updates repo)
+        if: ${{ secrets.UPDATES_REPO_TOKEN != '' && vars.UPDATES_REPO != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: ${{ vars.UPDATES_REPO }}
+          token: ${{ secrets.UPDATES_REPO_TOKEN }}
+          tag_name: v${{ steps.appver.outputs.version }}
+          name: v${{ steps.appver.outputs.version }}
+          make_latest: true
+          files: mobile-android/android/app/build/outputs/apk/debug/app-debug.apk

@@ -7,8 +7,8 @@ android {
         applicationId "com.actmain.mobiledashboard"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.3.18"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +16,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // توقيع ثابت لكل نسخ الأندرويد (debug و release) — عشان أي بناء جديد من
+    // GitHub Actions يستخدم نفس المفتاح دايمًا، والتحديثات تتثبت فوق بعضها
+    // من غير ما تحتاج تمسح النسخة القديمة الأول. لو اتمسح أو اتغيّر الملف ده
+    // (act-mobile-release.keystore)، هيحتاج كل المستخدمين يمسحوا التطبيق
+    // ويثبتوه من جديد مرة واحدة كمان — فمينفعش يتغيّر إلا لو ضروري جدًا.
+    signingConfigs {
+        actMobile {
+            storeFile file('act-mobile-release.keystore')
+            storePassword 'ActMobile2026Store'
+            keyAlias 'actmobilekey'
+            keyPassword 'ActMobile2026Key'
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.actMobile
+        }
         release {
+            signingConfig signingConfigs.actMobile
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

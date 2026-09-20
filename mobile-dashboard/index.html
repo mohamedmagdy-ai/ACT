@@ -49,6 +49,13 @@
   [hidden]{display:none!important;}
   a{color:var(--brand-2);}
 
+  /* ===== شريط تحديث التطبيق ===== */
+  .update-banner{display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top,0px));margin:-16px -16px 12px -16px;background:linear-gradient(180deg,#1f8f5c,#146b44);color:#fff;font-size:12.5px;font-weight:700;box-shadow:var(--shadow);}
+  .update-banner span{flex:1;line-height:1.6;}
+  .update-banner button{border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;flex:none;}
+  #update-banner-btn{background:#fff;color:#146b44;}
+  #update-banner-close{background:rgba(255,255,255,.2);color:#fff;padding:7px 10px;}
+
   /* ===== header ===== */
   .topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;margin-inline:-16px;padding:14px 16px;background:linear-gradient(180deg,var(--brand),#0c223a);color:#fff;box-shadow:var(--shadow);}
   .topbar-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
@@ -132,6 +139,12 @@
 </style>
 </head>
 <body>
+
+<div id="update-banner" class="update-banner" hidden>
+  <span id="update-banner-text">🆕 فيه تحديث جديد</span>
+  <button type="button" id="update-banner-btn">تحميل وتثبيت</button>
+  <button type="button" id="update-banner-close" aria-label="إغلاق">✕</button>
+</div>
 
 <div id="setup-screen" class="setup-wrap">
   <div class="setup-hero">
@@ -285,6 +298,31 @@
       <button type="button" class="menu-tile" data-target="screen-shopsettings" id="shopsettings-tile">
         <div class="menu-tile-top"><span class="menu-icon">🏪</span></div>
         <div class="menu-label">إعدادات المحل</div>
+      </button>
+
+      <button type="button" class="menu-tile" data-target="screen-accounts" id="accounts-tile">
+        <div class="menu-tile-top"><span class="menu-icon">🔐</span></div>
+        <div class="menu-label">حسابات الدخول</div>
+      </button>
+
+      <button type="button" class="menu-tile" data-target="screen-mbranches" id="mbranches-tile">
+        <div class="menu-tile-top"><span class="menu-icon">🏢</span></div>
+        <div class="menu-label">الفروع</div>
+      </button>
+
+      <button type="button" class="menu-tile" data-target="screen-mpartners" id="mpartners-tile">
+        <div class="menu-tile-top"><span class="menu-icon">🤝</span></div>
+        <div class="menu-label">الشركاء ورأس المال</div>
+      </button>
+
+      <button type="button" class="menu-tile" data-target="screen-mcounters" id="mcounters-tile">
+        <div class="menu-tile-top"><span class="menu-icon">🔢</span></div>
+        <div class="menu-label">العدادات</div>
+      </button>
+
+      <button type="button" class="menu-tile" data-target="screen-mauditlog" id="mauditlog-tile">
+        <div class="menu-tile-top"><span class="menu-icon">📜</span></div>
+        <div class="menu-label">سجل التدقيق</div>
       </button>
     </div>
 
@@ -622,9 +660,137 @@
           </div>
           <div class="field rtl-field" style="margin-top:10px;"><label>رقم البطاقة الضريبية</label><input id="ss-taxcard" /></div>
         </div>
-        <div class="footer-note">إعدادات تانية زي الفروع والمستخدمين وصلاحياتهم والعدادات ورأس مال الشركاء لسه بس من برنامج الكمبيوتر (شاشة الإعدادات هناك).</div>
+        <div class="footer-note">الفروع والمستخدمين والعدادات ورأس مال الشركاء بقى ليهم شاشاتهم الخاصة في الرئيسية.</div>
         <div id="ss-msg" class="err-box" hidden style="margin-bottom:10px;"></div>
         <button class="btn-main" id="ss-save-btn">حفظ التعديلات</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===== حسابات الدخول (المستخدمين) — إضافة وعرض بس من الموبايل، من غير تعديل/حذف
+  حساب موجود (ده لسه من الكمبيوتر بس، تقليل خطر قفل حسابات بالغلط من شاشة صغيرة).
+  كلمة المرور بتتشفّر (PBKDF2) على الموبايل نفسه قبل ما تتبعت — نفس بالظبط طريقة
+  الكمبيوتر — فمفيش كلمة مرور صريحة بتتخزن ولا بتتبعت في أي وقت. =====
+  -->
+  <div id="screen-accounts" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back>→</button><div class="detail-title">🔐 حسابات الدخول</div></div>
+    <main>
+      <div id="acc-loading" class="empty" style="color:var(--muted);background:var(--surface-2);">⏳ جاري التحميل...</div>
+      <div id="acc-wrap" hidden>
+        <div class="card">
+          <div class="section-title">إضافة حساب جديد</div>
+          <div class="field rtl-field"><label>الاسم</label><input id="acc-name" placeholder="مثال: محاسب" /></div>
+          <div class="field rtl-field" style="margin-top:10px;"><label>اسم الدخول</label><input id="acc-user" placeholder="accountant" /></div>
+          <div class="field rtl-field" style="margin-top:10px;"><label>كلمة المرور</label><input id="acc-pass" type="password" placeholder="كلمة مرور" /></div>
+          <div class="field rtl-field" style="margin-top:10px;"><label>الفرع التابع له</label><select id="acc-branch"></select></div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-top:10px;cursor:pointer;">
+            <input type="checkbox" id="acc-viewall" checked/> صلاحية عرض كل الأقسام (بدون تعديل/حذف)
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-top:8px;cursor:pointer;">
+            <input type="checkbox" id="acc-editprod"/> صلاحية تعديل/إضافة المنتجات
+          </label>
+          <div id="acc-msg" class="err-box" hidden style="margin-top:10px;"></div>
+          <button class="btn-main" id="acc-save-btn" style="margin-top:12px;">إنشاء الحساب</button>
+          <div class="footer-note" style="margin-top:8px;">هيوصل لبرنامج الكمبيوتر ويتفعّل تلقائي أول ما يكون شغال ومتصل بالإنترنت (خلال ٣٠ ثانية تقريبًا). تعديل صلاحيات مفصّلة أو حذف حساب لسه من الكمبيوتر بس.</div>
+        </div>
+        <div class="card">
+          <div class="section-title">الحسابات الحالية</div>
+          <div id="acc-list"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===== الفروع — إضافة وعرض بس (إعادة تسمية وحذف لسه من الكمبيوتر) ===== -->
+  <div id="screen-mbranches" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back>→</button><div class="detail-title">🏢 الفروع</div></div>
+    <main>
+      <div id="mbr-loading" class="empty" style="color:var(--muted);background:var(--surface-2);">⏳ جاري التحميل...</div>
+      <div id="mbr-wrap" hidden>
+        <div class="card">
+          <div class="section-title">إضافة فرع جديد</div>
+          <div class="field rtl-field"><label>اسم الفرع</label><input id="mbr-name" placeholder="مثال: فرع سموحة" /></div>
+          <div id="mbr-msg" class="err-box" hidden style="margin-top:10px;"></div>
+          <button class="btn-main" id="mbr-save-btn" style="margin-top:12px;">إضافة الفرع</button>
+        </div>
+        <div class="card">
+          <div class="section-title">الفروع الحالية</div>
+          <div id="mbr-list"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===== الشركاء ورأس المال ===== -->
+  <div id="screen-mpartners" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back>→</button><div class="detail-title">🤝 الشركاء ورأس المال</div></div>
+    <main>
+      <div id="mpt-loading" class="empty" style="color:var(--muted);background:var(--surface-2);">⏳ جاري التحميل...</div>
+      <div id="mpt-wrap" hidden>
+        <div class="card">
+          <div class="section-title">أرصدة الشركاء الحالية</div>
+          <div id="mpt-balances"></div>
+        </div>
+        <div class="card">
+          <div class="section-title">💰 إضافة مساهمة رأس مال جديدة</div>
+          <div class="field rtl-field"><label>اسم الشريك</label><input id="mpt-inj-partner" list="mpt-partner-list" /><datalist id="mpt-partner-list"></datalist></div>
+          <div class="fields-grid" style="margin-top:10px;">
+            <div class="field rtl-field"><label>المبلغ</label><input id="mpt-inj-amount" type="number" /></div>
+            <div class="field rtl-field"><label>التاريخ</label><input id="mpt-inj-date" type="date" /></div>
+          </div>
+          <div class="field rtl-field" style="margin-top:10px;"><label>ملاحظات (اختياري)</label><input id="mpt-inj-notes" /></div>
+          <button class="btn-main" id="mpt-inj-btn" style="margin-top:12px;">تسجيل المساهمة</button>
+        </div>
+        <div class="card">
+          <div class="section-title">✏️ ضبط رأس المال الأصلي</div>
+          <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;">مرة واحدة بس — نقطة البداية قبل أي أرباح محتجزة.</div>
+          <div class="field rtl-field"><label>اسم الشريك</label><input id="mpt-init-partner" list="mpt-partner-list" /></div>
+          <div class="field rtl-field" style="margin-top:10px;"><label>رأس المال الأصلي</label><input id="mpt-init-amount" type="number" /></div>
+          <button class="btn-main" id="mpt-init-btn" style="margin-top:12px;">حفظ رأس المال الأصلي</button>
+        </div>
+        <div id="mpt-msg" class="err-box" hidden></div>
+        <div class="card">
+          <div class="section-title">📜 سجل المساهمات</div>
+          <div id="mpt-injections"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===== العدادات — تعديل آمن بالتصميم: أي قيمة بتتبعت من الموبايل، الكمبيوتر بياخد
+  الأعلى بينها وبين قيمته الحالية دايمًا (مينفعش عداد يرجع لرقم أقل بالغلط ويسبب تكرار
+  رقم فاتورة) — نفس آلية دمج العدادات بين أي جهازين أصلاً. =====
+  -->
+  <div id="screen-mcounters" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back>→</button><div class="detail-title">🔢 العدادات</div></div>
+    <main>
+      <div id="mct-loading" class="empty" style="color:var(--muted);background:var(--surface-2);">⏳ جاري التحميل...</div>
+      <div id="mct-wrap" hidden>
+        <div class="card">
+          <div class="footer-note" style="margin-bottom:10px;">دي عدادات ترقيم الفواتير/الأذون — عدّلها بس لو فعلاً محتاج تصحّح رقم.</div>
+          <div id="mct-list"></div>
+          <div id="mct-msg" class="err-box" hidden style="margin-top:10px;"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===== سجل التدقيق — عرض بس + فحص سلامة (hash chain) بيتحسب على الموبايل نفسه من
+  نفس السجلات المتزامنة، بنفس خوارزمية الكمبيوتر بالظبط. =====
+  -->
+  <div id="screen-mauditlog" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back>→</button><div class="detail-title">📜 سجل التدقيق</div></div>
+    <main>
+      <div id="mal-loading" class="empty" style="color:var(--muted);background:var(--surface-2);">⏳ جاري التحميل...</div>
+      <div id="mal-wrap" hidden>
+        <div class="card">
+          <button class="btn-main" id="mal-check-btn">🔒 فحص سلامة السجل</button>
+          <div id="mal-check-result" style="margin-top:10px;"></div>
+        </div>
+        <div class="card">
+          <div class="section-title">آخر العمليات الحساسة</div>
+          <div id="mal-list"></div>
+        </div>
       </div>
     </main>
   </div>
@@ -1161,6 +1327,414 @@
   $('shopsettings-tile').addEventListener('click', loadShopSettings);
   $('ss-save-btn').addEventListener('click', saveShopSettingsFromMobile);
 
+  // ===== لوحة تحكم إدارية إضافية: حسابات الدخول/الفروع/الشركاء ورأس المال/
+  // العدادات/سجل التدقيق — قراءة من sz_data/_mobile_admin (بيتحدّث من الكمبيوتر
+  // زي أرشيف الشهور بالظبط)، والإضافات بتتبعت كطلبات إلى sz_data/_mobile_admin_write
+  // والكمبيوتر بينفّذها فعليًا كل ٣٠ ثانية بنفس بالظبط الدوال اللي شاشة الإعدادات
+  // العادية بتستخدمها — تعديل/حذف حساب أو فرع موجود، وتبويب "متقدم" بالكامل، لسه
+  // من الكمبيوتر بس عمدًا (تقليل خطر إجراء لا رجعة فيه بضغطة غلط من موبايل).
+  var _mobileAdminCache=null;
+  function mobileReqId(){ return Date.now()+'-'+Math.floor(Math.random()*99999); }
+  function mobileAdminRequest(field, item){
+    if(!db)return Promise.reject(new Error('no db'));
+    if(!(window.firebase&&firebase.firestore&&firebase.firestore.FieldValue&&firebase.firestore.FieldValue.arrayUnion)){
+      return Promise.reject(new Error('firebase FieldValue not available'));
+    }
+    var payload={};
+    payload[field]=firebase.firestore.FieldValue.arrayUnion(item);
+    return db.collection('sz_data').doc('_mobile_admin_write').set(payload,{merge:true});
+  }
+  function loadMobileAdminSnapshot(cb){
+    if(!db){cb(null);return;}
+    db.collection('sz_data').doc('_mobile_admin').get().then(function(doc){
+      var data=(doc&&doc.exists)?doc.data():null;
+      _mobileAdminCache=data;
+      cb(data);
+    }).catch(function(){ cb(null); });
+  }
+
+  // ===== تشفير كلمة المرور (PBKDF2 عن طريق WebCrypto) — نفس بالظبط خوارزمية
+  // برنامج الكمبيوتر (hashPass في app/index.html): ١٠٠٠٠ دورة، هاش ٣٢ بايت،
+  // salt عشوائي ١٦ بايت. كلمة المرور الصريحة مش بتتخزن ولا بتتبعت أبدًا — بس
+  // الناتج المشفّر ده، وبرنامج الكمبيوتر بيتحقق منه بنفس الصيغة (checkPass) =====
+  function _bytesToHexM(b){ return Array.prototype.map.call(b, function(v){ return v.toString(16).padStart(2,'0'); }).join(''); }
+  function _hexToBytesM(h){ h=String(h||''); var b=[]; for(var i=0;i<h.length;i+=2)b.push(parseInt(h.substr(i,2),16)); return new Uint8Array(b); }
+  function _genSaltM(len){
+    len=len||16;
+    var arr=new Uint8Array(len);
+    try{ crypto.getRandomValues(arr); }catch(_e){ for(var i=0;i<len;i++)arr[i]=Math.floor(Math.random()*256); }
+    return _bytesToHexM(arr);
+  }
+  var PBKDF2_ITER_M=10000, PBKDF2_LEN_M=32;
+  function hashPassMobile(p){
+    return new Promise(function(resolve){
+      try{
+        if(!(window.crypto&&crypto.subtle&&crypto.subtle.importKey)){ resolve(null); return; }
+        var salt=_genSaltM(16);
+        var enc=new TextEncoder();
+        crypto.subtle.importKey('raw',enc.encode(p),{name:'PBKDF2'},false,['deriveBits']).then(function(passKey){
+          return crypto.subtle.deriveBits({name:'PBKDF2',salt:_hexToBytesM(salt),iterations:PBKDF2_ITER_M,hash:'SHA-256'},passKey,PBKDF2_LEN_M*8);
+        }).then(function(bits){
+          resolve('pbkdf2:'+PBKDF2_ITER_M+'$'+salt+'$'+_bytesToHexM(new Uint8Array(bits)));
+        }).catch(function(){ resolve(null); });
+      }catch(e){ resolve(null); }
+    });
+  }
+
+  // ===== SHA-256 متزامن (نفس نسخة برنامج الكمبيوتر بالحرف) — مستخدمة بس في فحص
+  // سلامة سجل التدقيق (hash chain)، عشان الفحص يشتغل محليًا على الموبايل من غير
+  // ما يحتاج مكتبة خارجية =====
+  function sha256Sync(ascii){
+    function rightRotate(v,a){return(v>>>a)|(v<<(32-a));}
+    var mathPow=Math.pow,maxWord=mathPow(2,32),result='',i,j;
+    var words=[],asciiBitLength=ascii.length*8;
+    var hash=sha256Sync.h=sha256Sync.h||[],k=sha256Sync.k=sha256Sync.k||[];
+    var primeCounter=k.length,isComposite={};
+    for(var candidate=2;primeCounter<64;candidate++){
+      if(!isComposite[candidate]){
+        for(i=0;i<313;i+=candidate)isComposite[i]=candidate;
+        hash[primeCounter]=(mathPow(candidate,0.5)*maxWord)|0;
+        k[primeCounter++]=(mathPow(candidate,1/3)*maxWord)|0;
+      }
+    }
+    ascii+='\x80';
+    while(ascii.length%64-56)ascii+='\x00';
+    for(i=0;i<ascii.length;i++){
+      j=ascii.charCodeAt(i);if(j>>8)return'';
+      words[i>>2]|=j<<((3-i)%4)*8;
+    }
+    words[words.length]=(asciiBitLength/maxWord)|0;
+    words[words.length]=asciiBitLength;
+    for(j=0;j<words.length;){
+      var w=words.slice(j,j+=16),oldHash=hash;
+      hash=hash.slice(0,8);
+      for(i=0;i<64;i++){
+        var w15=w[i-15],w2=w[i-2];
+        var a=hash[0],e=hash[4];
+        var temp1=hash[7]
+          +(rightRotate(e,6)^rightRotate(e,11)^rightRotate(e,25))
+          +((e&hash[5])^((~e)&hash[6]))
+          +k[i]
+          +(w[i]=(i<16)?w[i]:(w[i-16]+(rightRotate(w15,7)^rightRotate(w15,18)^(w15>>>3))+w[i-7]+(rightRotate(w2,17)^rightRotate(w2,19)^(w2>>>10)))|0);
+        var temp2=(rightRotate(a,2)^rightRotate(a,13)^rightRotate(a,22))
+          +((a&hash[1])^(a&hash[2])^(hash[1]&hash[2]));
+        hash=[(temp1+temp2)|0].concat(hash);
+        hash[4]=(hash[4]+temp1)|0;
+      }
+      for(i=0;i<8;i++)hash[i]=(hash[i]+oldHash[i])|0;
+    }
+    for(i=0;i<8;i++){
+      for(j=3;j+1;j--){
+        var b=(hash[i]>>(j*8))&255;
+        result+=((b<16)?0:'')+b.toString(16);
+      }
+    }
+    return result;
+  }
+  function _auditHash(str){
+    try{ return sha256Sync(unescape(encodeURIComponent(str))); }catch(_e){ return ''; }
+  }
+
+  // ===== حسابات الدخول =====
+  function loadAccountsScreen(){
+    $('acc-loading').hidden=false;
+    $('acc-loading').textContent='⏳ جاري التحميل...';
+    $('acc-wrap').hidden=true;
+    $('acc-msg').hidden=true;
+    loadMobileAdminSnapshot(function(data){
+      if(!data){
+        $('acc-loading').textContent='⚠️ تعذّر تحميل البيانات. تأكد إن برنامج الكمبيوتر اشتغل مرة على الأقل بعد تحديث اليوم، وإن عندك اتصال بالإنترنت.';
+        return;
+      }
+      $('acc-loading').hidden=true;
+      $('acc-wrap').hidden=false;
+      var branches=data.branches||[];
+      var brSel=$('acc-branch');
+      brSel.innerHTML=branches.length?branches.map(function(b){return '<option value="'+esc(b.id)+'">'+esc(b.name)+'</option>';}).join(''):'<option value="BR-MAIN">الفرع الرئيسي</option>';
+      var defaultBr=null;
+      for(var i=0;i<branches.length;i++){ if(branches[i].isDefault){ defaultBr=branches[i]; break; } }
+      if(defaultBr)brSel.value=defaultBr.id;
+      renderAccountsList(data.users||[], branches);
+    });
+  }
+  function renderAccountsList(users, branches){
+    var el=$('acc-list');
+    if(!users.length){ el.innerHTML='<div class="empty">لسه مفيش حسابات</div>'; return; }
+    el.innerHTML=users.map(function(u){
+      var br=null;
+      for(var i=0;i<branches.length;i++){ if(branches[i].id===u.branch){ br=branches[i]; break; } }
+      var role=u.role==='admin'?'أدمن':'مستخدم';
+      return '<div class="row"><div><div class="name">'+esc(u.name)+' <span class="badge" style="background:var(--surface-2);color:var(--muted);">'+role+'</span></div>'+
+        '<div class="sub" style="color:var(--muted);font-size:11.5px;">@'+esc(u.username)+(br?' · '+esc(br.name):'')+'</div></div></div>';
+    }).join('');
+  }
+  $('accounts-tile').addEventListener('click', loadAccountsScreen);
+  $('acc-save-btn').addEventListener('click', function(){
+    var name=$('acc-name').value.trim();
+    var username=$('acc-user').value.trim().toLowerCase();
+    var pass=$('acc-pass').value;
+    var msg=$('acc-msg');
+    msg.hidden=true; msg.style.color=''; msg.style.background='';
+    if(!name||!username||!pass){ msg.hidden=false; msg.textContent='من فضلك املا الاسم واسم الدخول وكلمة المرور.'; return; }
+    if(pass.length<4){ msg.hidden=false; msg.textContent='كلمة المرور قصيرة أوي — على الأقل ٤ حروف/أرقام.'; return; }
+    var existing=(_mobileAdminCache&&_mobileAdminCache.users)||[];
+    if(existing.some(function(u){return String(u.username||'').toLowerCase()===username;})){
+      msg.hidden=false; msg.textContent='اسم الدخول ده مستخدم بالفعل.'; return;
+    }
+    var btn=$('acc-save-btn'); btn.disabled=true; btn.textContent='جاري الإنشاء...';
+    hashPassMobile(pass).then(function(hash){
+      if(!hash){
+        msg.hidden=false; msg.textContent='⚠️ التطبيق ده مش بيدعم تشفير آمن لكلمة المرور — جرّب تحدّث تطبيق الموبايل.';
+        btn.disabled=false; btn.textContent='إنشاء الحساب';
+        return;
+      }
+      var item={ id:mobileReqId(), name:name, username:username, passwordHash:hash,
+        viewAll:$('acc-viewall').checked, editProd:$('acc-editprod').checked,
+        branch:$('acc-branch').value||'BR-MAIN', ts:Date.now() };
+      mobileAdminRequest('newUsers', item).then(function(){
+        msg.hidden=false; msg.style.color='var(--good)'; msg.style.background='var(--good-bg)';
+        msg.textContent='✓ اتبعت. هيتفعّل الحساب أول ما الكمبيوتر يكون شغال ومتصل بالإنترنت (خلال ٣٠ ثانية تقريبًا).';
+        $('acc-name').value='';$('acc-user').value='';$('acc-pass').value='';
+        btn.disabled=false; btn.textContent='إنشاء الحساب';
+      }).catch(function(){
+        msg.hidden=false; msg.textContent='⚠️ حصل خطأ أثناء الحفظ. تأكد من الاتصال بالإنترنت وجرّب تاني.';
+        btn.disabled=false; btn.textContent='إنشاء الحساب';
+      });
+    });
+  });
+
+  // ===== الفروع =====
+  function loadBranchesScreen(){
+    $('mbr-loading').hidden=false;
+    $('mbr-loading').textContent='⏳ جاري التحميل...';
+    $('mbr-wrap').hidden=true;
+    $('mbr-msg').hidden=true;
+    loadMobileAdminSnapshot(function(data){
+      if(!data){
+        $('mbr-loading').textContent='⚠️ تعذّر تحميل البيانات. تأكد إن برنامج الكمبيوتر اشتغل مرة على الأقل بعد تحديث اليوم.';
+        return;
+      }
+      $('mbr-loading').hidden=true;
+      $('mbr-wrap').hidden=false;
+      renderBranchesListMobile(data.branches||[]);
+    });
+  }
+  function renderBranchesListMobile(branches){
+    var el=$('mbr-list');
+    if(!branches.length){ el.innerHTML='<div class="empty">لسه مفيش فروع مسجّلة</div>'; return; }
+    el.innerHTML=branches.map(function(b){
+      return '<div class="row"><div class="name">🏪 '+esc(b.name)+(b.isDefault?' <span class="badge" style="background:var(--surface-2);color:var(--muted);">الفرع الافتراضي</span>':'')+'</div></div>';
+    }).join('');
+  }
+  $('mbranches-tile').addEventListener('click', loadBranchesScreen);
+  $('mbr-save-btn').addEventListener('click', function(){
+    var name=$('mbr-name').value.trim();
+    var msg=$('mbr-msg'); msg.hidden=true; msg.style.color=''; msg.style.background='';
+    if(!name){ msg.hidden=false; msg.textContent='اكتب اسم الفرع الأول.'; return; }
+    var existing=(_mobileAdminCache&&_mobileAdminCache.branches)||[];
+    if(existing.some(function(b){return b.name===name;})){
+      msg.hidden=false; msg.textContent='فيه فرع بنفس الاسم ده بالفعل.'; return;
+    }
+    var btn=$('mbr-save-btn'); btn.disabled=true; btn.textContent='جاري الإضافة...';
+    mobileAdminRequest('newBranches', {id:mobileReqId(), name:name, ts:Date.now()}).then(function(){
+      msg.hidden=false; msg.style.color='var(--good)'; msg.style.background='var(--good-bg)';
+      msg.textContent='✓ اتبعت. هيتضاف الفرع أول ما الكمبيوتر يكون شغال ومتصل.';
+      $('mbr-name').value='';
+      btn.disabled=false; btn.textContent='إضافة الفرع';
+    }).catch(function(){
+      msg.hidden=false; msg.textContent='⚠️ حصل خطأ. جرّب تاني.';
+      btn.disabled=false; btn.textContent='إضافة الفرع';
+    });
+  });
+
+  // ===== الشركاء ورأس المال =====
+  function loadPartnersScreen(){
+    $('mpt-loading').hidden=false;
+    $('mpt-loading').textContent='⏳ جاري التحميل...';
+    $('mpt-wrap').hidden=true;
+    $('mpt-msg').hidden=true;
+    loadMobileAdminSnapshot(function(data){
+      if(!data){
+        $('mpt-loading').textContent='⚠️ تعذّر تحميل البيانات.';
+        return;
+      }
+      $('mpt-loading').hidden=true;
+      $('mpt-wrap').hidden=false;
+      var partners=data.partners||{shares:[],initial:{},injections:[]};
+      renderPartnerBalances(partners.shares||[]);
+      renderPartnerInjectionsList(partners.injections||[]);
+      $('mpt-partner-list').innerHTML=(partners.shares||[]).map(function(p){return '<option value="'+esc(p.name)+'"></option>';}).join('');
+      if(!$('mpt-inj-date').value)$('mpt-inj-date').value=new Date().toISOString().slice(0,10);
+    });
+  }
+  function renderPartnerBalances(shares){
+    var el=$('mpt-balances');
+    if(!shares.length){ el.innerHTML='<div class="empty">لسه مفيش شركاء مسجّلين</div>'; return; }
+    el.innerHTML=shares.map(function(p){
+      return '<div class="row"><div class="name">'+esc(p.name)+'</div><div class="amt num">'+fmtN(p.balance)+' <small style="font-size:11px;">('+(p.pct!=null?p.pct:0)+'٪)</small></div></div>';
+    }).join('');
+  }
+  function renderPartnerInjectionsList(injections){
+    var el=$('mpt-injections');
+    if(!injections.length){ el.innerHTML='<div class="empty">لسه مفيش مساهمات مسجّلة</div>'; return; }
+    el.innerHTML=injections.slice(0,30).map(function(i){
+      return '<div class="row"><div><div class="name">'+esc(i.partner)+'</div><div class="sub" style="color:var(--muted);font-size:11.5px;">'+esc(i.date)+(i.notes?' · '+esc(i.notes):'')+'</div></div><div class="amt num">'+fmtN(i.amount)+'</div></div>';
+    }).join('');
+  }
+  $('mpartners-tile').addEventListener('click', loadPartnersScreen);
+  $('mpt-inj-btn').addEventListener('click', function(){
+    var partner=$('mpt-inj-partner').value.trim();
+    var amount=parseFloat($('mpt-inj-amount').value)||0;
+    var msg=$('mpt-msg'); msg.hidden=true; msg.style.color=''; msg.style.background='';
+    if(!partner){ msg.hidden=false; msg.textContent='اكتب اسم الشريك.'; return; }
+    if(amount<=0){ msg.hidden=false; msg.textContent='اكتب مبلغ صحيح.'; return; }
+    var btn=$('mpt-inj-btn'); btn.disabled=true;
+    mobileAdminRequest('partnerInjections', {
+      id:mobileReqId(), partner:partner, amount:amount,
+      date:$('mpt-inj-date').value||new Date().toISOString().slice(0,10),
+      notes:$('mpt-inj-notes').value.trim(), ts:Date.now()
+    }).then(function(){
+      msg.hidden=false; msg.style.color='var(--good)'; msg.style.background='var(--good-bg)';
+      msg.textContent='✓ اتبعت المساهمة. هتتسجّل أول ما الكمبيوتر يكون شغال ومتصل.';
+      $('mpt-inj-partner').value='';$('mpt-inj-amount').value='';$('mpt-inj-notes').value='';
+      btn.disabled=false;
+    }).catch(function(){
+      msg.hidden=false; msg.textContent='⚠️ حصل خطأ. جرّب تاني.';
+      btn.disabled=false;
+    });
+  });
+  $('mpt-init-btn').addEventListener('click', function(){
+    var partner=$('mpt-init-partner').value.trim();
+    var amount=parseFloat($('mpt-init-amount').value);
+    var msg=$('mpt-msg'); msg.hidden=true; msg.style.color=''; msg.style.background='';
+    if(!partner){ msg.hidden=false; msg.textContent='اكتب اسم الشريك.'; return; }
+    if(isNaN(amount)||amount<0){ msg.hidden=false; msg.textContent='اكتب مبلغ صحيح (يقدر يكون صفر).'; return; }
+    var btn=$('mpt-init-btn'); btn.disabled=true;
+    mobileAdminRequest('initialCapitalSets', {id:mobileReqId(), partner:partner, amount:amount, ts:Date.now()}).then(function(){
+      msg.hidden=false; msg.style.color='var(--good)'; msg.style.background='var(--good-bg)';
+      msg.textContent='✓ اتبعت. هتتسجّل أول ما الكمبيوتر يكون شغال ومتصل.';
+      $('mpt-init-partner').value='';$('mpt-init-amount').value='';
+      btn.disabled=false;
+    }).catch(function(){
+      msg.hidden=false; msg.textContent='⚠️ حصل خطأ. جرّب تاني.';
+      btn.disabled=false;
+    });
+  });
+
+  // ===== العدادات — تعديل آمن بالتصميم: الكمبيوتر بياخد الأعلى بين القيمة الجاية
+  // من الموبايل وقيمته الحالية دايمًا (مينفعش عداد يرجع لرقم أقل ويسبب تكرار رقم
+  // فاتورة)، نفس آلية دمج العدادات بين أي جهازين أصلاً =====
+  var COUNTER_NAMES_MOBILE={rcpt:'إذن الاستلام',sinv:'مبيعات',minv:'صيانة',wo:'أمر الشغل',tsinv:'مبيعات ضريبية',tminv:'صيانة ضريبية'};
+  function loadCountersScreen(){
+    $('mct-loading').hidden=false;
+    $('mct-loading').textContent='⏳ جاري التحميل...';
+    $('mct-wrap').hidden=true;
+    $('mct-msg').hidden=true;
+    loadMobileAdminSnapshot(function(data){
+      if(!data){
+        $('mct-loading').textContent='⚠️ تعذّر تحميل البيانات.';
+        return;
+      }
+      $('mct-loading').hidden=true;
+      $('mct-wrap').hidden=false;
+      renderCountersListMobile(data.counters||{});
+    });
+  }
+  function renderCountersListMobile(counters){
+    var el=$('mct-list');
+    var keys=Object.keys(COUNTER_NAMES_MOBILE);
+    el.innerHTML=keys.map(function(k){
+      var v=counters[k]||1;
+      return '<div class="field rtl-field" style="margin-bottom:10px;"><label>'+esc(COUNTER_NAMES_MOBILE[k])+'</label>'+
+        '<div style="display:flex;gap:8px;"><input id="mct-in-'+k+'" type="number" min="1" value="'+v+'" style="flex:1;" />'+
+        '<button type="button" class="btn-ghost" style="width:auto;padding:11px 16px;" data-counter-key="'+k+'">حفظ</button></div></div>';
+    }).join('');
+    Array.prototype.forEach.call(el.querySelectorAll('[data-counter-key]'), function(btn){
+      btn.addEventListener('click', function(){
+        var key=btn.getAttribute('data-counter-key');
+        var val=parseInt($('mct-in-'+key).value);
+        var msg=$('mct-msg'); msg.hidden=true; msg.style.color=''; msg.style.background='';
+        if(isNaN(val)||val<1){ msg.hidden=false; msg.textContent='رقم غير صحيح.'; return; }
+        btn.disabled=true; var oldTxt=btn.textContent; btn.textContent='...';
+        mobileAdminRequest('counterUpdates', {id:mobileReqId(), key:key, value:val, ts:Date.now()}).then(function(){
+          msg.hidden=false; msg.style.color='var(--good)'; msg.style.background='var(--good-bg)';
+          msg.textContent='✓ اتبعت. الكمبيوتر هياخد الأعلى بين القيمة دي والحالية عنده دايمًا (حماية من تكرار الأرقام).';
+          btn.disabled=false; btn.textContent=oldTxt;
+        }).catch(function(){
+          msg.hidden=false; msg.textContent='⚠️ حصل خطأ. جرّب تاني.';
+          btn.disabled=false; btn.textContent=oldTxt;
+        });
+      });
+    });
+  }
+  $('mcounters-tile').addEventListener('click', loadCountersScreen);
+
+  // ===== سجل التدقيق — عرض + فحص سلامة (hash chain) محلي على الموبايل. الموبايل
+  // بياخد آخر ٢٠٠ عملية بس (مش السجل التاريخي كامل)، فالفحص بيتأكد من عدم التلاعب
+  // جوه الـ٢٠٠ دي بس (مش من أول يوم) — بنوضّح ده في نتيجة الفحص نفسها =====
+  function loadAuditLogScreen(){
+    $('mal-loading').hidden=false;
+    $('mal-loading').textContent='⏳ جاري التحميل...';
+    $('mal-wrap').hidden=true;
+    loadMobileAdminSnapshot(function(data){
+      if(!data){
+        $('mal-loading').textContent='⚠️ تعذّر تحميل البيانات.';
+        return;
+      }
+      $('mal-loading').hidden=true;
+      $('mal-wrap').hidden=false;
+      $('mal-check-result').innerHTML='';
+      renderAuditLogListMobile(data.logs||[]);
+    });
+  }
+  function renderAuditLogListMobile(logs){
+    var el=$('mal-list');
+    if(!logs.length){ el.innerHTML='<div class="empty">لسه مفيش عمليات مسجّلة</div>'; return; }
+    el.innerHTML=logs.slice(0,150).map(function(l){
+      return '<div class="row"><div><div class="name">'+esc(l.action)+'</div><div class="sub" style="color:var(--muted);font-size:11.5px;">'+esc(l.user)+' · '+esc(l.date)+' '+esc(l.time||'')+'</div></div></div>';
+    }).join('');
+  }
+  function verifyAuditLogIntegrityMobile(logs){
+    var byChain={};
+    logs.slice().reverse().forEach(function(l){
+      var cid=l.chainId||'_legacy_pre_chainid';
+      if(!byChain[cid])byChain[cid]=[];
+      byChain[cid].push(l);
+    });
+    var brokenChains=[]; var totalChecked=0;
+    Object.keys(byChain).forEach(function(cid){
+      var chainLogs=byChain[cid];
+      // نثق في أول سجل وصلنا كنقطة بداية — مش بالضرورة أول سجل في تاريخ السلسلة
+      // فعليًا، لأن الموبايل بياخد آخر ٢٠٠ عملية بس مش كل السجل من أول يوم
+      var expectedPrev=chainLogs.length?chainLogs[0].prevHash:'GENESIS';
+      for(var i=0;i<chainLogs.length;i++){
+        var l=chainLogs[i];
+        totalChecked++;
+        if(!l.hash||!l.prevHash){ brokenChains.push({reason:'سجل قديم من قبل تفعيل الحماية (طبيعي لو كان فيه سجل قديم)',entry:l}); break; }
+        if(i>0&&l.prevHash!==expectedPrev){ brokenChains.push({reason:'السلسلة اتقطعت هنا — ممكن سجل اتمسح أو اتغيّر ترتيبه',entry:l}); break; }
+        var recomputed=_auditHash(l.prevHash+'|'+l.user+'|'+l.action+'|'+l.ts);
+        if(recomputed!==l.hash){ brokenChains.push({reason:'محتوى السجل اتغيّر عن الأصل',entry:l}); break; }
+        expectedPrev=l.hash;
+      }
+    });
+    if(brokenChains.length){
+      var first=brokenChains[0];
+      return {ok:false,reason:first.reason,entry:first.entry};
+    }
+    return {ok:true,checked:totalChecked};
+  }
+  $('mauditlog-tile').addEventListener('click', loadAuditLogScreen);
+  $('mal-check-btn').addEventListener('click', function(){
+    var logs=(_mobileAdminCache&&_mobileAdminCache.logs)||[];
+    var r=verifyAuditLogIntegrityMobile(logs);
+    var box=$('mal-check-result');
+    if(r.ok){
+      box.innerHTML='<div class="hint" style="color:var(--good);background:var(--good-bg);">✓ آخر '+r.checked+' عملية اتفحصت — مفيش أي تلاعب (الفحص هنا بيغطي آخر ٢٠٠ عملية وصلت للموبايل بس، مش السجل التاريخي كامل).</div>';
+    }else{
+      box.innerHTML='<div class="err-box">⚠️ '+esc(r.reason)+(r.entry?(' — قرب سجل: "'+esc(r.entry.action)+'"'):'')+'</div>';
+    }
+  });
+
   $('settings-btn').addEventListener('click', function(){
     if(unsub){ try{unsub();}catch(e){} unsub=null; }
     fillSetupFromCfg(loadCfg());
@@ -1216,6 +1790,55 @@
     var btn=$('install-btn');
     if(btn) btn.hidden=true;
   });
+
+  // ===== فحص تحديثات تلقائي =====
+  // بيتأكد من "قناة التحديثات" — ريبو عام صغير مخصص بس لنسخ الـ APK
+  // الجاهزة (مفيهوش كود ولا بيانات المحل، عشان الريبو الأساسي فاضل خاص)
+  // — ولو لقى نسخة أحدث من النسخة المثبتة دلوقتي، بيوري شريط فوق يدّيك
+  // تنزّل وتثبّت الجديدة بدوسة واحدة، من غير ما تحتاج تدخل GitHub خالص.
+  // لازم كل تحديث جديد يرفّع رقم APP_VERSION هنا (ونفس الرقم في
+  // mobile-android/www/version.txt) عشان الفحص يشتغل صح.
+  var APP_VERSION = '1.3.18';
+  var UPDATES_REPO = 'mohamedmagdy-ai/act-mobile-updates';
+  function _verParts(v){
+    return String(v||'0').replace(/^v/i,'').split('.').map(function(n){ return parseInt(n,10)||0; });
+  }
+  function _verNewer(a,b){
+    var pa=_verParts(a), pb=_verParts(b);
+    for(var i=0;i<Math.max(pa.length,pb.length);i++){
+      var x=pa[i]||0, y=pb[i]||0;
+      if(x>y)return true;
+      if(x<y)return false;
+    }
+    return false;
+  }
+  function showUpdateBanner(ver, url){
+    var bar=$('update-banner');
+    if(!bar || !url)return;
+    $('update-banner-text').textContent='🆕 فيه تحديث جديد (إصدار '+ver+') — دوس تنزّله وتثبّته';
+    bar.hidden=false;
+    $('update-banner-btn').onclick=function(){
+      try{ window.open(url, '_system'); }catch(e){ location.href=url; }
+    };
+    $('update-banner-close').onclick=function(){ bar.hidden=true; };
+  }
+  function checkForUpdate(){
+    if(!UPDATES_REPO || UPDATES_REPO.indexOf('/')<0)return;
+    fetch('https://api.github.com/repos/'+UPDATES_REPO+'/releases/latest', {cache:'no-store'})
+      .then(function(r){ return r.ok?r.json():null; })
+      .then(function(rel){
+        if(!rel || !rel.tag_name)return;
+        var remoteVer=String(rel.tag_name).replace(/^v/i,'');
+        if(!_verNewer(remoteVer, APP_VERSION))return;
+        var assets=rel.assets||[];
+        var asset=null;
+        for(var i=0;i<assets.length;i++){ if(/\.apk$/i.test(assets[i].name||'')){ asset=assets[i]; break; } }
+        var url=asset?asset.browser_download_url:rel.html_url;
+        showUpdateBanner(remoteVer, url);
+      })
+      .catch(function(){});
+  }
+  try{ checkForUpdate(); }catch(e){}
 </script>
 </body>
 </html>

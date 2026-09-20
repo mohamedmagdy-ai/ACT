@@ -18563,15 +18563,18 @@ function pushOwnerDashboardSnapshot(){
       pushMonthlyDashboardArchives();
       if(!_dmBackfillTried){_dmBackfillTried=true;backfillMonthlyDashboardArchives();}
     }catch(_eDm){}
+    try{ if(typeof pushMobileAdminSnapshot==='function') pushMobileAdminSnapshot(); }catch(_eMa){}
   }catch(e){}
 }
 // ======= إعدادات قابلة للتعديل من الموبايل — طلب المستخدم "الاعدادات اللي على نسخة
 // الكمبيوتر عاوزها عندي على الموبايل واقدر اتحكم فيها زي الكمبيوتر". اقتصرنا (دلوقتي)
 // على بيانات المحل (الاسم/العنوان/التليفونات) وإعدادات الضريبة الأساسية (النسبة/رقم
 // السجل التجاري/البطاقة الضريبية) — دول الحقول اللي فعلاً كانت بتتزامن بسهولة وأمان.
-// باقي الإعدادات (الفروع، المستخدمين وصلاحياتهم، العدادات، رأس مال الشركاء، بيانات
-// اتصال ETA السرية) لسه بس من سطح المكتب — إما لأنها معقدة/حساسة عشان تتعدّل من الموبايل
-// بأمان، أو مربوطة بمنطق دمج بيانات أكبر (DB_KEYS) مش مناسب لتعديل مباشر من مستند صغير.
+// باقي الإعدادات (الفروع، المستخدمين وصلاحياتهم، العدادات، رأس مال الشركاء، السجل)
+// بقت متاحة من الموبايل كمان دلوقتي — راجع pushMobileAdminSnapshot/
+// pullAndApplyMobileAdminRequests تحت. لسه من سطح المكتب بس: تبويب "متقدم" (نسخ
+// احتياطي/استيراد/مسح كل البيانات — إجراءات لا رجعة فيها)، وبيانات اتصال ETA السرية
+// (خاصية لسه مش شغالة فعليًا).
 // مستند واحد بسيط (sz_data/_mobile_settings) بيتزامن الاتجاهين: سطح المكتب بيكتبه لما
 // المستخدم يحفظ من شاشة الإعدادات العادية، والموبايل بيكتبه لما يحفظ من شاشة إعداداته،
 // وكل طرف بيقارن updatedAt قبل ما يطبّق قيمة جاية من الطرف التاني (آخر تعديل هو اللي يكسب).
@@ -18610,6 +18613,131 @@ function pullMobileEditableSettingsIfNewer(){
       try{if($('stab-store')&&$('stab-store').classList.contains('active'))loadStoreConfig();}catch(_e3){}
       try{if($('stab-tax')&&$('stab-tax').classList.contains('active'))loadTaxConfig();}catch(_e4){}
     }).catch(e=>{try{logger.warn('pullMobileEditableSettingsIfNewer failed:',e&&e.message);}catch(_n){}});
+  }catch(e){}
+}
+// ======= لوحة تحكم إدارية إضافية على الموبايل — المستخدمين/الفروع/الشركاء ورأس
+// المال/العدادات/سجل التدقيق. طلب المستخدم "عاوز كل الخصائص دي في الإعدادات" —
+// باستثناء تبويب "متقدم" (نسخ احتياطي/استيراد/مسح كل البيانات) اللي فضل عمدًا
+// من غير موبايل، لأنه بيحتوي إجراءات لا رجعة فيها (زي "مسح كل البيانات") مش آمن
+// تتعرض لضغطة بالغلط على شاشة موبايل، وكمان استثنينا بيانات اتصال ETA السرية
+// (Client Secret) لأنها خاصية لسه مش شغالة فعليًا (راجع تعليق stab-tax).
+//
+// القراءة (سطح المكتب → موبايل): مستند sz_data/_mobile_admin، بيتحدّث مع كل
+// pushOwnerDashboardSnapshot() زي أرشيف الشهور بالظبط. بيانات ملخّصة بس (بدون
+// كلمات مرور المستخدمين أو أي بيانات حساسة زيادة عن اللي الموبايل محتاجه فعليًا).
+//
+// الكتابة (موبايل → سطح المكتب): مستند sz_data/_mobile_admin_write، الموبايل
+// بيضيف له طلبات (مستخدم جديد/فرع جديد/مساهمة رأس مال/تحديث عداد) عن طريق
+// arrayUnion، وسطح المكتب بيقرأه كل ٣٠ ثانية (نفس دورة pullMobileEditableSettingsIfNewer)
+// وبينفّذ كل طلب بنفس بالظبط الدوال اللي زراير الشاشة العادية بتنادّيها (نفس
+// التحقق، نفس السجل، نفس آلية دمج الفروع/الأجهزة)، وبعدين بيشيل بس الطلبات اللي
+// نفّذها فعلاً (arrayRemove) — مش كل المستند — عشان أي طلب جديد وصل من الموبايل
+// في نفس اللحظة يفضل موجود وينفّذ في الدورة اللي بعدها.
+function pushMobileAdminSnapshot(){
+  try{
+    if(!FS_COL)return;
+    let partnersBlock={shares:[],initial:{},injections:[]};
+    try{
+      partnersBlock={
+        shares:(typeof getAllPartnersWithShares==='function')?getAllPartnersWithShares():[],
+        initial:(typeof getPartnerInitialCapital==='function')?getPartnerInitialCapital():{},
+        injections:(DB.partnerCapitalInjections||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,100)
+      };
+    }catch(_ePartners){}
+    const payload={
+      updatedAt:Date.now(),
+      branches:(DB.branches||[]).map(b=>({id:b.id,name:b.name,isDefault:!!b.isDefault})),
+      users:(typeof loadUsers==='function'?loadUsers():[]).map(u=>({username:u.username,name:u.name,role:u.role,perms:u.perms||{},branch:u.branch||'BR-MAIN'})),
+      counters:(typeof loadCounters==='function')?loadCounters():{},
+      partners:partnersBlock,
+      logs:(DB.logs||[]).slice(0,200),
+    };
+    let cleanPayload=payload;
+    try{cleanPayload=JSON.parse(JSON.stringify(payload));}catch(_eJ){}
+    (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_mobile_admin').set(cleanPayload)).catch(e=>{try{logger.warn('pushMobileAdminSnapshot failed:',e&&e.message);}catch(_n){}});
+  }catch(e){}
+}
+function pullAndApplyMobileAdminRequests(){
+  try{
+    if(!FS_COL||!window.firebase||!firebase.firestore)return;
+    (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_mobile_admin_write').get()).then(doc=>{
+      if(!doc||!doc.exists)return;
+      const d=doc.data()||{};
+      const toRemove={newUsers:[],newBranches:[],partnerInjections:[],initialCapitalSets:[],counterUpdates:[]};
+      let any=false,dbChanged=false;
+      (d.newUsers||[]).forEach(nu=>{
+        try{
+          if(nu&&nu.username&&nu.name&&nu.passwordHash){
+            const users=loadUsers();
+            if(!users.some(u=>String(u.username||'').toLowerCase()===String(nu.username).toLowerCase())){
+              const perms=nu.viewAll?{all:true,editProducts:!!nu.editProd}:{sales:false,rcpt:false,wo:false,maintinv:false,customers:false,products:false,purch:false,exp:false,custody:false,returns:false,reports:false,editProducts:!!nu.editProd};
+              users.push({username:nu.username,password:nu.passwordHash,role:'user',name:nu.name,perms,branch:nu.branch||'BR-MAIN'});
+              saveUsers(users);
+              addLog('إنشاء حساب مستخدم جديد من الموبايل: '+nu.name+' ('+nu.username+')');
+            }
+          }
+        }catch(_e1){}
+        toRemove.newUsers.push(nu);any=true;
+      });
+      (d.newBranches||[]).forEach(nb=>{
+        try{
+          if(nb&&nb.name){
+            if(!DB.branches)DB.branches=[];
+            if(!DB.branches.some(b=>b.name===nb.name)){
+              const id=nextFreeId('BR-','branches',3);
+              DB.branches.push({id,name:nb.name,isDefault:DB.branches.length===0,createdAt:Date.now()});
+              addLog('إضافة فرع جديد من الموبايل: '+nb.name);
+              dbChanged=true;
+            }
+          }
+        }catch(_e2){}
+        toRemove.newBranches.push(nb);any=true;
+      });
+      (d.partnerInjections||[]).forEach(pi=>{
+        try{
+          if(pi&&pi.partner&&pi.amount>0){
+            addPartnerCapitalInjection(pi.partner,pi.amount,pi.date||todayStr,pi.notes||'');
+            dbChanged=true;
+          }
+        }catch(_e3){}
+        toRemove.partnerInjections.push(pi);any=true;
+      });
+      (d.initialCapitalSets||[]).forEach(ic=>{
+        try{
+          if(ic&&ic.partner&&ic.amount>=0){
+            setPartnerInitialCapitalFor(ic.partner,ic.amount);
+            dbChanged=true;
+          }
+        }catch(_e4){}
+        toRemove.initialCapitalSets.push(ic);any=true;
+      });
+      if((d.counterUpdates||[]).length){
+        try{
+          const c=loadCounters();
+          d.counterUpdates.forEach(cu=>{
+            const v=parseInt(cu&&cu.value);
+            if(!isNaN(v)&&v>=1&&(c[cu.key]===undefined||v>c[cu.key]))c[cu.key]=v;
+            toRemove.counterUpdates.push(cu);
+          });
+          saveCounters(c);
+          try{updateCounterDisplay();}catch(_e5){}
+        }catch(_e6){}
+        any=true;
+      }
+      if(!any)return;
+      if(dbChanged){try{saveDB();}catch(_e7){}}
+      try{if(typeof pushOwnerDashboardSnapshot==='function')pushOwnerDashboardSnapshot();}catch(_e8){}
+      try{if(typeof pushMobileAdminSnapshot==='function')pushMobileAdminSnapshot();}catch(_e9){}
+      try{
+        if($('stab-users')&&$('stab-users').classList.contains('active'))renderUsersList();
+        if($('stab-branches')&&$('stab-branches').classList.contains('active'))renderBranchesSettings();
+        if($('stab-partners')&&$('stab-partners').classList.contains('active'))renderPartnersCapital();
+        if($('stab-counters')&&$('stab-counters').classList.contains('active'))renderCountersSettings();
+      }catch(_e10){}
+      const upd={};
+      Object.keys(toRemove).forEach(k=>{if(toRemove[k].length)upd[k]=firebase.firestore.FieldValue.arrayRemove(...toRemove[k]);});
+      if(Object.keys(upd).length)FS_COL.doc('_mobile_admin_write').update(upd).catch(()=>{});
+    }).catch(e=>{try{logger.warn('pullAndApplyMobileAdminRequests failed:',e&&e.message);}catch(_n){}});
   }catch(e){}
 }
 function loadFromFirebase(silent){
@@ -19166,6 +19294,8 @@ setInterval(()=>{
     if(typeof pushOwnerDashboardSnapshot==='function')pushOwnerDashboardSnapshot();
     // نفس الدورة: نشوف لو المستخدم غيّر بيانات المحل/الضريبة من الموبايل عشان نطبّقها هنا
     if(typeof pullMobileEditableSettingsIfNewer==='function')pullMobileEditableSettingsIfNewer();
+    // نفس الدورة كمان: طلبات إدارية من الموبايل (مستخدم جديد/فرع جديد/مساهمة رأس مال/عداد)
+    if(typeof pullAndApplyMobileAdminRequests==='function')pullAndApplyMobileAdminRequests();
   }catch(e){}
 },30000);
 </script>

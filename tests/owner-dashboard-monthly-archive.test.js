@@ -133,6 +133,108 @@ const { openApp, TestReporter } = require('./helpers');
   });
   r.eq('تعديل أقدم من آخر مرة اتطبّقت متطبقش (الاسم فضل زي ما هو)', t7.name, 'الاسم الحالي الصحيح');
 
+  // ===== ٨) لوحة تحكم إدارية إضافية على الموبايل: المستخدمين/الفروع/الشركاء ورأس
+  // المال/العدادات/سجل التدقيق. طلب المستخدم "عاوز كل الخصائص دي في الإعدادات" —
+  // pushMobileAdminSnapshot() بتبني لقطة للموبايل بيقرأها بس (من غير كلمات مرور) =====
+  const t8 = await page.evaluate(() => {
+    DB.branches = [{ id: 'BR-MAIN', name: 'الفرع الرئيسي', isDefault: true }];
+    DB.logs = [{ id: 'LOG-1', chainId: 'C1', user: 'admin', action: 'تسجيل دخول', ts: Date.now(), date: todayStr, time: '10:00', prevHash: 'GENESIS', hash: 'abc123' }];
+    const users = loadUsers();
+    users.push({ username: 'tester', password: 'pbkdf2:10000$abc$def', role: 'user', name: 'مستخدم اختبار', perms: { sales: true }, branch: 'BR-MAIN' });
+    localStorage.setItem('sz_users', JSON.stringify(users));
+    const writes = [];
+    FS_COL = { doc: (id) => ({ set: (data) => { writes.push({ id, data }); return Promise.resolve(); }, get: () => Promise.resolve({ exists: false }) }) };
+    window._fbReady = Promise.resolve();
+    pushMobileAdminSnapshot();
+    return new Promise((resolve) => setTimeout(() => resolve(writes), 150));
+  });
+  r.eq('كتابة واحدة لمستند "_mobile_admin"', t8.length, 1);
+  r.eq('اتكتبت في "_mobile_admin" بالظبط', t8[0] && t8[0].id, '_mobile_admin');
+  const t8tester = t8[0] && t8[0].data.users.find((u) => u.username === 'tester');
+  r.ok('المستخدم الجديد موجود في اللقطة', !!t8tester);
+  r.ok('كلمة المرور مش متسربة في لقطة الموبايل', t8tester && t8tester.password === undefined);
+  r.ok('الفرع موجود في اللقطة', t8[0] && t8[0].data.branches.some((b) => b.name === 'الفرع الرئيسي'));
+  r.ok('سجل التدقيق موجود في اللقطة', t8[0] && t8[0].data.logs.length >= 1);
+  r.ok('العدادات موجودة في اللقطة', t8[0] && typeof t8[0].data.counters === 'object');
+
+  // ===== ٩) pullAndApplyMobileAdminRequests() — طلبات جاية من الموبايل (مستخدم جديد/فرع
+  // جديد/مساهمة رأس مال/رأس مال أصلي/تحديث عداد) بتتنفّذ فعليًا بنفس دوال الشاشة العادية،
+  // وبعدين بتتشال من قايمة الطلبات (منعًا من تنفيذها تاني في الدورة اللي بعدها) =====
+  const t9 = await page.evaluate(() => {
+    window.firebase = window.firebase || {};
+    firebase.firestore = firebase.firestore || {};
+    firebase.firestore.FieldValue = firebase.firestore.FieldValue || {};
+    firebase.firestore.FieldValue.arrayRemove = (...args) => ({ __arrayRemove: args });
+
+    DB.branches = [{ id: 'BR-MAIN', name: 'الفرع الرئيسي', isDefault: true }];
+    localStorage.setItem('sz_users', JSON.stringify([{ username: 'admin', password: 'pbkdf2:x', role: 'admin', name: 'المدير', perms: { all: true }, branch: 'BR-MAIN' }]));
+    DB.partnerCapitalInjections = [];
+    // ملحوظة مهمة: partnerInitialCapital في الـ DB الحقيقي دايمًا Array (مش Object) — زي
+    // partnerCapitalInjections بالظبط. الأول كتبناها {} بالغلط فسبب استثناء غير ملتقط جوه
+    // getPartnerInitialCapital()/setPartnerInitialCapitalFor() (بيستخدموا .forEach/.findIndex/
+    // .push) وده كان بيخلي الـ Promise بتاعة page.evaluate() متتنفّذش أبدًا (استثناء غير
+    // ملتقط جوه setTimeout بيوقف تنفيذ resolve()) → "Resulting promise was garbage collected".
+    DB.partnerInitialCapital = [];
+    localStorage.removeItem('sz_counters_BR-MAIN');
+
+    const writeDoc = {
+      newUsers: [{ id: 'REQ-1', name: 'مستخدم من الموبايل', username: 'mobileuser', passwordHash: 'pbkdf2:10000$saltsalt$hashhash', viewAll: true, editProd: false, branch: 'BR-MAIN', ts: Date.now() }],
+      newBranches: [{ id: 'REQ-2', name: 'فرع الموبايل', ts: Date.now() }],
+      partnerInjections: [{ id: 'REQ-3', partner: 'سارة', amount: 1500, date: todayStr, notes: 'من الموبايل', ts: Date.now() }],
+      initialCapitalSets: [{ id: 'REQ-4', partner: 'سارة', amount: 3000, ts: Date.now() }],
+      counterUpdates: [{ id: 'REQ-5', key: 'sinv', value: 50, ts: Date.now() }],
+    };
+    const updates = [];
+    FS_COL = {
+      doc: (id) => ({
+        get: () => Promise.resolve({ exists: id === '_mobile_admin_write', data: () => writeDoc }),
+        update: (data) => { updates.push(data); return Promise.resolve(); },
+        set: () => Promise.resolve(),
+      }),
+    };
+    window._fbReady = Promise.resolve();
+    pullAndApplyMobileAdminRequests();
+    return new Promise((resolve) => setTimeout(() => resolve({
+      updates,
+      users: loadUsers(),
+      branches: DB.branches.slice(),
+      injections: (DB.partnerCapitalInjections || []).slice(),
+      initialCapital: getPartnerInitialCapital(),
+      counters: loadCounters(),
+    }), 300));
+  });
+  r.eq('كتابة واحدة لتنظيف الطلبات المنفّذة', t9.updates.length, 1);
+  r.ok('فيه newUsers ضمن الطلبات المتشالة', !!(t9.updates[0] && t9.updates[0].newUsers));
+  r.ok('فيه newBranches ضمن الطلبات المتشالة', !!(t9.updates[0] && t9.updates[0].newBranches));
+  r.ok('فيه partnerInjections ضمن الطلبات المتشالة', !!(t9.updates[0] && t9.updates[0].partnerInjections));
+  r.ok('فيه initialCapitalSets ضمن الطلبات المتشالة', !!(t9.updates[0] && t9.updates[0].initialCapitalSets));
+  r.ok('فيه counterUpdates ضمن الطلبات المتشالة', !!(t9.updates[0] && t9.updates[0].counterUpdates));
+  r.ok('المستخدم الجديد من الموبايل اتضاف فعليًا', t9.users.some((u) => u.username === 'mobileuser'));
+  const t9user = t9.users.find((u) => u.username === 'mobileuser');
+  r.eq('كلمة المرور المشفّرة اتخزنت زي ما وصلت (من غير تشفير إضافي على الكمبيوتر)', t9user && t9user.password, 'pbkdf2:10000$saltsalt$hashhash');
+  r.eq('صلاحية "عرض الكل" اتطبّقت صح', t9user && t9user.perms && t9user.perms.all, true);
+  r.ok('الفرع الجديد من الموبايل اتضاف فعليًا', t9.branches.some((b) => b.name === 'فرع الموبايل'));
+  r.ok('مساهمة رأس المال اتسجّلت فعليًا', t9.injections.some((i) => i.partner === 'سارة' && i.amount === 1500));
+  r.eq('رأس المال الأصلي اتسجّل صح', t9.initialCapital['سارة'], 3000);
+  r.eq('العداد اتحدّث للقيمة الجديدة الجاية من الموبايل', t9.counters.sinv, 50);
+
+  // ===== ١٠) العدادات: قيمة أقل من الحالية بتتجاهل (نفس حماية دمج العدادات بين أي جهازين —
+  // مينفعش عداد يرجع لرقم أقل ويسبب تكرار رقم فاتورة) =====
+  const t10 = await page.evaluate(() => {
+    const writeDoc = { counterUpdates: [{ id: 'REQ-6', key: 'sinv', value: 5, ts: Date.now() }] };
+    FS_COL = {
+      doc: (id) => ({
+        get: () => Promise.resolve({ exists: id === '_mobile_admin_write', data: () => writeDoc }),
+        update: () => Promise.resolve(),
+        set: () => Promise.resolve(),
+      }),
+    };
+    window._fbReady = Promise.resolve();
+    pullAndApplyMobileAdminRequests();
+    return new Promise((resolve) => setTimeout(() => resolve(loadCounters()), 300));
+  });
+  r.eq('قيمة عداد أقل من الحالية (50) اتجاهلت — العداد فضل 50', t10.sinv, 50);
+
   r.ok('لا يوجد أي خطأ JS غير متوقع', pageErrors.length === 0);
   if (pageErrors.length) console.log('  Page errors:', pageErrors);
 

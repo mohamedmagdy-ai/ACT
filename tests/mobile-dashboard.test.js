@@ -42,6 +42,14 @@ function normDigits(s) {
   const filePath = 'file://' + path.resolve(__dirname, '..', 'mobile-dashboard', 'index.html');
   await page.goto(filePath);
   await page.waitForTimeout(300);
+  // سكريبتات Firebase الحقيقية اتمنعت (فوق) — الكود بيستخدم firebase.firestore.FieldValue.arrayUnion
+  // في طلبات لوحة الإدارة الإضافية (حسابات/فروع/شركاء/عدادات)، فبنحط بديل بسيط بس عشان الاختبارات
+  // تقدر تتحقق من مسار النجاح الكامل، من غير ما تحتاج اتصال Firebase حقيقي
+  await page.evaluate(() => {
+    window.firebase = window.firebase || {};
+    firebase.firestore = firebase.firestore || {};
+    firebase.firestore.FieldValue = { arrayUnion: (...args) => ({ __arrayUnion: args }) };
+  });
 
   // ===== ١) أول فتح (من غير إعداد محفوظ) = شاشة الإعداد ظاهرة =====
   const t1 = await page.evaluate(() => ({
@@ -271,6 +279,7 @@ function normDigits(s) {
     'screen-treasury', 'screen-report', 'screen-receivables', 'screen-payables',
     'screen-sales', 'screen-maintenance', 'screen-inventory', 'screen-servicecenters',
     'screen-finance', 'screen-hr', 'screen-whatsapp', 'screen-months', 'screen-shopsettings',
+    'screen-accounts', 'screen-mbranches', 'screen-mpartners', 'screen-mcounters', 'screen-mauditlog',
   ];
   const t4a = await page.evaluate(() => ({
     homeVisible: !document.getElementById('home-view').hidden,
@@ -279,7 +288,7 @@ function normDigits(s) {
   }));
   r.ok('الشاشة الرئيسية ظاهرة أول ما تدخل الداشبورد', t4a.homeVisible);
   r.ok('كل شاشات التفاصيل مخفية في البداية', t4a.allDetailScreensHidden);
-  r.eq('فيه ١٣ زرار قسم في الشاشة الرئيسية (زوّدنا الشهور السابقة وإعدادات المحل)', t4a.tileCount, 13);
+  r.eq('فيه ١٨ زرار قسم في الشاشة الرئيسية (زوّدنا حسابات الدخول/الفروع/الشركاء/العدادات/سجل التدقيق)', t4a.tileCount, 18);
 
   for (const screenId of NAV_SCREENS) {
     const nav = await page.evaluate((id) => {
@@ -440,6 +449,207 @@ function normDigits(s) {
   r.eq('نسبة الضريبة الجديدة اتبعتت صح', t4g.writes[0].taxRate, 15);
   r.ok('فيه بصمة وقت في الكتابة', typeof t4g.writes[0].updatedAt === 'number');
   r.ok('رسالة نجاح الحفظ ظاهرة', t4g.msgVisible && t4g.msgText.includes('تم الحفظ'));
+  await page.evaluate(() => { db = null; document.getElementById('home-view').hidden = false; document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; }); });
+
+  // ===== ٤.هـ) حسابات الدخول: عرض الحسابات الحالية وإضافة حساب جديد (كلمة المرور
+  // بتتشفّر PBKDF2 على الموبايل نفسه، وبتتبعت كطلب لـ_mobile_admin_write) =====
+  const t4h = await page.evaluate(() => {
+    const adminSnap = {
+      branches: [{ id: 'BR-MAIN', name: 'الفرع الرئيسي', isDefault: true }],
+      users: [
+        { username: 'admin', name: 'المدير', role: 'admin', perms: { all: true }, branch: 'BR-MAIN' },
+        { username: 'cashier1', name: 'كاشير أحمد', role: 'user', perms: { sales: true }, branch: 'BR-MAIN' },
+      ],
+    };
+    db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
+    document.getElementById('accounts-tile').click();
+    return new Promise((resolve) => setTimeout(() => resolve({
+      screenVisible: !document.getElementById('screen-accounts').hidden,
+      listHtml: document.getElementById('acc-list').innerHTML,
+      branchOptions: document.getElementById('acc-branch').innerHTML,
+    }), 150));
+  });
+  r.ok('الدوس على "حسابات الدخول" بيفتح شاشتها', t4h.screenVisible);
+  r.ok('الحسابات الحالية اترسمت (المدير والكاشير)', t4h.listHtml.includes('المدير') && t4h.listHtml.includes('كاشير أحمد'));
+  r.ok('قايمة الفروع في الفورم اترسمت من البيانات المتزامنة', t4h.branchOptions.includes('الفرع الرئيسي'));
+
+  const t4i = await page.evaluate(() => {
+    const writes = [];
+    db = { collection: () => ({ doc: () => ({ set: (data, opts) => { writes.push({ data, opts }); return Promise.resolve(); } }) }) };
+    document.getElementById('acc-name').value = 'محاسب جديد';
+    document.getElementById('acc-user').value = 'newacct';
+    document.getElementById('acc-pass').value = 'pass1234';
+    document.getElementById('acc-save-btn').click();
+    return new Promise((resolve) => setTimeout(() => resolve({
+      writes,
+      msgText: document.getElementById('acc-msg').textContent,
+    }), 250));
+  });
+  r.eq('كتابة واحدة لمستند طلبات الموبايل لما تضيف حساب', t4i.writes.length, 1);
+  r.ok('الطلب فيه merge:true (عشان مايمسحش طلبات تانية)', t4i.writes[0].opts && t4i.writes[0].opts.merge === true);
+  r.ok('رسالة نجاح الإضافة ظاهرة', t4i.msgText.includes('اتبعت'));
+
+  const t4j = await page.evaluate(() => {
+    // اسم دخول مكرر (admin موجود بالفعل في _mobileAdminCache) لازم يترفض قبل ما يوصل لأي كتابة
+    document.getElementById('acc-name').value = 'حد تاني';
+    document.getElementById('acc-user').value = 'admin';
+    document.getElementById('acc-pass').value = 'pass1234';
+    let wrote = false;
+    db = { collection: () => ({ doc: () => ({ set: () => { wrote = true; return Promise.resolve(); } }) }) };
+    document.getElementById('acc-save-btn').click();
+    return { msgText: document.getElementById('acc-msg').textContent, wrote };
+  });
+  r.ok('اسم دخول مكرر بيترفض من غير ما يوصل لأي كتابة', t4j.msgText.includes('مستخدم بالفعل') && t4j.wrote === false);
+
+  const t4k = await page.evaluate(async () => {
+    const h = await hashPassMobile('secret123');
+    return { h };
+  });
+  r.ok('كلمة المرور بتتشفّر بنفس صيغة الكمبيوتر (pbkdf2:10000$salt$hash)', /^pbkdf2:10000\$[0-9a-f]{32}\$[0-9a-f]{64}$/.test(t4k.h));
+  await page.evaluate(() => { db = null; document.getElementById('home-view').hidden = false; document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; }); });
+
+  // ===== ٤.و) الفروع: عرض وإضافة =====
+  const t4l = await page.evaluate(() => {
+    const adminSnap = { branches: [{ id: 'BR-MAIN', name: 'الفرع الرئيسي', isDefault: true }] };
+    db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
+    document.getElementById('mbranches-tile').click();
+    return new Promise((resolve) => setTimeout(() => resolve({
+      screenVisible: !document.getElementById('screen-mbranches').hidden,
+      listHtml: document.getElementById('mbr-list').innerHTML,
+    }), 150));
+  });
+  r.ok('الدوس على "الفروع" بيفتح شاشتها', t4l.screenVisible);
+  r.ok('الفرع الحالي اترسم', t4l.listHtml.includes('الفرع الرئيسي') && t4l.listHtml.includes('الفرع الافتراضي'));
+
+  const t4m = await page.evaluate(() => {
+    const writes = [];
+    db = { collection: () => ({ doc: () => ({ set: (data) => { writes.push(data); return Promise.resolve(); } }) }) };
+    document.getElementById('mbr-name').value = 'فرع سموحة';
+    document.getElementById('mbr-save-btn').click();
+    return new Promise((resolve) => setTimeout(() => resolve({ writes, msgText: document.getElementById('mbr-msg').textContent }), 150));
+  });
+  r.eq('كتابة واحدة لطلب إضافة فرع', t4m.writes.length, 1);
+  r.ok('رسالة نجاح إضافة الفرع ظاهرة', t4m.msgText.includes('اتبعت'));
+  await page.evaluate(() => { db = null; document.getElementById('home-view').hidden = false; document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; }); });
+
+  // ===== ٤.ز) الشركاء ورأس المال: عرض الأرصدة وسجل المساهمات + تسجيل مساهمة جديدة
+  // وضبط رأس المال الأصلي =====
+  const t4n = await page.evaluate(() => {
+    const adminSnap = {
+      partners: {
+        shares: [{ name: 'أحمد', balance: 5000, pct: 50 }, { name: 'محمد', balance: 5000, pct: 50 }],
+        initial: { 'أحمد': 4000, 'محمد': 4000 },
+        injections: [{ partner: 'أحمد', amount: 1000, date: '2026-01-01', notes: 'دفعة أولى' }],
+      },
+    };
+    db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
+    document.getElementById('mpartners-tile').click();
+    return new Promise((resolve) => setTimeout(() => resolve({
+      screenVisible: !document.getElementById('screen-mpartners').hidden,
+      balancesHtml: document.getElementById('mpt-balances').innerHTML,
+      injectionsHtml: document.getElementById('mpt-injections').innerHTML,
+    }), 150));
+  });
+  r.ok('الدوس على "الشركاء ورأس المال" بيفتح شاشتها', t4n.screenVisible);
+  r.ok('أرصدة الشركاء اترسمت (أحمد ومحمد بالنسب)', t4n.balancesHtml.includes('أحمد') && t4n.balancesHtml.includes('محمد') && t4n.balancesHtml.includes('50'));
+  r.ok('سجل المساهمات اترسم', t4n.injectionsHtml.includes('أحمد') && t4n.injectionsHtml.includes('دفعة أولى'));
+
+  const t4o = await page.evaluate(() => {
+    const writes = [];
+    db = { collection: () => ({ doc: () => ({ set: (data) => { writes.push(data); return Promise.resolve(); } }) }) };
+    document.getElementById('mpt-inj-partner').value = 'أحمد';
+    document.getElementById('mpt-inj-amount').value = '2000';
+    document.getElementById('mpt-inj-btn').click();
+    return new Promise((resolve) => setTimeout(() => resolve({ writes, msgText: document.getElementById('mpt-msg').textContent }), 150));
+  });
+  r.eq('كتابة واحدة لطلب مساهمة رأس مال جديدة', t4o.writes.length, 1);
+  r.ok('رسالة نجاح تسجيل المساهمة ظاهرة', t4o.msgText.includes('اتبعت'));
+
+  const t4p = await page.evaluate(() => {
+    const writes = [];
+    db = { collection: () => ({ doc: () => ({ set: (data) => { writes.push(data); return Promise.resolve(); } }) }) };
+    document.getElementById('mpt-init-partner').value = 'محمد';
+    document.getElementById('mpt-init-amount').value = '4500';
+    document.getElementById('mpt-init-btn').click();
+    return new Promise((resolve) => setTimeout(() => resolve({ writes, msgText: document.getElementById('mpt-msg').textContent }), 150));
+  });
+  r.eq('كتابة واحدة لطلب ضبط رأس المال الأصلي', t4p.writes.length, 1);
+  r.ok('رسالة نجاح ضبط رأس المال الأصلي ظاهرة', t4p.msgText.includes('اتبعت'));
+  await page.evaluate(() => { db = null; document.getElementById('home-view').hidden = false; document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; }); });
+
+  // ===== ٤.ح) العدادات: عرض القيم الحالية وتحديث عداد واحد =====
+  const t4q = await page.evaluate(() => {
+    const adminSnap = { counters: { rcpt: 5, sinv: 10, minv: 1, wo: 3, tsinv: 1, tminv: 1 } };
+    db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
+    document.getElementById('mcounters-tile').click();
+    return new Promise((resolve) => setTimeout(() => resolve({
+      screenVisible: !document.getElementById('screen-mcounters').hidden,
+      sinvVal: document.getElementById('mct-in-sinv') ? document.getElementById('mct-in-sinv').value : null,
+    }), 150));
+  });
+  r.ok('الدوس على "العدادات" بيفتح شاشتها', t4q.screenVisible);
+  r.eq('القيمة الحالية لعداد المبيعات اترسمت صح', t4q.sinvVal, '10');
+
+  const t4r = await page.evaluate(() => {
+    const writes = [];
+    db = { collection: () => ({ doc: () => ({ set: (data) => { writes.push(data); return Promise.resolve(); } }) }) };
+    document.getElementById('mct-in-sinv').value = '25';
+    document.querySelector('[data-counter-key="sinv"]').click();
+    return new Promise((resolve) => setTimeout(() => resolve({ writes, msgText: document.getElementById('mct-msg').textContent }), 150));
+  });
+  r.eq('كتابة واحدة لطلب تحديث عداد', t4r.writes.length, 1);
+  r.ok('رسالة نجاح تحديث العداد ظاهرة', t4r.msgText.includes('اتبعت'));
+  await page.evaluate(() => { db = null; document.getElementById('home-view').hidden = false; document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; }); });
+
+  // ===== ٤.ط) سجل التدقيق: عرض العمليات + فحص سلامة السلسلة (hash chain) محليًا على
+  // الموبايل، بنفس خوارزمية الكمبيوتر بالظبط — بنتأكد إن سلسلة سليمة بترجع ok=true
+  // وإن سلسلة اتلاعب فيها بترجع ok=false =====
+  const t4s = await page.evaluate(() => {
+    function buildChain(actions) {
+      // مهم: DB.logs الحقيقي بيتبني بـunshift() (الأحدث أول عنصر)، ونفس الترتيب ده
+      // بيوصل للموبايل (data.logs في _mobile_admin) — فبنبني هنا بترتيب زمني عادي
+      // (الأقدم الأول) وبعدين نعكسه في الآخر، عشان الفيكستشر تطابق شكل البيانات
+      // الحقيقي اللي verifyAuditLogIntegrityMobile بيتوقعه فعليًا.
+      let prev = 'GENESIS'; const ts0 = 1700000000000; const logs = [];
+      actions.forEach((a, i) => {
+        const ts = ts0 + i * 1000;
+        const hash = _auditHash(prev + '|user1|' + a + '|' + ts);
+        logs.push({ id: 'LOG-' + i, chainId: 'TESTCHAIN', user: 'user1', action: a, ts, date: '2026-01-01', time: '10:00', prevHash: prev, hash });
+        prev = hash;
+      });
+      return logs.reverse();
+    }
+    const goodLogs = buildChain(['فتح البرنامج', 'بيع فاتورة S-1', 'تعديل سعر صنف']);
+    const tamperedLogs = JSON.parse(JSON.stringify(goodLogs));
+    tamperedLogs[1].action = 'بيع فاتورة S-999 (متلاعب بيها)';
+    return {
+      goodResult: verifyAuditLogIntegrityMobile(goodLogs),
+      tamperedResult: verifyAuditLogIntegrityMobile(tamperedLogs),
+      sampleHash: goodLogs[0].hash,
+      goodLogs,
+    };
+  });
+  r.ok('سلسلة سليمة: فحص السلامة بيرجع ok=true (٣ عمليات)', t4s.goodResult.ok === true && t4s.goodResult.checked === 3);
+  r.ok('سلسلة اتلاعب فيها: فحص السلامة بيكتشفها ويرجع ok=false', t4s.tamperedResult.ok === false);
+  r.ok('الهاش بيتحسب فعليًا بنفس خوارزمية sha256Sync', typeof t4s.sampleHash === 'string' && t4s.sampleHash.length === 64);
+
+  const t4t = await page.evaluate((goodLogs) => {
+    const adminSnap = { logs: goodLogs };
+    db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
+    document.getElementById('mauditlog-tile').click();
+    return new Promise((resolve) => setTimeout(() => resolve({
+      screenVisible: !document.getElementById('screen-mauditlog').hidden,
+      listHtml: document.getElementById('mal-list').innerHTML,
+    }), 150));
+  }, t4s.goodLogs);
+  r.ok('الدوس على "سجل التدقيق" بيفتح شاشتها', t4t.screenVisible);
+  r.ok('العمليات المتزامنة اترسمت في القايمة', t4t.listHtml.includes('بيع فاتورة S-1'));
+
+  const t4u = await page.evaluate(() => {
+    document.getElementById('mal-check-btn').click();
+    return document.getElementById('mal-check-result').innerHTML;
+  });
+  r.ok('زرار فحص السلامة بيوري نتيجة إيجابية للسجل السليم المتزامن', t4u.includes('مفيش أي تلاعب'));
   await page.evaluate(() => { db = null; document.getElementById('home-view').hidden = false; document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; }); });
 
   // ===== ٥) لا يوجد صنف تحت الحد = رسالة "المخزون تمام" بدل جدول فاضي (وكذلك حالة عدم وجود مصروفات/مسحوبات/إجازات معلّقة) =====
