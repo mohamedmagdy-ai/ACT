@@ -152,28 +152,36 @@ const { openApp, TestReporter } = require('./helpers');
     // الوضع غير الصارم، فلازم نغيّره بالاسم المباشر (مش window.FS_COL) عشان التغيير
     // يوصل فعلاً للدالة اللي بتستخدمه جوه نفس النطاق (نفس الباج اتصلح زيه قبل كده في
     // login-remember.test.js مع window.CURRENT_USER)
+    // ملحوظة: pushOwnerDashboardSnapshot() دلوقتي بتنده كمان pushMonthlyDashboardArchives()
+    // (تحديث أرشيف الشهر الحالي/السابق) — فبنفلتر الكتابات على مستند "_dashboard" بالذات
+    // عشان الاختبار ده يفحص سلوك الملخص الأساسي، مش الأرشيف الشهري (له اختبار منفصل)
     const writes = [];
     FS_COL = { doc: (id) => ({ set: (data) => { writes.push({ id, data }); return Promise.resolve(); } }) };
     window._fbReady = Promise.resolve();
     _ownerDashLastPush = 0; // نصفّر المُحدّد عشان نضمن كتابة فورية
+    // بنمنع محاولة "تعبئة" أرشيف الشهور القديمة (backfillMonthlyDashboardArchives) من إنها
+    // تشتغل هنا — عندها مؤقّتات متأخرة (٣٥٠ مللي+) ممكن تطلق بعد ما الاختبار ده يخلص
+    // وتلوّث نتيجة اختبار تاني بعده لسه شغال على نفس الصفحة (له اختبار منفصل خاص بيه)
+    _dmBackfillTried = true;
     pushOwnerDashboardSnapshot();
-    return new Promise((resolve) => setTimeout(() => resolve(writes), 50));
+    return new Promise((resolve) => setTimeout(() => resolve(writes.filter((w) => w.id === '_dashboard')), 50));
   });
-  r.eq('عملية كتابة واحدة اتسجّلت', t3.length, 1);
+  r.eq('عملية كتابة واحدة اتسجّلت لمستند "_dashboard"', t3.length, 1);
   r.eq('اتكتبت في مستند "_dashboard" بالظبط', t3[0] && t3[0].id, '_dashboard');
   r.ok('البيانات المكتوبة فيها todaySales', !!(t3[0] && t3[0].data && t3[0].data.todaySales));
   r.ok('البيانات المكتوبة فيها monthReport/expensesMonth/withdrawalsMonth/hr', !!(t3[0] && t3[0].data && t3[0].data.monthReport && t3[0].data.expensesMonth && t3[0].data.withdrawalsMonth && t3[0].data.hr));
 
-  // ===== ٤) التحديد الزمني: نداءين متتاليين سريعين = كتابة فورية واحدة بس (التانية بتتأجل) =====
+  // ===== ٤) التحديد الزمني: نداءين متتاليين سريعين = كتابة فورية واحدة بس لمستند
+  // "_dashboard" (التانية بتتأجل) =====
   const t4 = await page.evaluate(() => {
     const writes = [];
     FS_COL = { doc: (id) => ({ set: (data) => { writes.push({ id, data }); return Promise.resolve(); } }) };
     _ownerDashLastPush = 0;
     pushOwnerDashboardSnapshot(); // فورية
     pushOwnerDashboardSnapshot(); // المفروض تتأجل (مش تتنفذ فورًا)
-    return new Promise((resolve) => setTimeout(() => resolve(writes.length), 50));
+    return new Promise((resolve) => setTimeout(() => resolve(writes.filter((w) => w.id === '_dashboard').length), 50));
   });
-  r.eq('نداءين سريعين متتاليين = كتابة فورية واحدة بس (مش اتنين)', t4, 1);
+  r.eq('نداءين سريعين متتاليين = كتابة فورية واحدة بس لـ"_dashboard" (مش اتنين)', t4, 1);
 
   r.ok('لا يوجد أي خطأ JS غير متوقع', pageErrors.length === 0);
   if (pageErrors.length) console.log('  Page errors:', pageErrors);

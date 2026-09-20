@@ -270,7 +270,7 @@ function normDigits(s) {
   const NAV_SCREENS = [
     'screen-treasury', 'screen-report', 'screen-receivables', 'screen-payables',
     'screen-sales', 'screen-maintenance', 'screen-inventory', 'screen-servicecenters',
-    'screen-finance', 'screen-hr', 'screen-whatsapp',
+    'screen-finance', 'screen-hr', 'screen-whatsapp', 'screen-months', 'screen-shopsettings',
   ];
   const t4a = await page.evaluate(() => ({
     homeVisible: !document.getElementById('home-view').hidden,
@@ -279,7 +279,7 @@ function normDigits(s) {
   }));
   r.ok('الشاشة الرئيسية ظاهرة أول ما تدخل الداشبورد', t4a.homeVisible);
   r.ok('كل شاشات التفاصيل مخفية في البداية', t4a.allDetailScreensHidden);
-  r.eq('فيه ١١ زرار قسم في الشاشة الرئيسية', t4a.tileCount, 11);
+  r.eq('فيه ١٣ زرار قسم في الشاشة الرئيسية (زوّدنا الشهور السابقة وإعدادات المحل)', t4a.tileCount, 13);
 
   for (const screenId of NAV_SCREENS) {
     const nav = await page.evaluate((id) => {
@@ -321,6 +321,126 @@ function normDigits(s) {
     // ارجع للرئيسية تاني عشان الاختبار اللي بعده يبدأ من حالة معروفة
     await page.evaluate((p) => { document.querySelector(`#${p} .back-btn`).click(); }, parent);
   }
+
+  // ===== ٤.ج) الشهور السابقة: طلب المستخدم "تقرير مختصر عن كل شهر... لو عاوز شهر قبل
+  // كدا ادخل اعمل بحث". بنحاكي كائن db (فايرستور) بشهرين عندهم بيانات وشهر تالت من غيرها،
+  // ونتأكد إن القايمة بترسم صح وإن الدخول على شهر بيوري تفاصيله =====
+  const t4c = await page.evaluate(() => {
+    const now = new Date();
+    const curMonth = now.toISOString().slice(0, 7);
+    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonth = prevDate.toISOString().slice(0, 7);
+    const fixtures = {};
+    fixtures['_dm_' + curMonth] = {
+      month: curMonth,
+      summary: { revenue: 5000, cost: 2000, profit: 3000, purchases: 500, expenses: 800, liquidityNet: 2500, salesTotal: 5000, salesCount: 2 },
+      sales: [{ id: 'S-1', customer: 'عميل ١', total: 300, date: curMonth + '-05', payment: 'كاش' }],
+      maintInvoices: [], workOrders: [], receipts: [],
+      expensesByType: [{ type: 'إيجار', amount: 800 }],
+      expensesTotal: 800, withdrawalsTotal: 100,
+      bestSellers: [{ name: 'صنف تجريبي', qty: 3, val: 300 }],
+    };
+    fixtures['_dm_' + prevMonth] = {
+      month: prevMonth,
+      summary: { revenue: 1000, cost: 1500, profit: -500, purchases: 0, expenses: 200, liquidityNet: -200, salesTotal: 1000, salesCount: 1 },
+      sales: [], maintInvoices: [], workOrders: [], receipts: [],
+      expensesByType: [], expensesTotal: 200, withdrawalsTotal: 0, bestSellers: [],
+    };
+    db = {
+      collection: () => ({
+        doc: (id) => ({
+          get: () => Promise.resolve(fixtures[id] ? { exists: true, data: () => fixtures[id] } : { exists: false }),
+        }),
+      }),
+    };
+    document.getElementById('months-tile').click();
+    return new Promise((resolve) => setTimeout(() => {
+      const rows = Array.from(document.querySelectorAll('#months-list .month-row')).map((el) => el.getAttribute('data-month'));
+      resolve({
+        monthsScreenVisible: !document.getElementById('screen-months').hidden,
+        loadingHidden: document.getElementById('months-loading').hidden,
+        rowCount: rows.length,
+        hasCurMonth: rows.includes(curMonth),
+        hasPrevMonth: rows.includes(prevMonth),
+        curMonth, prevMonth,
+        curMonthRowText: document.querySelector(`#months-list .month-row[data-month="${curMonth}"]`).textContent,
+      });
+    }, 400));
+  });
+  r.ok('الدوس على "الشهور السابقة" بيفتح شاشتها', t4c.monthsScreenVisible);
+  r.ok('مؤشر التحميل بيختفي بعد ما البيانات توصل', t4c.loadingHidden);
+  r.eq('القايمة فيها ١٢ شهر بالظبط', t4c.rowCount, 12);
+  r.ok('الشهر الحالي موجود في القايمة', t4c.hasCurMonth);
+  r.ok('الشهر السابق موجود في القايمة', t4c.hasPrevMonth);
+  r.ok('صف الشهر الحالي فيه مبلغ المبيعات (5000)', normDigits(t4c.curMonthRowText).includes('5000.00'));
+
+  const t4d = await page.evaluate((curMonth) => {
+    document.querySelector(`#months-list .month-row[data-month="${curMonth}"]`).click();
+    return new Promise((resolve) => setTimeout(() => resolve({
+      detailVisible: !document.getElementById('screen-month-detail').hidden,
+      title: document.getElementById('md-title').textContent,
+      profit: document.getElementById('md-profit').textContent,
+      salesHtml: document.getElementById('md-sales-list').innerHTML,
+      bestHtml: document.getElementById('md-best-list').innerHTML,
+      backTarget: document.querySelector('#screen-month-detail .back-btn').getAttribute('data-back'),
+    }), 200));
+  }, t4c.curMonth);
+  r.ok('الدوس على شهر معيّن بيفتح شاشة تفاصيله', t4d.detailVisible);
+  r.ok('عنوان الشاشة فيه اسم الشهر', t4d.title.length > 2);
+  r.ok('صافي ربح الشهر ظاهر صح', normDigits(t4d.profit).includes('3000'));
+  r.ok('فاتورة المبيعات اللي بعتناها ظاهرة', t4d.salesHtml.includes('S-1'));
+  r.ok('الصنف الأكثر مبيعًا للشهر ده ظاهر', t4d.bestHtml.includes('صنف تجريبي'));
+  r.eq('زرار الرجوع من تفاصيل الشهر بيرجع لقايمة الشهور (مش للرئيسية)', t4d.backTarget, 'screen-months');
+  await page.evaluate(() => { document.getElementById('home-view').hidden = true; document.querySelector('#screen-month-detail .back-btn').click(); document.querySelector('#screen-months .back-btn').click(); });
+
+  // شهر مفيهوش بيانات محفوظة أصلاً = رسالة واضحة بدل شاشة فاضية بلا تفسير
+  const t4e = await page.evaluate(() => {
+    const emptyRow = Array.from(document.querySelectorAll('#months-list .month-row')).find((el) => el.querySelector('.sub') && el.querySelector('.sub').textContent.includes('لسه معندناش'));
+    if (!emptyRow) return { skipped: true };
+    emptyRow.click();
+    return new Promise((resolve) => setTimeout(() => resolve({ skipped: false, html: document.getElementById('md-sales-list').innerHTML }), 200));
+  });
+  if (!t4e.skipped) r.ok('شهر مفيهوش بيانات = رسالة واضحة (مش فاضي بلا تفسير)', t4e.html.includes('لسه معندناش'));
+
+  // ===== ٤.د) إعدادات المحل من الموبايل: قراءة القيم الحالية وتعديلها وحفظها =====
+  const t4f = await page.evaluate(() => {
+    document.getElementById('home-view').hidden = false;
+    document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; });
+    const remoteSettings = { name: 'محل من فايرستور', legalName: '', addr: 'عنوان قديم', tel1: '0100', tel2: '', mgrWhatsapp: '', taxRate: 14, crn: '111', taxcard: '222' };
+    db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => remoteSettings }) }) }) };
+    document.getElementById('shopsettings-tile').click();
+    return new Promise((resolve) => setTimeout(() => resolve({
+      screenVisible: !document.getElementById('screen-shopsettings').hidden,
+      formVisible: !document.getElementById('ss-form-wrap').hidden,
+      name: document.getElementById('ss-name').value,
+      addr: document.getElementById('ss-addr').value,
+      taxrate: document.getElementById('ss-taxrate').value,
+    }), 200));
+  });
+  r.ok('الدوس على "إعدادات المحل" بيفتح شاشتها', t4f.screenVisible);
+  r.ok('الفورم بيظهر بعد ما البيانات توصل', t4f.formVisible);
+  r.eq('اسم المحل الحالي اترسم في الحقل', t4f.name, 'محل من فايرستور');
+  r.eq('العنوان الحالي اترسم في الحقل', t4f.addr, 'عنوان قديم');
+  r.eq('نسبة الضريبة الحالية اترسمت في الحقل', t4f.taxrate, '14');
+
+  const t4g = await page.evaluate(() => {
+    const writes = [];
+    db = { collection: () => ({ doc: () => ({ set: (data) => { writes.push(data); return Promise.resolve(); } }) }) };
+    document.getElementById('ss-name').value = 'اسم جديد من الموبايل';
+    document.getElementById('ss-taxrate').value = '15';
+    document.getElementById('ss-save-btn').click();
+    return new Promise((resolve) => setTimeout(() => resolve({
+      writes,
+      msgVisible: !document.getElementById('ss-msg').hidden,
+      msgText: document.getElementById('ss-msg').textContent,
+    }), 100));
+  });
+  r.eq('كتابة واحدة لمستند الإعدادات لما تحفظ من الموبايل', t4g.writes.length, 1);
+  r.eq('الاسم الجديد اتبعت صح في الكتابة', t4g.writes[0].name, 'اسم جديد من الموبايل');
+  r.eq('نسبة الضريبة الجديدة اتبعتت صح', t4g.writes[0].taxRate, 15);
+  r.ok('فيه بصمة وقت في الكتابة', typeof t4g.writes[0].updatedAt === 'number');
+  r.ok('رسالة نجاح الحفظ ظاهرة', t4g.msgVisible && t4g.msgText.includes('تم الحفظ'));
+  await page.evaluate(() => { db = null; document.getElementById('home-view').hidden = false; document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; }); });
 
   // ===== ٥) لا يوجد صنف تحت الحد = رسالة "المخزون تمام" بدل جدول فاضي (وكذلك حالة عدم وجود مصروفات/مسحوبات/إجازات معلّقة) =====
   const t5 = await page.evaluate(() => {

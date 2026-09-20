@@ -276,6 +276,16 @@
         <div class="menu-tile-top"><span class="menu-icon">📱</span><span class="badge warn num" id="mt-wa-badge">0</span></div>
         <div class="menu-label">واتساب معلّق</div>
       </button>
+
+      <button type="button" class="menu-tile" data-target="screen-months" id="months-tile">
+        <div class="menu-tile-top"><span class="menu-icon">📅</span></div>
+        <div class="menu-label">الشهور السابقة</div>
+      </button>
+
+      <button type="button" class="menu-tile" data-target="screen-shopsettings" id="shopsettings-tile">
+        <div class="menu-tile-top"><span class="menu-icon">🏪</span></div>
+        <div class="menu-label">إعدادات المحل</div>
+      </button>
     </div>
 
     <div class="footer-note">الأرقام دي بتتحدّث لوحدها كل ما البرنامج على الجهاز يحفظ حاجة جديدة — من غير ما تحتاج تعمل حاجة. دوس على أي زرار فوق عشان تشوف التفاصيل.</div>
@@ -526,6 +536,98 @@
       </div>
     </main>
   </div>
+
+  <!-- ===== الشهور السابقة: تصفح تقرير مختصر لأي شهر فات (مش الشهر الحالي بس) — طلب
+  المستخدم "تقرير مختصر عن كل شهر... لو عاوز شهر قبل كدا ادخل اعمل بحث". البيانات دي
+  بتتجاب من Firestore بشكل منفصل (مستند صغير لكل شهر) بس لما تدخل الشاشة دي، مش جزء من
+  التحديث اللحظي العادي، عشان منحملش بيانات مش محتاجينها كل ثانية. ===== -->
+  <div id="screen-months" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back>→</button><div class="detail-title">📅 الشهور السابقة</div></div>
+    <main>
+      <div class="card">
+        <div class="section-title">آخر ١٢ شهر — دوس على أي شهر عشان تشوف تقريره</div>
+        <div id="months-loading" class="empty" style="color:var(--muted);background:var(--surface-2);">⏳ جاري تحميل الشهور...</div>
+        <div id="months-list" class="list-scroll" hidden></div>
+      </div>
+    </main>
+  </div>
+
+  <div id="screen-month-detail" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back="screen-months">→</button><div class="detail-title" id="md-title">تقرير الشهر</div></div>
+    <main>
+      <div class="card" id="md-summary-card">
+        <div class="section-title">ملخص الشهر</div>
+        <div class="row"><div class="name" style="font-weight:800;">صافي الربح</div><div class="amt num" id="md-profit" style="font-size:16px;">0</div></div>
+        <div class="row"><div class="name">إجمالي الإيراد</div><div class="amt num" id="md-revenue">0</div></div>
+        <div class="row"><div class="name">إجمالي التكلفة</div><div class="amt num" id="md-cost">0</div></div>
+        <div class="row"><div class="name">مبيعات الشهر (شامل فواتير الصيانة)</div><div class="amt num" id="md-salestotal">0</div></div>
+        <div class="row"><div class="name">المشتريات</div><div class="amt num" id="md-purchases">0</div></div>
+        <div class="row"><div class="name">مصروفات الشهر</div><div class="amt num" id="md-expenses">0</div></div>
+        <div class="row"><div class="name">مسحوباتي</div><div class="amt num" id="md-withdrawals">0</div></div>
+        <div class="row"><div class="name">السيولة (محصّل − مدفوع)</div><div class="amt num" id="md-liquidity">0</div></div>
+      </div>
+      <div class="card">
+        <div class="section-title">🛒 المبيعات <span class="badge num" id="md-sales-badge">0</span></div>
+        <div id="md-sales-list" class="list-scroll"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">🧾 فواتير الصيانة <span class="badge num" id="md-maintinv-badge">0</span></div>
+        <div id="md-maintinv-list" class="list-scroll"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">🔩 أوامر الشغل <span class="badge num" id="md-wo-badge">0</span></div>
+        <div id="md-wo-list" class="list-scroll"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">📄 إذن الاستلام <span class="badge num" id="md-rcpt-badge">0</span></div>
+        <div id="md-rcpt-list" class="list-scroll"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">💸 المصروفات حسب البند</div>
+        <div id="md-exp-list"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">📈 الأكثر مبيعًا</div>
+        <div id="md-best-list"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===== إعدادات المحل من الموبايل — طلب المستخدم: "الاعدادات اللي على نسخة الكمبيوتر
+  عاوزها عندي على الموبايل واقدر اتحكم فيها زي نسخة الكمبيوتر". اقتصرنا (دلوقتي) على
+  بيانات المحل الأساسية ونسبة الضريبة — دي الحقول اللي بتتزامن بأمان. باقي إعدادات سطح
+  المكتب (الفروع، المستخدمين وصلاحياتهم، العدادات، رأس مال الشركاء، بيانات اتصال ETA
+  السرية) لسه من الكمبيوتر بس، لأنها إما معقدة أو حساسة عشان تتعدّل من هنا مباشرة. ===== -->
+  <div id="screen-shopsettings" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back>→</button><div class="detail-title">🏪 إعدادات المحل</div></div>
+    <main>
+      <div id="ss-loading" class="empty" style="color:var(--muted);background:var(--surface-2);">⏳ جاري تحميل الإعدادات...</div>
+      <div id="ss-form-wrap" hidden>
+        <div class="card">
+          <div class="section-title">بيانات المحل</div>
+          <div class="field rtl-field"><label>اسم المحل (اللي بيظهر في البرنامج)</label><input id="ss-name" /></div>
+          <div class="field rtl-field" style="margin-top:10px;"><label>الاسم القانوني (لو مختلف)</label><input id="ss-legalname" /></div>
+          <div class="field rtl-field" style="margin-top:10px;"><label>العنوان</label><input id="ss-addr" /></div>
+          <div class="fields-grid" style="margin-top:10px;">
+            <div class="field rtl-field"><label>تليفون ١</label><input id="ss-tel1" /></div>
+            <div class="field rtl-field"><label>تليفون ٢</label><input id="ss-tel2" /></div>
+          </div>
+          <div class="field rtl-field" style="margin-top:10px;"><label>واتساب المدير (لتنبيهات البرنامج)</label><input id="ss-mgrwa" /></div>
+        </div>
+        <div class="card">
+          <div class="section-title">الضريبة</div>
+          <div class="fields-grid">
+            <div class="field rtl-field"><label>نسبة الضريبة %</label><input id="ss-taxrate" type="number" step="0.5" /></div>
+            <div class="field rtl-field"><label>رقم السجل التجاري</label><input id="ss-crn" /></div>
+          </div>
+          <div class="field rtl-field" style="margin-top:10px;"><label>رقم البطاقة الضريبية</label><input id="ss-taxcard" /></div>
+        </div>
+        <div class="footer-note">إعدادات تانية زي الفروع والمستخدمين وصلاحياتهم والعدادات ورأس مال الشركاء لسه بس من برنامج الكمبيوتر (شاشة الإعدادات هناك).</div>
+        <div id="ss-msg" class="err-box" hidden style="margin-bottom:10px;"></div>
+        <button class="btn-main" id="ss-save-btn">حفظ التعديلات</button>
+      </div>
+    </main>
+  </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -543,6 +645,19 @@
     n=Number(n)||0;
     var s=Math.round(n*100)/100;
     return s.toLocaleString('ar-EG',{minimumFractionDigits:2,maximumFractionDigits:2});
+  };
+  var woStatusLabel=function(s){return {open:'🔓 مفتوح',waiting:'⏳ منتظر رد العميل',done:'✅ منتهي'}[s]||s||'';};
+  var rcptStatusLabel=function(s){return {open:'🔓 مستلم',in_wo:'🔧 في أمر شغل',done:'✅ تم التسليم',cancelled:'🚫 ملغي'}[s]||s||'';};
+  var listRow=function(title,sub,amount,amountColor){
+    return '<div class="row"><div><div class="name">'+esc(title)+'</div>'+(sub?'<div class="sub">'+esc(sub)+'</div>':'')+'</div>'+(amount!=null?'<div class="amt" style="color:'+(amountColor||'var(--ink)')+';">'+fmtN(amount)+' ج</div>':'')+'</div>';
+  };
+  // اسم الشهر بالعربي من 'YYYY-MM' — مستخدم في شاشة "الشهور السابقة"
+  var AR_MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var arMonthLabel=function(monthStr){
+    if(!monthStr||monthStr.length<7)return monthStr||'';
+    var y=monthStr.slice(0,4),m=parseInt(monthStr.slice(5,7),10)-1;
+    var name=AR_MONTHS[m]||monthStr;
+    return name+' '+y;
   };
   var showScreen=function(name){
     $('setup-screen').hidden=(name!=='setup');
@@ -735,12 +850,6 @@
     $('tr-check').textContent=fmtN(tr.check||0);
 
     // ===== كشوف الشهر الحالي (كاملة، مش آخر ١٥ بس) =====
-    var listRow=function(title,sub,amount,amountColor){
-      return '<div class="row"><div><div class="name">'+esc(title)+'</div>'+(sub?'<div class="sub">'+esc(sub)+'</div>':'')+'</div>'+(amount!=null?'<div class="amt" style="color:'+(amountColor||'var(--ink)')+';">'+fmtN(amount)+' ج</div>':'')+'</div>';
-    };
-    var woStatusLabel=function(s){return {open:'🔓 مفتوح',waiting:'⏳ منتظر رد العميل',done:'✅ منتهي'}[s]||s||'';};
-    var rcptStatusLabel=function(s){return {open:'🔓 مستلم',in_wo:'🔧 في أمر شغل',done:'✅ تم التسليم',cancelled:'🚫 ملغي'}[s]||s||'';};
-
     var salesRows=d.recentSales||[];
     $('sales-list').innerHTML = salesRows.length ? salesRows.map(function(s){
       return listRow(s.id+' — '+(s.customer||''), (s.date||'')+(s.payment?' • '+s.payment:''), s.total);
@@ -890,6 +999,167 @@
       else showHome();
     });
   });
+
+  // ===== الشهور السابقة: كل شهر بيتقرا من مستند Firestore منفصل (_dm_<YYYY-MM>)، بس لما
+  // المستخدم يدخل الشاشة دي — مش جزء من الاشتراك اللحظي العادي (onSnapshot) بتاع باقي
+  // الداشبورد، عشان منحملش بيانات إضافية كل ثانية من غير داعي =====
+  function loadMonthsList(){
+    if(!db)return;
+    $('months-loading').hidden=false;
+    $('months-list').hidden=true;
+    $('months-list').innerHTML='';
+    var months=[];
+    var now=new Date();
+    for(var i=0;i<12;i++){
+      var d=new Date(now.getFullYear(), now.getMonth()-i, 1);
+      months.push(d.toISOString().slice(0,7));
+    }
+    var results=new Array(months.length);
+    var remaining=months.length;
+    months.forEach(function(m,idx){
+      db.collection('sz_data').doc('_dm_'+m).get().then(function(doc){
+        results[idx]=(doc&&doc.exists)?doc.data():null;
+      }).catch(function(){
+        results[idx]=null;
+      }).then(function(){
+        remaining--;
+        if(remaining===0)renderMonthsList(months,results);
+      });
+    });
+  }
+  function renderMonthsList(months,results){
+    $('months-loading').hidden=true;
+    var list=$('months-list');
+    list.hidden=false;
+    var rows=months.map(function(m,idx){
+      var arch=results[idx];
+      var label=arMonthLabel(m);
+      if(!arch){
+        return '<div class="row month-row" data-month="'+m+'" style="cursor:pointer;"><div class="name">'+esc(label)+'</div><div class="sub" style="color:var(--muted);">لسه معندناش بيانات للشهر ده</div></div>';
+      }
+      var s=arch.summary||{};
+      var profitColor=(s.profit||0)>=0?'var(--good)':'var(--bad)';
+      return '<div class="row month-row" data-month="'+m+'" style="cursor:pointer;"><div><div class="name">'+esc(label)+'</div><div class="sub">مبيعات: '+fmtN(s.salesTotal||0)+' ج</div></div><div class="amt num" style="color:'+profitColor+';">'+fmtN(s.profit||0)+' ج</div></div>';
+    }).join('');
+    list.innerHTML=rows||'<div class="empty">مفيش بيانات شهور لسه</div>';
+  }
+  $('months-list').addEventListener('click', function(ev){
+    var row=ev.target.closest?ev.target.closest('.month-row'):null;
+    if(!row)return;
+    loadMonthDetail(row.getAttribute('data-month'));
+  });
+  function loadMonthDetail(monthStr){
+    showDetailScreen('screen-month-detail');
+    $('md-title').textContent='📅 '+arMonthLabel(monthStr);
+    ['md-sales-list','md-maintinv-list','md-wo-list','md-rcpt-list','md-exp-list','md-best-list'].forEach(function(id){$(id).innerHTML='⏳ جاري التحميل...';});
+    if(!db)return;
+    db.collection('sz_data').doc('_dm_'+monthStr).get().then(function(doc){
+      if(!doc||!doc.exists){ renderMonthDetailEmpty(); return; }
+      renderMonthDetail(doc.data());
+    }).catch(function(){ renderMonthDetailEmpty(); });
+  }
+  function renderMonthDetailEmpty(){
+    $('md-profit').textContent='—';
+    ['md-revenue','md-cost','md-salestotal','md-purchases','md-expenses','md-withdrawals','md-liquidity'].forEach(function(id){$(id).textContent='—';});
+    var msg='<div class="empty" style="color:var(--muted);background:var(--surface-2);">لسه معندناش بيانات محفوظة للشهر ده. لازم برنامج الكمبيوتر يكون شغال ومتصل بالإنترنت مرة واحدة على الأقل خلال الشهر ده عشان يتحسب.</div>';
+    ['md-sales-list','md-maintinv-list','md-wo-list','md-rcpt-list','md-exp-list','md-best-list'].forEach(function(id){$(id).innerHTML=msg;});
+    ['md-sales-badge','md-maintinv-badge','md-wo-badge','md-rcpt-badge'].forEach(function(id){$(id).textContent='0';});
+  }
+  function renderMonthDetail(arch){
+    var s=arch.summary||{};
+    var profitColor=(s.profit||0)>=0?'var(--good)':'var(--bad)';
+    $('md-profit').textContent=fmtN(s.profit||0)+' ج';
+    $('md-profit').style.color=profitColor;
+    $('md-revenue').textContent=fmtN(s.revenue||0)+' ج';
+    $('md-cost').textContent=fmtN(s.cost||0)+' ج';
+    $('md-salestotal').textContent=fmtN(s.salesTotal||0)+' ج';
+    $('md-purchases').textContent=fmtN(s.purchases||0)+' ج';
+    $('md-expenses').textContent=fmtN(arch.expensesTotal||0)+' ج';
+    $('md-withdrawals').textContent=fmtN(arch.withdrawalsTotal||0)+' ج';
+    var liqColor=(s.liquidityNet||0)>=0?'var(--good)':'var(--bad)';
+    $('md-liquidity').textContent=fmtN(s.liquidityNet||0)+' ج';
+    $('md-liquidity').style.color=liqColor;
+
+    var sales=arch.sales||[];
+    $('md-sales-badge').textContent=String(sales.length);
+    $('md-sales-list').innerHTML=sales.length?sales.map(function(x){return listRow(x.id+' — '+(x.customer||''),(x.date||'')+(x.payment?' • '+x.payment:''),x.total);}).join(''):'<div class="empty">مفيش مبيعات في الشهر ده</div>';
+
+    var mi=arch.maintInvoices||[];
+    $('md-maintinv-badge').textContent=String(mi.length);
+    $('md-maintinv-list').innerHTML=mi.length?mi.map(function(x){return listRow(x.id+' — '+(x.customer||''),(x.device||'')+' • '+(x.date||''),x.cost);}).join(''):'<div class="empty">مفيش فواتير صيانة في الشهر ده</div>';
+
+    var wo=arch.workOrders||[];
+    $('md-wo-badge').textContent=String(wo.length);
+    $('md-wo-list').innerHTML=wo.length?wo.map(function(x){return listRow(x.id+' — '+(x.customer||''),(x.device||'')+' • '+(x.date||'')+(x.status?' • '+woStatusLabel(x.status):''),x.total);}).join(''):'<div class="empty">مفيش أوامر شغل في الشهر ده</div>';
+
+    var rc=arch.receipts||[];
+    $('md-rcpt-badge').textContent=String(rc.length);
+    $('md-rcpt-list').innerHTML=rc.length?rc.map(function(x){return listRow(x.id+' — '+(x.customer||''),(x.device||'')+' • '+(x.date||'')+(x.status?' • '+rcptStatusLabel(x.status):''));}).join(''):'<div class="empty">مفيش إذونات استلام في الشهر ده</div>';
+
+    var exp=arch.expensesByType||[];
+    $('md-exp-list').innerHTML=exp.length?exp.map(function(x){return '<div class="row"><div class="name">'+esc(x.type)+'</div><div class="amt" style="color:var(--bad);">'+fmtN(x.amount)+' ج</div></div>';}).join(''):'<div class="empty">مفيش مصروفات في الشهر ده</div>';
+
+    var best=arch.bestSellers||[];
+    $('md-best-list').innerHTML=best.length?best.map(function(p){return '<div class="row"><div><div class="name">'+esc(p.name)+'</div><div class="sub">الكمية: '+fmtN(p.qty)+'</div></div><div class="amt" style="color:var(--good);">'+fmtN(p.val)+' ج</div></div>';}).join(''):'<div class="empty">مفيش مبيعات في الشهر ده</div>';
+  }
+  $('months-tile').addEventListener('click', loadMonthsList);
+
+  // ===== إعدادات المحل من الموبايل: قراءة/كتابة مباشرة لمستند Firestore منفصل
+  // (_mobile_settings) — برنامج الكمبيوتر بيقرا نفس المستند ده ويطبّقه لو أحدث من آخر
+  // تعديل عنده (راجع pullMobileEditableSettingsIfNewer في app/index.html) =====
+  function loadShopSettings(){
+    $('ss-loading').hidden=false;
+    $('ss-loading').textContent='⏳ جاري تحميل الإعدادات...';
+    $('ss-form-wrap').hidden=true;
+    $('ss-msg').hidden=true;
+    if(!db)return;
+    db.collection('sz_data').doc('_mobile_settings').get().then(function(doc){
+      var data=(doc&&doc.exists)?doc.data():{};
+      $('ss-name').value=data.name||'';
+      $('ss-legalname').value=data.legalName||'';
+      $('ss-addr').value=data.addr||'';
+      $('ss-tel1').value=data.tel1||'';
+      $('ss-tel2').value=data.tel2||'';
+      $('ss-mgrwa').value=data.mgrWhatsapp||'';
+      $('ss-taxrate').value=(data.taxRate!=null)?data.taxRate:14;
+      $('ss-crn').value=data.crn||'';
+      $('ss-taxcard').value=data.taxcard||'';
+      $('ss-loading').hidden=true;
+      $('ss-form-wrap').hidden=false;
+    }).catch(function(){
+      $('ss-loading').textContent='⚠️ تعذّر تحميل الإعدادات. تأكد من الاتصال بالإنترنت وجرّب تاني.';
+    });
+  }
+  function saveShopSettingsFromMobile(){
+    if(!db)return;
+    var payload={
+      name:$('ss-name').value.trim(),
+      legalName:$('ss-legalname').value.trim(),
+      addr:$('ss-addr').value.trim(),
+      tel1:$('ss-tel1').value.trim(),
+      tel2:$('ss-tel2').value.trim(),
+      mgrWhatsapp:$('ss-mgrwa').value.trim(),
+      taxRate:parseFloat($('ss-taxrate').value)||0,
+      crn:$('ss-crn').value.trim(),
+      taxcard:$('ss-taxcard').value.trim(),
+      updatedAt:Date.now(),
+    };
+    var msg=$('ss-msg');
+    msg.hidden=true;
+    db.collection('sz_data').doc('_mobile_settings').set(payload).then(function(){
+      msg.hidden=false;
+      msg.style.color='var(--good)';
+      msg.style.background='var(--good-bg)';
+      msg.textContent='✓ تم الحفظ. التعديل هيوصل لبرنامج الكمبيوتر أول ما يكون شغال ومتصل بالإنترنت.';
+    }).catch(function(){
+      msg.hidden=false;
+      msg.style.color='';
+      msg.style.background='';
+      msg.textContent='⚠️ حصل خطأ أثناء الحفظ. تأكد من الاتصال بالإنترنت وجرّب تاني.';
+    });
+  }
+  $('shopsettings-tile').addEventListener('click', loadShopSettings);
+  $('ss-save-btn').addEventListener('click', saveShopSettingsFromMobile);
 
   $('settings-btn').addEventListener('click', function(){
     if(unsub){ try{unsub();}catch(e){} unsub=null; }

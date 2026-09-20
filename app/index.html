@@ -11372,7 +11372,7 @@ function renderUsersList(){const users=loadUsers();const el=$('users-list');if(!
 }
 async function saveUserEdit(i){const users=loadUsers();users[i].name=$('ue-name-'+i).value.trim()||users[i].name;if(users[i].role!=='admin') users[i].username=$('ue-user-'+i).value.trim()||users[i].username;const newPass=$('ue-pass-'+i).value.trim();if(newPass) users[i].password=await hashPass(newPass);const branchSel=document.getElementById('ue-branch-'+i);if(branchSel)users[i].branch=branchSel.value;if(users[i].role!=='admin'){const viewAllChk=document.getElementById('ue-viewall-'+i);users[i].perms.all=viewAllChk?viewAllChk.checked:false;const editProdChk=document.getElementById('ue-editprod-'+i);users[i].perms.editProducts=editProdChk?editProdChk.checked:false;['sales','rcpt','wo','maintinv','customers','products','purch','exp','custody','returns','reports','transfer','employees','insurance'].forEach(p=>{const chk=document.getElementById('ue-perm-'+i+'-'+p);if(chk)users[i].perms[p]=chk.checked;});}saveUsers(users);toast('✓ تم حفظ المستخدم');renderUsersList();}
 function loadStoreConfig(){const c=JSON.parse(localStorage.getItem('sz_store_cfg')||'{}');if($('cfg-name'))$('cfg-name').value=c.name||'الشركة المتحدة للتجارة';if($('cfg-legal-name'))$('cfg-legal-name').value=c.legalName||'';if($('cfg-logo-text'))$('cfg-logo-text').value=c.logoText||'';if($('cfg-addr'))$('cfg-addr').value=c.addr||'125 تعاونيات سموحة';if($('cfg-tel1'))$('cfg-tel1').value=c.tel1||'01211122131';if($('cfg-tel2'))$('cfg-tel2').value=c.tel2||'01206944479';if($('cfg-mgr-whatsapp'))$('cfg-mgr-whatsapp').value=c.mgrWhatsapp||'';}
-function saveStoreConfig(){localStorage.setItem('sz_store_cfg',JSON.stringify({name:$('cfg-name').value,legalName:$('cfg-legal-name')?$('cfg-legal-name').value:'',logoText:$('cfg-logo-text')?$('cfg-logo-text').value.trim():'',addr:$('cfg-addr').value,tel1:$('cfg-tel1').value,tel2:$('cfg-tel2').value,mgrWhatsapp:$('cfg-mgr-whatsapp')?$('cfg-mgr-whatsapp').value.trim():''}));applyStoreConfigToUI();toast('✓ تم حفظ بيانات المحل');}
+function saveStoreConfig(){localStorage.setItem('sz_store_cfg',JSON.stringify({name:$('cfg-name').value,legalName:$('cfg-legal-name')?$('cfg-legal-name').value:'',logoText:$('cfg-logo-text')?$('cfg-logo-text').value.trim():'',addr:$('cfg-addr').value,tel1:$('cfg-tel1').value,tel2:$('cfg-tel2').value,mgrWhatsapp:$('cfg-mgr-whatsapp')?$('cfg-mgr-whatsapp').value.trim():''}));applyStoreConfigToUI();toast('✓ تم حفظ بيانات المحل');try{if(typeof pushMobileEditableSettings==='function')pushMobileEditableSettings();}catch(_eMs){}}
 // ======= إدارة الفروع: إضافة/إعادة تسمية/حذف (بس لو الفرع فاضي تمامًا) =======
 function renderBranchesSettings(){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
@@ -11484,6 +11484,7 @@ function saveTaxConfig(){
     if($('cfg-eta-clientsecret'))localStorage.setItem('sz_eta_clientsecret',$('cfg-eta-clientsecret').value);
   }catch(_e){}
   toast('✓ تم حفظ إعدادات الضريبة');
+  try{if(typeof pushMobileEditableSettings==='function')pushMobileEditableSettings();}catch(_eMs){}
 }
 function getTaxRate(){return parseFloat(localStorage.getItem('sz_tax_rate')||'14')/100;}
 function getTaxRegNums(){return{crn:localStorage.getItem('sz_crn')||'80882',taxcard:localStorage.getItem('sz_taxcard')||'770-404-359'};}
@@ -18432,11 +18433,117 @@ function buildOwnerDashboardSnapshot(){
     };
   }catch(e){try{logger.warn('buildOwnerDashboardSnapshot failed:',e&&e.message);}catch(_n){}return null;}
 }
+// ======= أرشيف شهري للوحة متابعة الموبايل — طلب المستخدم: "تقرير مختصر عن كل شهر" +
+// "لو عاوز شهر قبل كدا ادخل اعمل بحث". buildOwnerDashboardSnapshot() فوق بتحسب الشهر
+// الحالي بس (ومفيش تاريخ محفوظ أصلاً في مستند _dashboard). الدالة دي بتحسب نفس فكرة
+// الملخص بس لأي شهر (حتى لو فات)، وبتتكتب في مستند منفصل لكل شهر (sz_data/_dm_YYYY-MM)
+// — عشان صفحة الموبايل تقدر "تفتح" شهر قديم من غير ما تحمّل بيانات المحل التفصيلية كلها.
+function buildMonthlyDashboardArchive(monthStr){
+  try{
+    if(!monthStr)return null;
+    const fn=d=>(d||'').slice(0,7)===monthStr;
+    const rnd=n=>Math.round((n||0)*100)/100;
+    const SAFETY_CAP=500;
+    const tm=calcT(fn);
+    const liq=calcLiquidity(fn);
+    const sortDesc=(arr)=>arr.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+    const sales=sortDesc([...DB.sales.filter(s=>isMyBranch(s)&&fn(s.date)),...(DB.taxInvoices||[]).filter(t=>t.taxType==='sale'&&isMyBranch(t)&&fn(t.date))])
+      .slice(0,SAFETY_CAP).map(s=>({id:s.id,customer:s.customer||'',total:rnd(s.total||0),date:s.date||'',payment:s.payment||'',status:s.status||''}));
+    const maintInvoices=sortDesc([...(DB.maintInvoices||[]).filter(m=>m.exit!=='warranty'&&isMyBranch(m)&&fn(m.date)),...(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&t.exit!=='warranty'&&isMyBranch(t)&&fn(t.date))])
+      .slice(0,SAFETY_CAP).map(m=>({id:m.id,customer:m.customer||'',device:m.device||'',cost:rnd(m.cost||m.total||0),date:m.date||''}));
+    const workOrders=sortDesc((DB.workOrders||[]).filter(w=>isMyBranch(w)&&fn(w.date)))
+      .slice(0,SAFETY_CAP).map(w=>({id:w.id,customer:w.customer||'',device:w.device||'',total:rnd(w.total||((w.cost||0)+(w.labor||0))),date:w.date||'',status:w.status||'',exit:w.exit||''}));
+    const receipts=sortDesc((DB.receipts||[]).filter(r=>isMyBranch(r)&&fn(r.date)))
+      .slice(0,SAFETY_CAP).map(r=>({id:r.id,customer:r.customer||'',device:r.device||'',date:r.date||'',status:r.status||''}));
+    const expRows=DB.expenses.filter(r=>fn(r.date)&&isMyBranch(r)&&r.type!=='🏛 توريد ضريبة ق.م'&&r.type!=='تحويل بين الحسابات'&&!r.pendingCustody&&!r.excludedAsInventoryPurchase);
+    const expByType={};expRows.forEach(r=>{const t=r.type||'أخرى';expByType[t]=(expByType[t]||0)+(r.amount||0);});
+    const expTop=Object.entries(expByType).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([type,amount])=>({type,amount:rnd(amount)}));
+    const expensesTotal=expRows.reduce((s,r)=>s+(r.amount||0),0);
+    const withdrawalsTotal=(DB.withdrawals||[]).filter(w=>fn(w.date)&&w.type!=='deposit').reduce((s,w)=>s+(w.amount||0),0);
+    let bestSellers=[];
+    try{
+      const sold={};
+      const addSold=(name,qty,val)=>{const p=findProdByAny(name);if(!p)return;const k=p.id;if(!sold[k])sold[k]={qty:0,val:0};sold[k].qty+=qty;sold[k].val+=val;};
+      DB.sales.filter(s=>fn(s.date)&&isMyBranch(s)).forEach(s=>(s.items||[]).forEach(it=>addSold(it.name,it.qty||0,(it.qty||0)*(it.price||0)-(it.disc||0))));
+      (DB.taxInvoices||[]).filter(t=>fn(t.date)&&isMyBranch(t)).forEach(t=>(t.items||[]).forEach(it=>addSold(it.name,it.qty||0,(it.qty||0)*(it.price||0))));
+      (DB.maintInvoices||[]).filter(m=>fn(m.date)&&isMyBranch(m)).forEach(m=>(m.items||[]).forEach(it=>addSold(it.name,it.qty||0,(it.qty||0)*(it.price||0))));
+      bestSellers=Object.entries(sold).map(([id,v])=>{const p=DB.products.find(x=>x.id===id);return p?{name:p.name,qty:v.qty,val:rnd(v.val)}:null;}).filter(Boolean).sort((a,b)=>b.val-a.val).slice(0,5);
+    }catch(_eBs){}
+    return {
+      month:monthStr,
+      updatedAt:Date.now(),
+      summary:{
+        revenue:rnd(tm.rev),
+        cost:rnd(tm.cost),
+        profit:rnd(tm.profit),
+        purchases:rnd(tm.pm),
+        expenses:rnd(tm.em),
+        liquidityNet:rnd(liq.net),
+        salesTotal:rnd((tm.sm||0)+(tm.mm||0)),
+        salesCount:sales.length,
+        maintInvCount:maintInvoices.length,
+      },
+      sales:sales,
+      maintInvoices:maintInvoices,
+      workOrders:workOrders,
+      receipts:receipts,
+      expensesByType:expTop,
+      expensesTotal:rnd(expensesTotal),
+      withdrawalsTotal:rnd(withdrawalsTotal),
+      bestSellers:bestSellers,
+    };
+  }catch(e){try{logger.warn('buildMonthlyDashboardArchive failed:',e&&e.message);}catch(_n){}return null;}
+}
+// آخر ١٢ شهر (الحالي فأقل) بصيغة 'YYYY-MM' — الحالي أولاً
+function _last12Months(){
+  const out=[];const now=new Date();
+  for(let i=0;i<12;i++){const d=new Date(now.getFullYear(),now.getMonth()-i,1);out.push(d.toISOString().slice(0,7));}
+  return out;
+}
+// الشهر الحالي + اللي فاته بيتحدّثوا كل مرة (بيانات لسه ممكن تتعدّل)، بمهلة بسيطة بين كل
+// كتابة والتانية عشان منضربش Firestore بكذا كتابة مرة واحدة
+function pushMonthlyDashboardArchives(){
+  try{
+    if(!FS_COL)return;
+    _last12Months().slice(0,2).forEach((m,idx)=>{
+      setTimeout(()=>{
+        try{
+          const arch=buildMonthlyDashboardArchive(m);
+          if(!arch)return;
+          (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_dm_'+m).set(arch)).catch(()=>{});
+        }catch(_e){}
+      },idx*400);
+    });
+  }catch(e){}
+}
+// باقي الـ١٠ شهور اللي فاتوا: بيتحسبوا مرة واحدة بس لكل جهاز (مش كل مرة البرنامج بيتفتح)
+// — علامة في localStorage بتمنع إعادة الحساب/الكتابة لنفس الشهر تاني، عشان مفيش داعي
+// (بيانات الشهور القديمة مش بتتغيّر عادةً، ولو اتغيّرت نادرًا مش مشكلة كبيرة)
+function backfillMonthlyDashboardArchives(){
+  try{
+    if(!FS_COL)return;
+    let delay=0;
+    _last12Months().slice(2).forEach((m)=>{
+      const flagKey='sz_dm_archived_'+m;
+      if(localStorage.getItem(flagKey))return;
+      delay+=350;
+      setTimeout(()=>{
+        try{
+          const arch=buildMonthlyDashboardArchive(m);
+          if(!arch)return;
+          (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_dm_'+m).set(arch))
+            .then(()=>{try{localStorage.setItem(flagKey,'1');}catch(_n){}})
+            .catch(()=>{});
+        }catch(_e){}
+      },delay);
+    });
+  }catch(e){}
+}
 // مُحدّد أقصى مرة كل ٨ ثواني — عشان الحفظات الكتير المتكررة (كل ما تعمل أي حاجة صغيرة
 // في البرنامج) متبقاش كل واحدة فيها كتابة لـFirestore لمستند الملخص ده بلا داعي. (كانت
 // ٢٠ ثانية — قللناها بناءً على طلب المستخدم إن التحديث يبقى أسرع)
 const OWNER_DASH_PUSH_THROTTLE_MS=8000;
-let _ownerDashLastPush=0,_ownerDashPending=false;
+let _ownerDashLastPush=0,_ownerDashPending=false,_dmBackfillTried=false;
 function pushOwnerDashboardSnapshot(){
   try{
     if(!FS_COL)return; // مفيش اتصال سحابي مُعد أصلاً — مفيش داعي نحاول
@@ -18452,6 +18559,57 @@ function pushOwnerDashboardSnapshot(){
     const snap=buildOwnerDashboardSnapshot();
     if(!snap)return;
     (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_dashboard').set(snap)).catch(e=>{try{logger.warn('pushOwnerDashboardSnapshot failed:',e&&e.message);}catch(_n){}});
+    try{
+      pushMonthlyDashboardArchives();
+      if(!_dmBackfillTried){_dmBackfillTried=true;backfillMonthlyDashboardArchives();}
+    }catch(_eDm){}
+  }catch(e){}
+}
+// ======= إعدادات قابلة للتعديل من الموبايل — طلب المستخدم "الاعدادات اللي على نسخة
+// الكمبيوتر عاوزها عندي على الموبايل واقدر اتحكم فيها زي الكمبيوتر". اقتصرنا (دلوقتي)
+// على بيانات المحل (الاسم/العنوان/التليفونات) وإعدادات الضريبة الأساسية (النسبة/رقم
+// السجل التجاري/البطاقة الضريبية) — دول الحقول اللي فعلاً كانت بتتزامن بسهولة وأمان.
+// باقي الإعدادات (الفروع، المستخدمين وصلاحياتهم، العدادات، رأس مال الشركاء، بيانات
+// اتصال ETA السرية) لسه بس من سطح المكتب — إما لأنها معقدة/حساسة عشان تتعدّل من الموبايل
+// بأمان، أو مربوطة بمنطق دمج بيانات أكبر (DB_KEYS) مش مناسب لتعديل مباشر من مستند صغير.
+// مستند واحد بسيط (sz_data/_mobile_settings) بيتزامن الاتجاهين: سطح المكتب بيكتبه لما
+// المستخدم يحفظ من شاشة الإعدادات العادية، والموبايل بيكتبه لما يحفظ من شاشة إعداداته،
+// وكل طرف بيقارن updatedAt قبل ما يطبّق قيمة جاية من الطرف التاني (آخر تعديل هو اللي يكسب).
+function pushMobileEditableSettings(){
+  try{
+    if(!FS_COL)return;
+    const store=getStoreCfg();
+    const payload={
+      name:store.name||'',legalName:store.legalName||'',logoText:store.logoText||'',
+      addr:store.addr||'',tel1:store.tel1||'',tel2:store.tel2||'',mgrWhatsapp:store.mgrWhatsapp||'',
+      taxRate:parseFloat(localStorage.getItem('sz_tax_rate')||'14'),
+      crn:localStorage.getItem('sz_crn')||'',taxcard:localStorage.getItem('sz_taxcard')||'',
+      updatedAt:Date.now(),
+    };
+    try{localStorage.setItem('sz_mobile_settings_applied_at',String(payload.updatedAt));}catch(_n){}
+    (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_mobile_settings').set(payload)).catch(e=>{try{logger.warn('pushMobileEditableSettings failed:',e&&e.message);}catch(_n2){}});
+  }catch(e){}
+}
+function pullMobileEditableSettingsIfNewer(){
+  try{
+    if(!FS_COL)return;
+    (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_mobile_settings').get()).then(doc=>{
+      if(!doc||!doc.exists)return;
+      const remote=doc.data();
+      const localAt=parseInt(localStorage.getItem('sz_mobile_settings_applied_at')||'0',10);
+      if(!remote||!remote.updatedAt||remote.updatedAt<=localAt)return;
+      // اتغيّرت من الموبايل بعد آخر مرة طبّقناها هنا — نطبّقها عشان الاتنين يفضلوا متطابقين
+      const cur=getStoreCfg();
+      const merged={name:remote.name||cur.name||'',legalName:remote.legalName||cur.legalName||'',logoText:remote.logoText||cur.logoText||'',addr:remote.addr||cur.addr||'',tel1:remote.tel1||cur.tel1||'',tel2:remote.tel2||cur.tel2||'',mgrWhatsapp:remote.mgrWhatsapp||cur.mgrWhatsapp||''};
+      localStorage.setItem('sz_store_cfg',JSON.stringify(merged));
+      if(remote.taxRate!=null)localStorage.setItem('sz_tax_rate',remote.taxRate);
+      if(remote.crn!=null)localStorage.setItem('sz_crn',remote.crn);
+      if(remote.taxcard!=null)localStorage.setItem('sz_taxcard',remote.taxcard);
+      localStorage.setItem('sz_mobile_settings_applied_at',String(remote.updatedAt));
+      try{applyStoreConfigToUI();}catch(_e2){}
+      try{if($('stab-store')&&$('stab-store').classList.contains('active'))loadStoreConfig();}catch(_e3){}
+      try{if($('stab-tax')&&$('stab-tax').classList.contains('active'))loadTaxConfig();}catch(_e4){}
+    }).catch(e=>{try{logger.warn('pullMobileEditableSettingsIfNewer failed:',e&&e.message);}catch(_n){}});
   }catch(e){}
 }
 function loadFromFirebase(silent){
@@ -19006,6 +19164,8 @@ setInterval(()=>{
     if(document.hidden)return;
     if(typeof CURRENT_USER==='undefined'||!CURRENT_USER)return;
     if(typeof pushOwnerDashboardSnapshot==='function')pushOwnerDashboardSnapshot();
+    // نفس الدورة: نشوف لو المستخدم غيّر بيانات المحل/الضريبة من الموبايل عشان نطبّقها هنا
+    if(typeof pullMobileEditableSettingsIfNewer==='function')pullMobileEditableSettingsIfNewer();
   }catch(e){}
 },30000);
 </script>
