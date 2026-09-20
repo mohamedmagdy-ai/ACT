@@ -1182,6 +1182,29 @@
     });
   });
 
+  // ===== زرار الرجوع الفعلي في الموبايل (سهم/إيماءة الرجوع بتاعة الأندرويد): طلب
+  // المستخدم — بدل ما يقفل التطبيق كله على طول (السلوك الافتراضي)، لازم يرجع خطوة
+  // بخطوة جوه التطبيق بالظبط زي ما لو دُس على زرار "→" اللي في الشاشة، ويقفل
+  // التطبيق فقط لو إحنا أصلاً واقفين في الشاشة الرئيسية (مفيش حاجة تانية نرجعلها).
+  // شغالة بس جوه تطبيق الموبايل الحقيقي (Capacitor)، ومالهاش أي تأثير لو اتفتحت
+  // الصفحة عادي من متصفح (PWA) عشان بتتأكد الأول إن window.Capacitor موجودة.
+  (function(){
+    if(!window.Capacitor || !window.Capacitor.isNativePlatform || !window.Capacitor.isNativePlatform())return;
+    var CapApp=window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+    if(!CapApp || !CapApp.addListener)return;
+    CapApp.addListener('backButton', function(){
+      var openDetail=null;
+      document.querySelectorAll('.detail-screen').forEach(function(s){ if(!s.hidden) openDetail=s; });
+      if(openDetail){
+        var backBtn=openDetail.querySelector('.back-btn[data-back]');
+        if(backBtn){ backBtn.click(); return; }
+        showHome();
+        return;
+      }
+      CapApp.exitApp();
+    });
+  })();
+
   // ===== الشهور السابقة: كل شهر بيتقرا من مستند Firestore منفصل (_dm_<YYYY-MM>)، بس لما
   // المستخدم يدخل الشاشة دي — مش جزء من الاشتراك اللحظي العادي (onSnapshot) بتاع باقي
   // الداشبورد، عشان منحملش بيانات إضافية كل ثانية من غير داعي =====
@@ -1814,7 +1837,7 @@
   // تنزّل وتثبّت الجديدة بدوسة واحدة، من غير ما تحتاج تدخل GitHub خالص.
   // لازم كل تحديث جديد يرفّع رقم APP_VERSION هنا (ونفس الرقم في
   // mobile-android/www/version.txt) عشان الفحص يشتغل صح.
-  var APP_VERSION = '1.3.19';
+  var APP_VERSION = '1.3.20';
   var UPDATES_REPO = 'mohamedmagdy-ai/act-mobile-updates';
   function _verParts(v){
     return String(v||'0').replace(/^v/i,'').split('.').map(function(n){ return parseInt(n,10)||0; });
