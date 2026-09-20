@@ -18309,6 +18309,16 @@ function buildOwnerDashboardSnapshot(){
     // === تقرير شامل مختصر للشهر الحالي (نفس منطق شاشة "📊 التقارير" — صافي الربح،
     // الإيراد، التكلفة، مستحق ليا/عليا، السيولة) — عشان صاحب المحل يشوف نفس الأرقام من الموبايل ===
     const debtOnMe=DB.purchases.filter(p=>isDeferredInv(p)&&isMyBranch(p)).reduce((s,p)=>s+getRemain('purch',p.id,p.total||0),0);
+    // === تفصيل مستحق ليا (فواتير عملاء آجلة) ومستحق عليا (فواتير موردين آجلة) — قوايم
+    // مش رقم إجمالي بس، بالظبط زي شاشة "📊 التقارير" (قسم "مستحق ليا/عليا") — المستخدم
+    // لاحظ إن كارت "فواتير آجلة مستحقة" كان بيوري "اللي ليا" بس من غير "اللي عليا" ===
+    const receivablesItems=[
+      ...DB.sales.filter(s=>isDeferredInv(s)&&isMyBranch(s)).map(s=>({id:s.id,party:s.customer||'',remain:getRemain('sale',s.id,s.total||0)})),
+      ...(DB.taxInvoices||[]).filter(t=>t.taxType==='sale'&&isDeferredInv(t)&&isMyBranch(t)).map(t=>({id:t.id,party:t.customer||'',remain:getRemain('sale',t.id,t.total||0)})),
+      ...(DB.maintInvoices||[]).filter(m=>m.exit!=='warranty'&&isDeferredInv(m)&&isMyBranch(m)).map(m=>({id:m.id,party:m.customer||'',remain:getRemain('maint',m.id,m.cost||0)})),
+      ...(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&t.exit!=='warranty'&&isDeferredInv(t)&&isMyBranch(t)).map(t=>({id:t.id,party:t.customer||'',remain:getRemain('maint',t.id,t.total||0)})),
+    ].filter(x=>x.remain>0.5).sort((a,b)=>b.remain-a.remain);
+    const payablesItems=DB.purchases.filter(p=>isDeferredInv(p)&&isMyBranch(p)).map(p=>({id:p.id,party:p.supplier||'',remain:getRemain('purch',p.id,p.total||0)})).filter(x=>x.remain>0.5).sort((a,b)=>b.remain-a.remain);
     // === مصروفات الشهر — إجمالي + أكبر ٦ بنود (نفس فلتر calcT: بدون توريد الضريبة/التحويلات الداخلية/العهدة) ===
     const expRowsM=DB.expenses.filter(r=>isM(r.date)&&isMyBranch(r)&&r.type!=='🏛 توريد ضريبة ق.م'&&r.type!=='تحويل بين الحسابات'&&!r.pendingCustody&&!r.excludedAsInventoryPurchase);
     const expByType={};expRowsM.forEach(r=>{const t=r.type||'أخرى';expByType[t]=(expByType[t]||0)+(r.amount||0);});
@@ -18387,6 +18397,8 @@ function buildOwnerDashboardSnapshot(){
       deferredTotal:rnd(debtToMe),
       deferredCount:deferredSalesCount+deferredMaintCount,
       pendingWhatsappCount:pendingWa,
+      receivables:{total:rnd(debtToMe),count:receivablesItems.length,items:receivablesItems.slice(0,15).map(x=>({id:x.id,party:x.party,remain:rnd(x.remain)}))},
+      payables:{total:rnd(debtOnMe),count:payablesItems.length,items:payablesItems.slice(0,15).map(x=>({id:x.id,party:x.party,remain:rnd(x.remain)}))},
       monthReport:{
         revenue:rnd(tm.rev),
         cost:rnd(tm.cost),

@@ -76,6 +76,18 @@ const { openApp, TestReporter } = require('./helpers');
   r.ok('فيه رقم ربح (موجب أو سالب)', typeof snap.monthReport.profit === 'number');
   r.ok('فيه رقم سيولة', typeof snap.monthReport.liquidityNet === 'number');
 
+  // ===== ١.ب.١) مستحق ليا/عليا بالتفصيل (receivables/payables) — المستخدم لاحظ إن كارت
+  // "فواتير آجلة مستحقة" كان بيوري "اللي ليا" بس (إجمالي واحد كمان مش قايمة) من غير
+  // "اللي عليا" خالص — دلوقتي الاتنين قوايم تفصيلية منفصلة زي شاشة "📊 التقارير" بالظبط =====
+  r.eq('عدد فواتير مستحق ليا = 2 (S-3 وS-4)', snap.receivables.count, 2);
+  r.eq('إجمالي مستحق ليا = 1100', snap.receivables.total, 1100);
+  r.eq('أكبر فاتورة مستحقة ليا هي S-4 (مركز الدلتا 600)', snap.receivables.items[0].id, 'S-4');
+  r.eq('اسم الطرف صح', snap.receivables.items[0].party, 'مركز الدلتا');
+  r.eq('عدد فواتير مستحق عليا = 1 (PUR-1)', snap.payables.count, 1);
+  r.eq('إجمالي مستحق عليا = 400', snap.payables.total, 400);
+  r.eq('فاتورة المستحق عليا هي PUR-1', snap.payables.items[0].id, 'PUR-1');
+  r.eq('اسم المورد صح', snap.payables.items[0].party, 'مورد ١');
+
   // ===== ١.هـ) الخزنة بالتفصيل (treasury) — كام نقدي/فيزا/انستا (نفس calcMethodTotals) =====
   r.ok('فيه treasury', !!snap.treasury);
   r.eq('كاش الخزنة يشمل مبيعات النهارده الكاش (300) — رقم موجود', typeof snap.treasury.cash, 'number');

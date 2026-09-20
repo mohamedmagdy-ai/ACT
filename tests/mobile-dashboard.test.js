@@ -105,6 +105,8 @@ function normDigits(s) {
       deferredTotal: 500,
       deferredCount: 1,
       pendingWhatsappCount: 2,
+      receivables: { total: 500, count: 1, items: [{ id: 'S-3', party: 'عميل ٣', remain: 500 }] },
+      payables: { total: 400, count: 1, items: [{ id: 'PUR-1', party: 'مورد ١', remain: 400 }] },
       monthReport: { revenue: 9000, cost: 4000, profit: 5000, purchases: 1000, expenses: 1300, debtToMe: 500, debtOnMe: 400, liquidityNet: 3200 },
       expensesMonth: { total: 1300, byType: [{ type: 'إيجار', amount: 1000 }, { type: 'كهرباء وماء', amount: 300 }] },
       withdrawalsMonth: { total: 200, recent: [{ date: '2026-09-01', partner: 'الشريك أ', amount: 200, type: 'سحب' }] },
@@ -129,7 +131,10 @@ function normDigits(s) {
       cashNow: document.getElementById('v-cashnow').textContent,
       lowStockBadge: document.getElementById('lowstock-badge').textContent,
       lowStockHtml: document.getElementById('lowstock-list').innerHTML,
-      deferredBadge: document.getElementById('deferred-badge').textContent,
+      receivablesBadge: document.getElementById('receivables-badge').textContent,
+      receivablesHtml: document.getElementById('receivables-box').innerHTML,
+      payablesBadge: document.getElementById('payables-badge').textContent,
+      payablesHtml: document.getElementById('payables-box').innerHTML,
       waBadge: document.getElementById('wa-badge').textContent,
       rpProfit: document.getElementById('rp-profit').textContent,
       rpRevenue: document.getElementById('rp-revenue').textContent,
@@ -166,7 +171,10 @@ function normDigits(s) {
   r.eq('الخزنة الحالية ظاهرة صح', normDigits(t4.cashNow), '4200.00');
   r.eq('عداد النواقص = 1', t4.lowStockBadge, '1');
   r.ok('اسم الصنف المنخفض ظاهر في القايمة', t4.lowStockHtml.includes('صنف منخفض'));
-  r.eq('عداد الفواتير الآجلة = 1', t4.deferredBadge, '1');
+  r.eq('عداد مستحق ليا = 1', t4.receivablesBadge, '1');
+  r.ok('فاتورة المستحق ليا ظاهرة في القايمة', t4.receivablesHtml.includes('عميل ٣') && t4.receivablesHtml.includes('S-3'));
+  r.eq('عداد مستحق عليا = 1', t4.payablesBadge, '1');
+  r.ok('فاتورة المستحق عليا (المورد) ظاهرة في القايمة كمان', t4.payablesHtml.includes('مورد ١') && t4.payablesHtml.includes('PUR-1'));
   r.eq('عداد واتساب المعلّق = 2', t4.waBadge, '2');
   // === التقرير الشامل / المصروفات / المسحوبات / HR — الميزات الجديدة اللي طلبها المستخدم ===
   r.eq('صافي الربح في التقرير الشامل ظاهر صح', normDigits(t4.rpProfit), '5000.00 ج');
@@ -210,13 +218,15 @@ function normDigits(s) {
   const t5 = await page.evaluate(() => {
     render({
       shopName: 'محل الاختبار', todaySales: {}, lowStockCount: 0, lowStockItems: [], deferredCount: 0, pendingWhatsappCount: 0,
+      receivables: { total: 0, count: 0, items: [] }, payables: { total: 0, count: 0, items: [] },
       expensesMonth: { total: 0, byType: [] }, withdrawalsMonth: { total: 0, recent: [] }, hr: { employeesCount: 0, activeCount: 0, monthlySalariesTotal: 0, pendingUnpaidLeaves: 0 },
       recentSales: [], recentMaintenance: [], recentMaintInvoices: [], recentWorkOrders: [], recentReceipts: [],
       serviceCenters: { count: 0, top: [] }, bestSellers: [], stagnant: [],
     });
     return {
       lowStockHtml: document.getElementById('lowstock-list').innerHTML,
-      deferredHtml: document.getElementById('deferred-box').innerHTML,
+      receivablesHtml: document.getElementById('receivables-box').innerHTML,
+      payablesHtml: document.getElementById('payables-box').innerHTML,
       waHtml: document.getElementById('wa-box').innerHTML,
       expHtml: document.getElementById('exp-list').innerHTML,
       wdHtml: document.getElementById('wd-list').innerHTML,
@@ -232,7 +242,8 @@ function normDigits(s) {
     };
   });
   r.ok('مفيش نواقص = رسالة "المخزون تمام"', t5.lowStockHtml.includes('تمام'));
-  r.ok('مفيش فواتير آجلة = رسالة إيجابية', t5.deferredHtml.includes('✅'));
+  r.ok('مفيش مستحق ليا = رسالة إيجابية', t5.receivablesHtml.includes('✅'));
+  r.ok('مفيش مستحق عليا = رسالة إيجابية', t5.payablesHtml.includes('✅'));
   r.ok('مفيش واتساب معلّق = رسالة إيجابية', t5.waHtml.includes('✅'));
   r.ok('مفيش مصروفات = رسالة إيجابية', t5.expHtml.includes('✅'));
   r.ok('مفيش مسحوبات = رسالة إيجابية', t5.wdHtml.includes('✅'));

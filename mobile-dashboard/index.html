@@ -230,8 +230,13 @@
     </div>
 
     <div class="card">
-      <div class="section-title">🧾 فواتير آجلة مستحقة <span class="badge bad num" id="deferred-badge">0</span></div>
-      <div id="deferred-box"></div>
+      <div class="section-title">🟢 مستحق ليا (فواتير عملاء آجلة) <span class="badge bad num" id="receivables-badge">0</span></div>
+      <div id="receivables-box" class="list-scroll"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">🔴 مستحق عليا (فواتير موردين آجلة) <span class="badge bad num" id="payables-badge">0</span></div>
+      <div id="payables-box" class="list-scroll"></div>
     </div>
 
     <div class="card">
@@ -451,11 +456,20 @@
       return '<div class="row"><div><div class="name">'+esc(p.name)+'</div><div class="sub">الحد الأدنى: '+fmtN(p.alert)+'</div></div><div class="amt" style="color:var(--warn);">'+fmtN(p.qty)+'</div></div>';
     }).join('') : '<div class="empty">✅ المخزون تمام</div>';
 
-    var defCount=d.deferredCount||0;
-    $('deferred-badge').textContent=String(defCount);
-    $('deferred-box').innerHTML = defCount>0
-      ? '<div class="row"><div class="name">إجمالي المستحق</div><div class="amt" style="color:var(--bad);">'+fmtN(d.deferredTotal)+' ج</div></div>'
-      : '<div class="empty">✅ مفيش فواتير آجلة متأخرة</div>';
+    // ===== مستحق ليا (عملاء) ومستحق عليا (موردين) — قوايم تفصيلية، مش رقم إجمالي بس =====
+    var rcv=d.receivables||{total:d.deferredTotal||0,count:d.deferredCount||0,items:[]};
+    $('receivables-badge').textContent=String(rcv.count||0);
+    var rcvItems=rcv.items||[];
+    $('receivables-box').innerHTML = rcvItems.length ? rcvItems.map(function(x){
+      return '<div class="row"><div class="name">'+esc(x.party||'')+' — '+esc(x.id||'')+'</div><div class="amt" style="color:var(--good);">'+fmtN(x.remain)+' ج</div></div>';
+    }).join('') : '<div class="empty">✅ مفيش فواتير آجلة مستحقة ليا</div>';
+
+    var pay=d.payables||{total:0,count:0,items:[]};
+    $('payables-badge').textContent=String(pay.count||0);
+    var payItems=pay.items||[];
+    $('payables-box').innerHTML = payItems.length ? payItems.map(function(x){
+      return '<div class="row"><div class="name">'+esc(x.party||'')+' — '+esc(x.id||'')+'</div><div class="amt" style="color:var(--bad);">'+fmtN(x.remain)+' ج</div></div>';
+    }).join('') : '<div class="empty">✅ مفيش فواتير آجلة مستحقة عليا</div>';
 
     var waCount=d.pendingWhatsappCount||0;
     $('wa-badge').textContent=String(waCount);
