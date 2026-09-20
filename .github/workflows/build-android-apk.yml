@@ -12,6 +12,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # GitHub Actions ملحوظة مهمة: الـ secrets context متاحش مباشرة جوه أي "if:" (قيد معروف
+    # وموثّق من GitHub نفسه — راجع actions/runner#520). الحل: نحوّله لمتغيّر env على
+    # مستوى الـ job (ده مسموح فيه secrets عادي)، وبعدين نستخدم env.HAS_UPDATES_TOKEN
+    # جوه الـ if بدل ما نستخدم secrets.UPDATES_REPO_TOKEN مباشرة.
+    env:
+      HAS_UPDATES_TOKEN: ${{ secrets.UPDATES_REPO_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -51,7 +57,7 @@ jobs:
         run: echo "version=$(cat mobile-android/www/version.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
 
       - name: Publish update release (public updates repo)
-        if: ${{ secrets.UPDATES_REPO_TOKEN != '' && vars.UPDATES_REPO != '' }}
+        if: ${{ env.HAS_UPDATES_TOKEN == 'true' && vars.UPDATES_REPO != '' }}
         uses: softprops/action-gh-release@v2
         with:
           repository: ${{ vars.UPDATES_REPO }}

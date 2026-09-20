@@ -278,8 +278,7 @@ function normDigits(s) {
   const NAV_SCREENS = [
     'screen-treasury', 'screen-report', 'screen-receivables', 'screen-payables',
     'screen-sales', 'screen-maintenance', 'screen-inventory', 'screen-servicecenters',
-    'screen-finance', 'screen-hr', 'screen-whatsapp', 'screen-months', 'screen-shopsettings',
-    'screen-accounts', 'screen-mbranches', 'screen-mpartners', 'screen-mcounters', 'screen-mauditlog',
+    'screen-finance', 'screen-hr', 'screen-whatsapp', 'screen-months', 'screen-settings-menu',
   ];
   const t4a = await page.evaluate(() => ({
     homeVisible: !document.getElementById('home-view').hidden,
@@ -288,7 +287,7 @@ function normDigits(s) {
   }));
   r.ok('الشاشة الرئيسية ظاهرة أول ما تدخل الداشبورد', t4a.homeVisible);
   r.ok('كل شاشات التفاصيل مخفية في البداية', t4a.allDetailScreensHidden);
-  r.eq('فيه ١٨ زرار قسم في الشاشة الرئيسية (زوّدنا حسابات الدخول/الفروع/الشركاء/العدادات/سجل التدقيق)', t4a.tileCount, 18);
+  r.eq('فيه ١٣ زرار قسم في الشاشة الرئيسية (حسابات الدخول/الفروع/الشركاء/العدادات/سجل التدقيق/بيانات المحل بقوا كلهم تحت زرار "الإعدادات" واحد بدل ما ياخدوا زرار لوحدهم)', t4a.tileCount, 13);
 
   for (const screenId of NAV_SCREENS) {
     const nav = await page.evaluate((id) => {
@@ -311,14 +310,19 @@ function normDigits(s) {
     { parent: 'screen-maintenance', children: ['screen-maintinv', 'screen-workorders', 'screen-receipts'] },
     { parent: 'screen-inventory', children: ['screen-lowstock', 'screen-bestsellers', 'screen-stagnant'] },
     { parent: 'screen-finance', children: ['screen-expenses', 'screen-withdrawals'] },
+    // "الإعدادات" بقت هي كمان قايمة فرعية (طلب المستخدم: بدل ما كل خاصية إعدادات تاخد
+    // زرار لوحدها في الرئيسية، كلهم بقوا اختيارات جوه تبويب "الإعدادات" واحد — نفس فكرة
+    // الكمبيوتر) — بس بتستخدم كلاس ".settings-item" بدل ".menu-tile" فالكويري تحت بتدوّر
+    // على الاتنين مع بعض.
+    { parent: 'screen-settings-menu', children: ['screen-shopsettings', 'screen-accounts', 'screen-mbranches', 'screen-mpartners', 'screen-mcounters', 'screen-mauditlog'] },
   ];
   for (const { parent, children } of NESTED_SCREENS) {
-    const subTileCount = await page.evaluate((p) => document.querySelectorAll(`#${p} .menu-tile[data-target]`).length, parent);
+    const subTileCount = await page.evaluate((p) => document.querySelectorAll(`#${p} .menu-tile[data-target], #${p} .settings-item[data-target]`).length, parent);
     r.eq(`شاشة "${parent}" بقت قايمة فرعية فيها ${children.length} اختيار`, subTileCount, children.length);
     for (const childId of children) {
       const nav = await page.evaluate(({ p, c }) => {
-        document.querySelector(`.menu-tile[data-target="${p}"]`).click(); // رجّع من الرئيسية لقايمة القسم
-        document.querySelector(`.menu-tile[data-target="${c}"]`).click(); // ادخل الاختيار الفرعي
+        document.querySelector(`.menu-tile[data-target="${p}"], .settings-item[data-target="${p}"]`).click(); // رجّع من الرئيسية لقايمة القسم
+        document.querySelector(`.menu-tile[data-target="${c}"], .settings-item[data-target="${c}"]`).click(); // ادخل الاختيار الفرعي
         const afterOpen = { parentHidden: document.getElementById(p).hidden, childVisible: !document.getElementById(c).hidden };
         document.querySelector(`#${c} .back-btn`).click(); // زرار الرجوع من الفرعي
         const afterBack = { parentVisible: !document.getElementById(p).hidden, childHidden: document.getElementById(c).hidden, homeHidden: document.getElementById('home-view').hidden };
@@ -330,6 +334,16 @@ function normDigits(s) {
     // ارجع للرئيسية تاني عشان الاختبار اللي بعده يبدأ من حالة معروفة
     await page.evaluate((p) => { document.querySelector(`#${p} .back-btn`).click(); }, parent);
   }
+
+  // ===== ٤.ب.١) صف "بيانات الاتصال السحابي" جوه شاشة الإعدادات — ده مش شاشة تفاصيل
+  // عادية زي الباقي، ده نفس زرار "⚙" القديم اللي كان في الشريط العلوي (اتشال من هناك
+  // وبقى هنا بس) وبيفتح شاشة الإعداد/الاتصال الرئيسية (setup) =====
+  const cloudRow = await page.evaluate(() => ({
+    exists: !!document.getElementById('settings-row-cloud'),
+    oldGearGone: !document.getElementById('settings-btn'),
+  }));
+  r.ok('صف "بيانات الاتصال السحابي" موجود جوه شاشة الإعدادات', cloudRow.exists);
+  r.ok('زرار الترس (⚙) القديم اتشال فعليًا من الشريط العلوي', cloudRow.oldGearGone);
 
   // ===== ٤.ج) الشهور السابقة: طلب المستخدم "تقرير مختصر عن كل شهر... لو عاوز شهر قبل
   // كدا ادخل اعمل بحث". بنحاكي كائن db (فايرستور) بشهرين عندهم بيانات وشهر تالت من غيرها،
@@ -417,7 +431,7 @@ function normDigits(s) {
     document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; });
     const remoteSettings = { name: 'محل من فايرستور', legalName: '', addr: 'عنوان قديم', tel1: '0100', tel2: '', mgrWhatsapp: '', taxRate: 14, crn: '111', taxcard: '222' };
     db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => remoteSettings }) }) }) };
-    document.getElementById('shopsettings-tile').click();
+    document.getElementById('settings-row-shop').click();
     return new Promise((resolve) => setTimeout(() => resolve({
       screenVisible: !document.getElementById('screen-shopsettings').hidden,
       formVisible: !document.getElementById('ss-form-wrap').hidden,
@@ -462,7 +476,7 @@ function normDigits(s) {
       ],
     };
     db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
-    document.getElementById('accounts-tile').click();
+    document.getElementById('settings-row-accounts').click();
     return new Promise((resolve) => setTimeout(() => resolve({
       screenVisible: !document.getElementById('screen-accounts').hidden,
       listHtml: document.getElementById('acc-list').innerHTML,
@@ -512,7 +526,7 @@ function normDigits(s) {
   const t4l = await page.evaluate(() => {
     const adminSnap = { branches: [{ id: 'BR-MAIN', name: 'الفرع الرئيسي', isDefault: true }] };
     db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
-    document.getElementById('mbranches-tile').click();
+    document.getElementById('settings-row-branches').click();
     return new Promise((resolve) => setTimeout(() => resolve({
       screenVisible: !document.getElementById('screen-mbranches').hidden,
       listHtml: document.getElementById('mbr-list').innerHTML,
@@ -543,7 +557,7 @@ function normDigits(s) {
       },
     };
     db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
-    document.getElementById('mpartners-tile').click();
+    document.getElementById('settings-row-partners').click();
     return new Promise((resolve) => setTimeout(() => resolve({
       screenVisible: !document.getElementById('screen-mpartners').hidden,
       balancesHtml: document.getElementById('mpt-balances').innerHTML,
@@ -581,7 +595,7 @@ function normDigits(s) {
   const t4q = await page.evaluate(() => {
     const adminSnap = { counters: { rcpt: 5, sinv: 10, minv: 1, wo: 3, tsinv: 1, tminv: 1 } };
     db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
-    document.getElementById('mcounters-tile').click();
+    document.getElementById('settings-row-counters').click();
     return new Promise((resolve) => setTimeout(() => resolve({
       screenVisible: !document.getElementById('screen-mcounters').hidden,
       sinvVal: document.getElementById('mct-in-sinv') ? document.getElementById('mct-in-sinv').value : null,
@@ -636,7 +650,7 @@ function normDigits(s) {
   const t4t = await page.evaluate((goodLogs) => {
     const adminSnap = { logs: goodLogs };
     db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
-    document.getElementById('mauditlog-tile').click();
+    document.getElementById('settings-row-auditlog').click();
     return new Promise((resolve) => setTimeout(() => resolve({
       screenVisible: !document.getElementById('screen-mauditlog').hidden,
       listHtml: document.getElementById('mal-list').innerHTML,
