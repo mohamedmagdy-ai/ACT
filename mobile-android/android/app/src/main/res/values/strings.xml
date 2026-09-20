@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">لوحة متابعة المحل</string>
+    <string name="title_activity_main">لوحة متابعة المحل</string>
+    <string name="package_name">com.actmain.mobiledashboard</string>
+    <string name="custom_url_scheme">com.actmain.mobiledashboard</string>
+</resources>

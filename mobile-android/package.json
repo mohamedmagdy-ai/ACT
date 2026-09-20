@@ -1,0 +1,17 @@
+{
+  "name": "act-mobile-dashboard-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "مشروع أندرويد (Capacitor) للوحة متابعة المحل — ACT",
+  "scripts": {
+    "sync": "cap sync android",
+    "open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2"
+  }
+}
