@@ -159,7 +159,18 @@ function normDigits(s) {
       svcHtml: document.getElementById('svc-list').innerHTML,
       bestHtml: document.getElementById('best-list').innerHTML,
       stagnantHtml: document.getElementById('stagnant-list').innerHTML,
-      treasuryHiddenBefore: document.getElementById('treasury-detail').hidden,
+      mtCashnow: document.getElementById('mt-cashnow').textContent,
+      mtProfit: document.getElementById('mt-profit').textContent,
+      mtRcvBadge: document.getElementById('mt-rcv-badge').textContent,
+      mtRcvTotal: document.getElementById('mt-rcv-total').textContent,
+      mtPayBadge: document.getElementById('mt-pay-badge').textContent,
+      mtPayTotal: document.getElementById('mt-pay-total').textContent,
+      mtMaintBadge: document.getElementById('mt-maint-badge').textContent,
+      mtLowstockBadge: document.getElementById('mt-lowstock-badge').textContent,
+      mtSvcBadge: document.getElementById('mt-svc-badge').textContent,
+      mtFinanceTotal: document.getElementById('mt-finance-total').textContent,
+      mtHrCount: document.getElementById('mt-hr-count').textContent,
+      mtWaBadge: document.getElementById('mt-wa-badge').textContent,
     };
   });
   r.eq('اسم المحل اترسم صح', t4.shopName, 'محل الاختبار');
@@ -192,7 +203,6 @@ function normDigits(s) {
   r.eq('تفصيل الخزنة (كاش) ظاهر صح', normDigits(t4.trCash), '4200.00');
   r.eq('تفصيل الخزنة (انستا باي) ظاهر صح', normDigits(t4.trInstapay), '250.00');
   r.eq('تفصيل الخزنة (فيزا) ظاهر صح', normDigits(t4.trVisa), '150.00');
-  r.ok('لوحة تفصيل الخزنة مخفية افتراضيًا لحد ما تدوس عليها', t4.treasuryHiddenBefore);
   r.ok('كشف المبيعات فيه الفاتورة اللي بعتناها', t4.salesHtml.includes('S-1') && t4.salesHtml.includes('عميل ١'));
   r.ok('كشف الصيانة الجارية فيه السجل اللي بعتناه', t4.maintHtml.includes('M-1'));
   r.ok('كشف فواتير الصيانة فيه الفاتورة اللي بعتناها', t4.maintInvHtml.includes('MI-1'));
@@ -202,17 +212,51 @@ function normDigits(s) {
   r.ok('اسم مركز الخدمة ظاهر في القايمة', t4.svcHtml.includes('مركز الدلتا'));
   r.ok('الصنف الأكثر مبيعًا ظاهر في القايمة', t4.bestHtml.includes('صنف منخفض'));
   r.ok('الصنف الراكد ظاهر في القايمة', t4.stagnantHtml.includes('صنف راكد'));
+  // === القيم المصغّرة على زراير الشاشة الرئيسية (نظرة سريعة قبل الدخول للتفاصيل) ===
+  r.eq('زرار "الخزنة" بيوري الرصيد الحالي', normDigits(t4.mtCashnow), '4200.00');
+  r.eq('زرار "التقرير الشامل" بيوري صافي الربح', normDigits(t4.mtProfit), '5000.00');
+  r.eq('زرار "مستحق ليا" بيوري العداد', t4.mtRcvBadge, '1');
+  r.eq('زرار "مستحق ليا" بيوري الإجمالي', normDigits(t4.mtRcvTotal), '500.00');
+  r.eq('زرار "مستحق عليا" بيوري العداد', t4.mtPayBadge, '1');
+  r.eq('زرار "مستحق عليا" بيوري الإجمالي', normDigits(t4.mtPayTotal), '400.00');
+  r.eq('زرار "الصيانة" بيوري عدد السجلات الجارية', t4.mtMaintBadge, '1');
+  r.eq('زرار "المخزون" بيوري عداد النواقص', t4.mtLowstockBadge, '1');
+  r.eq('زرار "مراكز الخدمة" بيوري العداد', t4.mtSvcBadge, '1');
+  r.eq('زرار "المصروفات والمسحوبات" بيوري إجمالي المصروفات', normDigits(t4.mtFinanceTotal), '1300.00');
+  r.eq('زرار "الموظفين" بيوري العدد', t4.mtHrCount, '2');
+  r.eq('زرار "واتساب" بيوري عدد الرسائل المعلّقة', t4.mtWaBadge, '2');
 
-  // ===== ٤.أ) الدوس على "الخزنة الحالية" بيفتح/يقفل لوحة التفصيل =====
-  const t4b = await page.evaluate(() => {
-    document.getElementById('cashnow-tile').click();
-    const afterOpen = document.getElementById('treasury-detail').hidden;
-    document.getElementById('cashnow-tile').click();
-    const afterClose = document.getElementById('treasury-detail').hidden;
-    return { afterOpen, afterClose };
-  });
-  r.ok('الدوسة الأولى بتفتح لوحة تفصيل الخزنة', t4b.afterOpen === false);
-  r.ok('الدوسة التانية بتقفلها تاني', t4b.afterClose === true);
+  // ===== ٤.أ) التنقل: الشاشة الرئيسية ↔ شاشات التفاصيل =====
+  // الشكل القديم كان كل الكروت متعروضة مرة واحدة في صفحة طويلة — اتغيّر
+  // لشاشة رئيسية فيها زراير، كل زرار بيفتح شاشة تفاصيل مستقلة، وزرار
+  // "→" بيرجعك تاني للرئيسية.
+  const NAV_SCREENS = [
+    'screen-treasury', 'screen-report', 'screen-receivables', 'screen-payables',
+    'screen-sales', 'screen-maintenance', 'screen-inventory', 'screen-servicecenters',
+    'screen-finance', 'screen-hr', 'screen-whatsapp',
+  ];
+  const t4a = await page.evaluate(() => ({
+    homeVisible: !document.getElementById('home-view').hidden,
+    allDetailScreensHidden: Array.from(document.querySelectorAll('.detail-screen')).every((s) => s.hidden),
+    tileCount: document.querySelectorAll('.menu-tile[data-target]').length,
+  }));
+  r.ok('الشاشة الرئيسية ظاهرة أول ما تدخل الداشبورد', t4a.homeVisible);
+  r.ok('كل شاشات التفاصيل مخفية في البداية', t4a.allDetailScreensHidden);
+  r.eq('فيه ١١ زرار قسم في الشاشة الرئيسية', t4a.tileCount, 11);
+
+  for (const screenId of NAV_SCREENS) {
+    const nav = await page.evaluate((id) => {
+      document.querySelector(`.menu-tile[data-target="${id}"]`).click();
+      const afterOpen = { homeHidden: document.getElementById('home-view').hidden, screenVisible: !document.getElementById(id).hidden, topbarHidden: document.getElementById('main-topbar').hidden };
+      document.querySelector(`#${id} .back-btn`).click();
+      const afterBack = { homeHidden: document.getElementById('home-view').hidden, screenVisible: !document.getElementById(id).hidden, topbarHidden: document.getElementById('main-topbar').hidden };
+      return { afterOpen, afterBack };
+    }, screenId);
+    r.ok(`الدوس على زرار "${screenId}" بيفتح شاشة التفاصيل بتاعته ويخفي الرئيسية`, nav.afterOpen.homeHidden === true && nav.afterOpen.screenVisible === true);
+    r.ok(`شاشة التفاصيل "${screenId}" بتخفي الشريط العلوي الرئيسي (بتوري شريطها الخاص بس)`, nav.afterOpen.topbarHidden === true);
+    r.ok(`زرار الرجوع من "${screenId}" بيرجّع الشاشة الرئيسية ويخفي شاشة التفاصيل`, nav.afterBack.homeHidden === false && nav.afterBack.screenVisible === false);
+    r.ok(`زرار الرجوع من "${screenId}" بيرجّع الشريط العلوي الرئيسي تاني`, nav.afterBack.topbarHidden === false);
+  }
 
   // ===== ٥) لا يوجد صنف تحت الحد = رسالة "المخزون تمام" بدل جدول فاضي (وكذلك حالة عدم وجود مصروفات/مسحوبات/إجازات معلّقة) =====
   const t5 = await page.evaluate(() => {
@@ -263,6 +307,34 @@ function normDigits(s) {
     return document.getElementById('lowstock-list').innerHTML;
   });
   r.ok('اسم صنف فيه HTML خبيث بيتعرض كنص عادي (escaped)، مش كعنصر HTML فعلي', !t6.includes('<img') && t6.includes('&lt;img'));
+
+  // ===== ٧) PWA: الصفحة مرتبطة بـmanifest.json + مسجّلة service worker (تثبيت حقيقي كتطبيق) =====
+  const t7 = await page.evaluate(() => {
+    const link = document.querySelector('link[rel="manifest"]');
+    return {
+      manifestHref: link ? link.getAttribute('href') : null,
+      hasIcons192: !!document.querySelector('link[rel="icon"][sizes="192x192"]'),
+      hasAppleTouchIcon: !!document.querySelector('link[rel="apple-touch-icon"]'),
+      installBtnExistsHidden: document.getElementById('install-btn') ? document.getElementById('install-btn').hidden : null,
+    };
+  });
+  r.eq('الصفحة فيها <link rel="manifest"> بيشاور على manifest.json', t7.manifestHref, 'manifest.json');
+  r.ok('أيقونة 192x192 موجودة', t7.hasIcons192);
+  r.ok('أيقونة apple-touch-icon موجودة (تثبيت على آيفون)', t7.hasAppleTouchIcon);
+  r.ok('زرار "تثبيت كتطبيق" موجود ومخفي افتراضيًا (بيظهر بس لو المتصفح عرض فرصة التثبيت)', t7.installBtnExistsHidden === true);
+
+  // manifest.json نفسه ملف JSON صحيح وفيه كل حقول PWA الأساسية
+  const fs = require('fs');
+  const manifestPath = path.resolve(__dirname, '..', 'mobile-dashboard', 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  r.ok('manifest.json فيه display: standalone (يفتح كتطبيق مستقل من غير شريط المتصفح)', manifest.display === 'standalone');
+  r.ok('manifest.json فيه أيقونات 192 و512 (المطلوبة لشاشة "أضف للرئيسية")', manifest.icons.some((i) => i.sizes === '192x192') && manifest.icons.some((i) => i.sizes === '512x512'));
+  r.ok('manifest.json فيه أيقونة maskable (تتقص صح على أشكال أيقونات أندرويد المختلفة)', manifest.icons.some((i) => i.purpose === 'maskable'));
+  const iconsDir = path.resolve(__dirname, '..', 'mobile-dashboard', 'icons');
+  const missingIcons = manifest.icons.filter((i) => !fs.existsSync(path.resolve(path.dirname(manifestPath), i.src)));
+  r.ok('كل ملفات الأيقونات المذكورة في manifest.json موجودة فعليًا', missingIcons.length === 0);
+  const swPath = path.resolve(__dirname, '..', 'mobile-dashboard', 'sw.js');
+  r.ok('ملف sw.js (service worker) موجود', fs.existsSync(swPath));
 
   r.ok('لا يوجد أي خطأ JS غير متوقع', pageErrors.length === 0);
   if (pageErrors.length) console.log('  Page errors:', pageErrors);
