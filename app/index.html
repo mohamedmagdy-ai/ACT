@@ -18322,6 +18322,60 @@ function buildOwnerDashboardSnapshot(){
     const empActive=(DB.employees||[]).filter(e=>e.status==='active');
     const monthlySalariesTotal=empActive.reduce((s,e)=>s+(e.salary||0),0);
     const pendingUnpaidLeaves=(DB.employees||[]).reduce((s,e)=>s+((e.leaveRequests||[]).filter(r=>r.type==='unpaid'&&!r.settled).length),0);
+    // === الخزنة بالتفصيل — كام نقدي/فيزا/انستا باي/تحويل بنكي/شيك للشهر (نفس دالة
+    // "تفصيل سيولة الشهر بطريقة الدفع" الموجودة في شاشة الخزنة بالظبط — calcMethodTotals) ===
+    let treasury=null;
+    try{
+      const mt=(typeof calcMethodTotals==='function')?calcMethodTotals():null;
+      if(mt)treasury={cash:rnd(_ob+(mt['كاش']||0)),instapay:rnd(mt['انستا باي']||0),visa:rnd(mt['فيزا']||0),bankTransfer:rnd(mt['تحويل بنكي']||0),check:rnd(mt['شيك']||0)};
+    }catch(_eMt){}
+    // === كشوف حديثة (آخر ١٥ حركة لكل نوع) — مبيعات/صيانة جارية/فواتير صيانة/أوامر شغل/إذن استلام ===
+    const sortDesc=(arr)=>arr.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+    const recentSales=sortDesc([...DB.sales.filter(isMyBranch),...(DB.taxInvoices||[]).filter(t=>t.taxType==='sale'&&isMyBranch(t))])
+      .slice(0,15).map(s=>({id:s.id,customer:s.customer||'',total:rnd(s.total||0),date:s.date||'',payment:s.payment||'',status:s.status||''}));
+    const recentMaintenance=sortDesc((DB.maintenance||[]).filter(isMyBranch))
+      .slice(0,15).map(m=>({id:m.id,customer:m.customer||'',device:m.device||'',cost:rnd(m.cost||0),date:m.date||'',status:m.status||'',exit:m.exit||''}));
+    const recentMaintInvoices=sortDesc([...(DB.maintInvoices||[]).filter(m=>m.exit!=='warranty'&&isMyBranch(m)),...(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&t.exit!=='warranty'&&isMyBranch(t))])
+      .slice(0,15).map(m=>({id:m.id,customer:m.customer||'',device:m.device||'',cost:rnd(m.cost||m.total||0),date:m.date||''}));
+    const recentWorkOrders=sortDesc((DB.workOrders||[]).filter(isMyBranch))
+      .slice(0,15).map(w=>({id:w.id,customer:w.customer||'',device:w.device||'',total:rnd(w.total||((w.cost||0)+(w.labor||0))),date:w.date||'',status:w.status||'',exit:w.exit||''}));
+    const recentReceipts=sortDesc((DB.receipts||[]).filter(isMyBranch))
+      .slice(0,15).map(r=>({id:r.id,customer:r.customer||'',device:r.device||'',date:r.date||'',status:r.status||''}));
+    // === مراكز الخدمة — عدد + أكبر ٨ مراكز بالمستحق ليا (نفس منطق المطابقة بالاسم
+    // المستخدم في "كشف حساب" — كل مركز بيتسجّل زي أي طرف تاني بس باسمه) ===
+    let serviceCenters={count:(DB.serviceCenters||[]).length,top:[]};
+    try{
+      const centerDebt=(DB.serviceCenters||[]).map(c=>{
+        const d=[...DB.sales,...(DB.taxInvoices||[]).filter(t=>t.taxType==='sale')].filter(x=>x.customer===c.name&&isDeferredInv(x)&&isMyBranch(x)).reduce((a,x)=>a+getRemain('sale',x.id,x.total||0),0)
+          +[...(DB.maintInvoices||[]).filter(m=>m.exit!=='warranty'),...(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&t.exit!=='warranty')].filter(x=>x.customer===c.name&&isDeferredInv(x)&&isMyBranch(x)).reduce((a,x)=>a+getRemain('maint',x.id,(x.cost||x.total||0)),0);
+        return {name:c.name,debt:rnd(d)};
+      }).filter(c=>c.debt>0.5).sort((a,b)=>b.debt-a.debt).slice(0,8);
+      serviceCenters.top=centerDebt;
+    }catch(_eSc){}
+    // === الأفضل والراكد — أعلى ٥ أصناف مبيعًا في الشهر + أعلى ٥ راكدة (بدون حركة ٦٠
+    // يوم فأكتر) — نفس منطق "📈 الأفضل والراكد" على سطح المكتب بس بعدد أقل يناسب الموبايل ===
+    let bestSellers=[],stagnant=[];
+    try{
+      const month=todayStr.slice(0,7);
+      const sold={};
+      const addSold=(name,qty,val)=>{const p=findProdByAny(name);if(!p)return;const k=p.id;if(!sold[k])sold[k]={qty:0,val:0};sold[k].qty+=qty;sold[k].val+=val;};
+      const fnM=d=>(d||'').slice(0,7)===month;
+      DB.sales.filter(s=>fnM(s.date)&&isMyBranch(s)).forEach(s=>(s.items||[]).forEach(it=>addSold(it.name,it.qty||0,(it.qty||0)*(it.price||0)-(it.disc||0))));
+      (DB.taxInvoices||[]).filter(t=>fnM(t.date)&&isMyBranch(t)).forEach(t=>(t.items||[]).forEach(it=>addSold(it.name,it.qty||0,(it.qty||0)*(it.price||0))));
+      (DB.maintInvoices||[]).filter(m=>fnM(m.date)&&isMyBranch(m)).forEach(m=>(m.items||[]).forEach(it=>addSold(it.name,it.qty||0,(it.qty||0)*(it.price||0))));
+      const _dispQty=p=>(typeof CURRENT_BRANCH!=='undefined'&&CURRENT_BRANCH==='ALL'&&typeof getProdQtyAllBranches==='function')?getProdQtyAllBranches(p):(typeof getProdQty==='function'?getProdQty(p):(p.qty||0));
+      bestSellers=Object.entries(sold).map(([id,v])=>{const p=DB.products.find(x=>x.id===id);return p?{name:p.name,qty:v.qty,val:rnd(v.val)}:null;}).filter(Boolean).sort((a,b)=>b.val-a.val).slice(0,5);
+      const lastMove={};
+      const touch=(name,d)=>{const p=findProdByAny(name);if(!p)return;if(!lastMove[p.id]||d>lastMove[p.id])lastMove[p.id]=d;};
+      DB.sales.filter(isMyBranch).forEach(s=>(s.items||[]).forEach(it=>touch(it.name,s.date||'')));
+      (DB.taxInvoices||[]).filter(isMyBranch).forEach(t=>(t.items||[]).forEach(it=>touch(it.name,t.date||'')));
+      (DB.maintInvoices||[]).filter(isMyBranch).forEach(m=>(m.items||[]).forEach(it=>touch(it.name,m.date||'')));
+      const daysAgo=d=>d?Math.floor((Date.now()-new Date(d).getTime())/86400000):null;
+      stagnant=DB.products.filter(p=>_dispQty(p)>0).map(p=>{
+        const d=lastMove[p.id]||'';const ago=daysAgo(d);
+        return {name:p.name,stock:_dispQty(p),capital:rnd(_dispQty(p)*(p.buy||0)),ago:ago===null?99999:ago};
+      }).filter(r=>r.ago>=60).sort((a,b)=>b.capital-a.capital).slice(0,5);
+    }catch(_eBs){}
     return {
       shopName:(getStoreCfg().name)||'المحل',
       updatedAt:Date.now(),
@@ -18346,20 +18400,31 @@ function buildOwnerDashboardSnapshot(){
       expensesMonth:{total:rnd(expensesMonthTotal),byType:expTop},
       withdrawalsMonth:{total:rnd(wdMonthTotal),recent:wdRecent},
       hr:{employeesCount:(DB.employees||[]).length,activeCount:empActive.length,monthlySalariesTotal:rnd(monthlySalariesTotal),pendingUnpaidLeaves},
+      treasury:treasury,
+      recentSales:recentSales,
+      recentMaintenance:recentMaintenance,
+      recentMaintInvoices:recentMaintInvoices,
+      recentWorkOrders:recentWorkOrders,
+      recentReceipts:recentReceipts,
+      serviceCenters:serviceCenters,
+      bestSellers:bestSellers,
+      stagnant:stagnant,
     };
   }catch(e){try{logger.warn('buildOwnerDashboardSnapshot failed:',e&&e.message);}catch(_n){}return null;}
 }
-// مُحدّد أقصى مرة كل ٢٠ ثانية — عشان الحفظات الكتير المتكررة (كل ما تعمل أي حاجة صغيرة
-// في البرنامج) متبقاش كل واحدة فيها كتابة لـFirestore لمستند الملخص ده بلا داعي
+// مُحدّد أقصى مرة كل ٨ ثواني — عشان الحفظات الكتير المتكررة (كل ما تعمل أي حاجة صغيرة
+// في البرنامج) متبقاش كل واحدة فيها كتابة لـFirestore لمستند الملخص ده بلا داعي. (كانت
+// ٢٠ ثانية — قللناها بناءً على طلب المستخدم إن التحديث يبقى أسرع)
+const OWNER_DASH_PUSH_THROTTLE_MS=8000;
 let _ownerDashLastPush=0,_ownerDashPending=false;
 function pushOwnerDashboardSnapshot(){
   try{
     if(!FS_COL)return; // مفيش اتصال سحابي مُعد أصلاً — مفيش داعي نحاول
     const now=Date.now();
-    if(now-_ownerDashLastPush<20000){
+    if(now-_ownerDashLastPush<OWNER_DASH_PUSH_THROTTLE_MS){
       if(!_ownerDashPending){
         _ownerDashPending=true;
-        setTimeout(()=>{_ownerDashPending=false;try{pushOwnerDashboardSnapshot();}catch(_e){}},20000-(now-_ownerDashLastPush));
+        setTimeout(()=>{_ownerDashPending=false;try{pushOwnerDashboardSnapshot();}catch(_e){}},OWNER_DASH_PUSH_THROTTLE_MS-(now-_ownerDashLastPush));
       }
       return;
     }
@@ -18909,12 +18974,20 @@ setInterval(()=>{
     if(typeof CURRENT_USER==='undefined'||!CURRENT_USER)return; // لسه ما سجّلتش دخول
     loadFromFirebase(true);
     if(!_fsRealtimeUnsub)try{startFirebaseRealtimeSync();}catch(_e){} // لو الاشتراك واقع، نجرب نرجّعه
-    // تحديث دوري لملخص "لوحة متابعة المحل" على الموبايل كمان — حتى لو مفيش أي حفظة
-    // جديدة حصلت (مفيش بيع/فاتورة)، عشان طابع "آخر تحديث" وباقي الأرقام (زي الخزنة
-    // اللي بتتغيّر مع دوران اليوم) تفضل حديثة بدل ما تقف على آخر حفظة قديمة
-    try{ if(typeof pushOwnerDashboardSnapshot==='function')pushOwnerDashboardSnapshot(); }catch(_ePush){}
   }catch(e){}
 },120000);
+
+// ======= تحديث دوري مستقل لملخص "لوحة متابعة المحل" على الموبايل (كل ٣٠ ثانية) — منفصل
+// عن مزامنة البرنامج العامة فوق (اللي كل دقيقتين) عشان الموبايل يفضل حديث حتى لو مفيش
+// أي حفظة جديدة حصلت (مفيش بيع/فاتورة)، من غير ما نأثر على معدل مزامنة باقي البرنامج.
+// pushOwnerDashboardSnapshot() نفسها فيها حد أقصى داخلي (٨ ثواني) فمفيش خطر كتابة زيادة =======
+setInterval(()=>{
+  try{
+    if(document.hidden)return;
+    if(typeof CURRENT_USER==='undefined'||!CURRENT_USER)return;
+    if(typeof pushOwnerDashboardSnapshot==='function')pushOwnerDashboardSnapshot();
+  }catch(e){}
+},30000);
 </script>
 </body>
 </html>

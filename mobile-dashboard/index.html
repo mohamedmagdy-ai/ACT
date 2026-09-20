@@ -92,6 +92,7 @@
   .row .sub{font-size:11px;color:var(--muted);margin-top:1px;}
   .row .amt{font-size:13.5px;font-weight:800;white-space:nowrap;}
   .empty{text-align:center;padding:18px 8px;color:var(--good);background:var(--good-bg);border-radius:10px;font-size:13px;font-weight:600;}
+  .list-scroll{max-height:260px;overflow-y:auto;}
 
   .footer-note{font-size:11px;color:var(--muted);text-align:center;padding:6px 10px 0;line-height:1.7;}
 
@@ -200,8 +201,17 @@
     </div>
 
     <div class="stat-row">
-      <div class="stat good"><div class="lbl">💰 الخزنة الحالية</div><div class="val num" id="v-cashnow">0</div></div>
+      <div class="stat good" id="cashnow-tile" style="cursor:pointer;"><div class="lbl">💰 الخزنة الحالية <span style="font-size:10px;font-weight:400;">(دوس للتفصيل)</span></div><div class="val num" id="v-cashnow">0</div></div>
       <div class="stat"><div class="lbl">📈 مبيعات الشهر</div><div class="val num" id="v-month">0</div></div>
+    </div>
+
+    <div id="treasury-detail" class="card" hidden>
+      <div class="section-title">💰 تفصيل الخزنة بطريقة الدفع — الشهر</div>
+      <div class="row"><div class="name">💵 نقدي كاش (شامل أول المدة)</div><div class="amt num" id="tr-cash">0</div></div>
+      <div class="row"><div class="name">📲 انستا باي</div><div class="amt num" id="tr-instapay">0</div></div>
+      <div class="row"><div class="name">💳 فيزا</div><div class="amt num" id="tr-visa">0</div></div>
+      <div class="row"><div class="name">🏦 تحويل بنكي</div><div class="amt num" id="tr-bank">0</div></div>
+      <div class="row"><div class="name">📄 شيكات</div><div class="amt num" id="tr-check">0</div></div>
     </div>
 
     <div class="card">
@@ -222,6 +232,46 @@
     <div class="card">
       <div class="section-title">🧾 فواتير آجلة مستحقة <span class="badge bad num" id="deferred-badge">0</span></div>
       <div id="deferred-box"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">🛒 كشف المبيعات <span style="font-size:10.5px;font-weight:400;color:var(--muted);">(آخر ١٥)</span></div>
+      <div id="sales-list" class="list-scroll"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">🔧 كشف الصيانة الجارية <span style="font-size:10.5px;font-weight:400;color:var(--muted);">(آخر ١٥)</span></div>
+      <div id="maint-list" class="list-scroll"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">🧾 كشف فواتير الصيانة <span style="font-size:10.5px;font-weight:400;color:var(--muted);">(آخر ١٥)</span></div>
+      <div id="maintinv-list" class="list-scroll"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">🔩 كشف أوامر الشغل <span style="font-size:10.5px;font-weight:400;color:var(--muted);">(آخر ١٥)</span></div>
+      <div id="wo-list" class="list-scroll"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">📄 كشف إذن الاستلام <span style="font-size:10.5px;font-weight:400;color:var(--muted);">(آخر ١٥)</span></div>
+      <div id="rcpt-list" class="list-scroll"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">🏢 مراكز الخدمة <span class="badge warn num" id="svc-badge">0</span></div>
+      <div id="svc-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">📈 الأكثر مبيعًا (الشهر)</div>
+      <div id="best-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">🐢 راكد بالمخزون <span style="font-size:10.5px;font-weight:400;color:var(--muted);">(بدون حركة ٦٠ يوم+)</span></div>
+      <div id="stagnant-list"></div>
     </div>
 
     <div class="card">
@@ -249,7 +299,7 @@
       <div id="wa-box"></div>
     </div>
 
-    <div class="footer-note">الأرقام دي بتتحدّث لوحدها كل ما البرنامج على الجهاز يحفظ حاجة جديدة — من غير ما تحتاج تعمل حاجة.</div>
+    <div class="footer-note">الأرقام دي بتتحدّث لوحدها كل ما البرنامج على الجهاز يحفظ حاجة جديدة — من غير ما تحتاج تعمل حاجة. الكشوف بتوري آخر ١٥ حركة بس، مش الأرشيف الكامل.</div>
     <button class="btn-ghost" id="logout-btn">تسجيل خروج من الإعداد</button>
   </main>
 </div>
@@ -442,6 +492,62 @@
       return '<div class="row"><div><div class="name">'+esc(w.type||'سحب')+(w.partner?' — '+esc(w.partner):'')+'</div><div class="sub">'+esc(w.date||'')+'</div></div><div class="amt" style="color:'+(w.type==='إيداع'?'var(--good)':'var(--warn)')+';">'+fmtN(w.amount)+' ج</div></div>';
     }).join('') : '<div class="empty">✅ مفيش مسحوبات مسجّلة</div>';
 
+    // ===== الخزنة بالتفصيل (طريقة الدفع) =====
+    var tr=d.treasury||{};
+    $('tr-cash').textContent=fmtN(tr.cash||0);
+    $('tr-instapay').textContent=fmtN(tr.instapay||0);
+    $('tr-visa').textContent=fmtN(tr.visa||0);
+    $('tr-bank').textContent=fmtN(tr.bankTransfer||0);
+    $('tr-check').textContent=fmtN(tr.check||0);
+
+    // ===== كشوف حديثة (آخر ١٥ لكل نوع) =====
+    var listRow=function(title,sub,amount,amountColor){
+      return '<div class="row"><div><div class="name">'+esc(title)+'</div>'+(sub?'<div class="sub">'+esc(sub)+'</div>':'')+'</div>'+(amount!=null?'<div class="amt" style="color:'+(amountColor||'var(--ink)')+';">'+fmtN(amount)+' ج</div>':'')+'</div>';
+    };
+    var salesRows=d.recentSales||[];
+    $('sales-list').innerHTML = salesRows.length ? salesRows.map(function(s){
+      return listRow(s.id+' — '+(s.customer||''), (s.date||'')+(s.payment?' • '+s.payment:''), s.total);
+    }).join('') : '<div class="empty">مفيش فواتير مبيعات مسجّلة</div>';
+
+    var maintRows=d.recentMaintenance||[];
+    $('maint-list').innerHTML = maintRows.length ? maintRows.map(function(m){
+      return listRow(m.id+' — '+(m.customer||''), (m.device||'')+' • '+(m.date||'')+(m.status?' • '+m.status:''), m.cost);
+    }).join('') : '<div class="empty">مفيش صيانة جارية مسجّلة</div>';
+
+    var maintInvRows=d.recentMaintInvoices||[];
+    $('maintinv-list').innerHTML = maintInvRows.length ? maintInvRows.map(function(m){
+      return listRow(m.id+' — '+(m.customer||''), (m.device||'')+' • '+(m.date||''), m.cost);
+    }).join('') : '<div class="empty">مفيش فواتير صيانة مسجّلة</div>';
+
+    var woRows=d.recentWorkOrders||[];
+    $('wo-list').innerHTML = woRows.length ? woRows.map(function(w){
+      return listRow(w.id+' — '+(w.customer||''), (w.device||'')+' • '+(w.date||'')+(w.status?' • '+w.status:''), w.total);
+    }).join('') : '<div class="empty">مفيش أوامر شغل مسجّلة</div>';
+
+    var rcptRows=d.recentReceipts||[];
+    $('rcpt-list').innerHTML = rcptRows.length ? rcptRows.map(function(rc){
+      return listRow(rc.id+' — '+(rc.customer||''), (rc.device||'')+' • '+(rc.date||'')+(rc.status?' • '+rc.status:''));
+    }).join('') : '<div class="empty">مفيش إذونات استلام مسجّلة</div>';
+
+    // ===== مراكز الخدمة =====
+    var svc=d.serviceCenters||{count:0,top:[]};
+    $('svc-badge').textContent=String(svc.count||0);
+    var svcTop=svc.top||[];
+    $('svc-list').innerHTML = svcTop.length ? svcTop.map(function(c){
+      return '<div class="row"><div class="name">'+esc(c.name)+'</div><div class="amt" style="color:var(--bad);">'+fmtN(c.debt)+' ج</div></div>';
+    }).join('') : '<div class="empty">✅ مفيش مراكز خدمة عليها مستحق دلوقتي</div>';
+
+    // ===== الأكثر مبيعًا / الراكد =====
+    var best=d.bestSellers||[];
+    $('best-list').innerHTML = best.length ? best.map(function(p){
+      return '<div class="row"><div><div class="name">'+esc(p.name)+'</div><div class="sub">الكمية: '+fmtN(p.qty)+'</div></div><div class="amt" style="color:var(--good);">'+fmtN(p.val)+' ج</div></div>';
+    }).join('') : '<div class="empty">مفيش مبيعات مسجّلة الشهر ده</div>';
+
+    var stag=d.stagnant||[];
+    $('stagnant-list').innerHTML = stag.length ? stag.map(function(p){
+      return '<div class="row"><div><div class="name">'+esc(p.name)+'</div><div class="sub">الرصيد: '+fmtN(p.stock)+'</div></div><div class="amt" style="color:var(--bad);">'+fmtN(p.capital)+' ج</div></div>';
+    }).join('') : '<div class="empty">✅ مفيش أصناف راكدة</div>';
+
     // ===== الموظفين (HR) =====
     var hr=d.hr||{};
     $('hr-count').textContent=String(hr.employeesCount||0);
@@ -479,6 +585,10 @@
   $('refresh-btn').addEventListener('click', function(){
     var cfg=loadCfg();
     if(cfg) startListening();
+  });
+  $('cashnow-tile').addEventListener('click', function(){
+    var box=$('treasury-detail');
+    box.hidden=!box.hidden;
   });
   $('settings-btn').addEventListener('click', function(){
     if(unsub){ try{unsub();}catch(e){} unsub=null; }

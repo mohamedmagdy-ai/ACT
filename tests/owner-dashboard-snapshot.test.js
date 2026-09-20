@@ -15,13 +15,18 @@ const { openApp, TestReporter } = require('./helpers');
   // مسحوبات، موظفين) — عشان نغطي كل بنود الملخص الجديدة زي ما طلب المستخدم =====
   const seed = await page.evaluate(() => {
     localStorage.setItem('sz_store_cfg', JSON.stringify({ name: 'محل الاختبار' }));
-    DB.products = [{ id: 'PRD-1', name: 'صنف منخفض', qty: 2, alert: 5, buy: 10, sell: 20 }];
+    DB.products = [
+      { id: 'PRD-1', name: 'صنف منخفض', qty: 2, alert: 5, buy: 10, sell: 20 },
+      { id: 'PRD-2', name: 'صنف راكد', qty: 10, alert: 0, buy: 50, sell: 80 },
+    ];
     DB.sales = [
-      { id: 'S-1', date: todayStr, total: 300, payment: 'كاش', customer: 'عميل ١' },
+      { id: 'S-1', date: todayStr, total: 300, payment: 'كاش', customer: 'عميل ١', items: [{ name: 'صنف منخفض', qty: 2, price: 100 }] },
       { id: 'S-2', date: todayStr, total: 150, payment: 'فيزا', customer: 'عميل ٢' },
       { id: 'S-3', date: todayStr, total: 500, payment: 'آجل', customer: 'عميل ٣', paid: 0 },
+      { id: 'S-4', date: todayStr, total: 600, payment: 'آجل', customer: 'مركز الدلتا' },
     ];
     DB.maintInvoices = [];
+    DB.maintenance = [{ id: 'M-1', customer: 'عميل ١', device: 'جهاز ١', cost: 250, date: todayStr, status: 'pending', exit: 'normal' }];
     DB.taxInvoices = [];
     DB.payments = [];
     DB.purchases = [{ id: 'PUR-1', date: todayStr, supplier: 'مورد ١', total: 400, payment: 'آجل' }];
@@ -37,8 +42,9 @@ const { openApp, TestReporter } = require('./helpers');
       { id: 'EMP-1', name: 'موظف نشط', status: 'active', salary: 3000, leaveRequests: [{ type: 'unpaid', settled: false }] },
       { id: 'EMP-2', name: 'موظف متوقف', status: 'inactive', salary: 2000, leaveRequests: [] },
     ];
-    DB.receipts = [];
-    DB.workOrders = [];
+    DB.receipts = [{ id: 'RCPT-1', customer: 'عميل ١', device: 'جهاز ١', date: todayStr, status: 'pending' }];
+    DB.workOrders = [{ id: 'WO-1', customer: 'عميل ١', device: 'جهاز ١', total: 300, date: todayStr, status: 'pending', exit: 'normal' }];
+    DB.serviceCenters = [{ id: 'SC-1', name: 'مركز الدلتا', phone: '' }];
     DB.openingBalances = [];
     DB.pendingWhatsapp = [
       { id: 'PWA-1', phone: '01000000001', text: 'رسالة', customerLabel: 'عميل', sent: false, dismissed: false },
@@ -53,22 +59,48 @@ const { openApp, TestReporter } = require('./helpers');
   r.eq('اسم المحل جاي من إعدادات المحل', snap.shopName, 'محل الاختبار');
   r.eq('مبيعات النهارده كاش = 300', snap.todaySales.cash, 300);
   r.eq('مبيعات النهارده فيزا = 150', snap.todaySales.visa, 150);
-  r.eq('مبيعات النهارده آجل = 500', snap.todaySales.credit, 500);
-  r.eq('عدد فواتير النهارده = 3', snap.todaySales.count, 3);
+  r.eq('مبيعات النهارده آجل = 1100 (500 + 600 مركز الدلتا)', snap.todaySales.credit, 1100);
+  r.eq('عدد فواتير النهارده = 4', snap.todaySales.count, 4);
   r.eq('عدد الأصناف تحت حد التنبيه = 1', snap.lowStockCount, 1);
   r.eq('اسم الصنف المنخفض ظاهر في القايمة', snap.lowStockItems[0].name, 'صنف منخفض');
-  r.eq('إجمالي الفواتير الآجلة المستحقة = 500', snap.deferredTotal, 500);
-  r.eq('عدد الفواتير الآجلة المستحقة = 1', snap.deferredCount, 1);
+  r.eq('إجمالي الفواتير الآجلة المستحقة = 1100', snap.deferredTotal, 1100);
+  r.eq('عدد الفواتير الآجلة المستحقة = 2', snap.deferredCount, 2);
   r.eq('عدد رسائل الواتساب المعلّقة = 1', snap.pendingWhatsappCount, 1);
   r.ok('فيه بصمة وقت (updatedAt)', typeof snap.updatedAt === 'number' && snap.updatedAt > 0);
 
   // ===== ١.أ) التقرير الشامل للشهر (monthReport) — نفس منطق شاشة "📊 التقارير" =====
   r.ok('فيه monthReport', !!snap.monthReport);
-  r.eq('إيراد الشهر = 950 (300+150+500)', snap.monthReport.revenue, 950);
+  r.eq('إيراد الشهر = 1550 (300+150+500+600)', snap.monthReport.revenue, 1550);
   r.eq('مستحق عليا (مشتريات آجلة) = 400', snap.monthReport.debtOnMe, 400);
-  r.eq('مستحق ليا في monthReport = نفس deferredTotal (500)', snap.monthReport.debtToMe, snap.deferredTotal);
+  r.eq('مستحق ليا في monthReport = نفس deferredTotal (1100)', snap.monthReport.debtToMe, snap.deferredTotal);
   r.ok('فيه رقم ربح (موجب أو سالب)', typeof snap.monthReport.profit === 'number');
   r.ok('فيه رقم سيولة', typeof snap.monthReport.liquidityNet === 'number');
+
+  // ===== ١.هـ) الخزنة بالتفصيل (treasury) — كام نقدي/فيزا/انستا (نفس calcMethodTotals) =====
+  r.ok('فيه treasury', !!snap.treasury);
+  r.eq('كاش الخزنة يشمل مبيعات النهارده الكاش (300) — رقم موجود', typeof snap.treasury.cash, 'number');
+  r.eq('فيزا الخزنة = 150 (مبيعة S-2)', snap.treasury.visa, 150);
+  r.eq('انستا باي الخزنة = 0 (مفيش حركات انستا في البيانات التجريبية)', snap.treasury.instapay, 0);
+
+  // ===== ١.و) كشوف حديثة — مبيعات/صيانة جارية/فواتير صيانة/أوامر شغل/إذن استلام =====
+  r.eq('كشف المبيعات الحديث فيه 4 فواتير', snap.recentSales.length, 4);
+  r.eq('كشف الصيانة الجارية فيه سجل الصيانة اللي عملناه', snap.recentMaintenance.length, 1);
+  r.eq('اسم عميل الصيانة الجارية ظاهر صح', snap.recentMaintenance[0].customer, 'عميل ١');
+  r.eq('كشف أوامر الشغل فيه أمر الشغل اللي عملناه', snap.recentWorkOrders.length, 1);
+  r.eq('كشف إذن الاستلام فيه الإذن اللي عملناه', snap.recentReceipts.length, 1);
+  r.eq('كشف فواتير الصيانة فاضي (مفيش فواتير صيانة مسجّلة في البيانات التجريبية)', snap.recentMaintInvoices.length, 0);
+
+  // ===== ١.ز) مراكز الخدمة — عدد + أكبر مركز بالمستحق (مركز الدلتا بيه فاتورة آجلة 600) =====
+  r.eq('عدد مراكز الخدمة = 1', snap.serviceCenters.count, 1);
+  r.eq('فيه مركز واحد له مستحق (600)', snap.serviceCenters.top.length, 1);
+  r.eq('اسم المركز صح', snap.serviceCenters.top[0].name, 'مركز الدلتا');
+  r.eq('قيمة المستحق للمركز = 600', snap.serviceCenters.top[0].debt, 600);
+
+  // ===== ١.ح) الأفضل والراكد — الصنف اللي اتباع النهارده يظهر في الأفضل، والراكد يظهر في الراكد =====
+  r.ok('فيه صنف واحد على الأقل في الأفضل مبيعًا', snap.bestSellers.length >= 1);
+  r.eq('الصنف الأكثر مبيعًا هو "صنف منخفض" (اتباع في S-1)', snap.bestSellers[0].name, 'صنف منخفض');
+  r.ok('فيه صنف واحد على الأقل في الراكد', snap.stagnant.length >= 1);
+  r.eq('"صنف راكد" ظاهر في قايمة الراكد (مفيش له أي حركة بيع)', snap.stagnant[0].name, 'صنف راكد');
 
   // ===== ١.ب) مصروفات الشهر (expensesMonth) =====
   r.eq('إجمالي مصروفات الشهر = 1300 (1000+300)', snap.expensesMonth.total, 1300);
