@@ -4214,6 +4214,8 @@ function saveDB(){
   try{ idbSet(DB_KEY, DB).catch(e=>logger.warn('IndexedDB save issue:',e&&e.message)); }catch(e){}
   // ٣) حفظ على Firebase (غير متزامن) — منفصل تماماً عشان فشل أي حاجة فوق ميمنعوش
   if(typeof saveToFirebase==='function'){try{saveToFirebase(DB);}catch(e){logger.warn('Firebase sync غير متاح:',e&&e.message);}}
+  // ٣.أ) تحديث ملخص "لوحة متابعة المالك" على الموبايل (مُحدّد أقصى مرة كل ٢٠ ثانية — راجع pushOwnerDashboardSnapshot)
+  if(typeof pushOwnerDashboardSnapshot==='function'){try{pushOwnerDashboardSnapshot();}catch(e){}}
   // ٤) نسخة موازية (شادو) في SQLite — لسه مرحلة تجريبية، مش المصدر الأساسي للبرنامج.
   // بتتأخر شوية (debounce) عشان الحفظ المتكرر السريع (زي وأنت بتكتب في خانة) ميبعتش
   // نسخة كاملة من قاعدة البيانات لكل ضغطة زرار — بيستنى نص ثانية هدوء قبل ما يبعت.
@@ -18262,6 +18264,76 @@ function saveToFirebase(localData,overwrite){
       .then(()=>fbStatusOk())
       .catch(err=>fbStatusErr(fbDiagnose(err)));
   });
+}
+// ======= لوحة متابعة المالك على الموبايل (تجربة أولى) =======
+// بدل ما صفحة الموبايل تقرا كل بيانات المحل التفصيلية (أسعار شراء، عملاء، إلخ —
+// حجمها كبير وفيها بيانات حساسة)، بنحسب هنا ملخص صغير جدًا بس (أرقام إجمالية) ونكتبه
+// في مستند منفصل تمامًا (sz_data/_dashboard) — ده اللي صفحة الموبايل بتقراه، وده اللي
+// قاعدة الأمان الجديدة (راجع ملف Firestore rules المرفق) بتسمح بقراءته بس، من غير ما
+// تفتح قراءة باقي جداول المحل. الأرقام بتتحسب من نفس الدوال اللي شاشة "الرئيسية"
+// الأصلية بتستخدمها (calcT/calcLiquidity/getRemain...) عشان تفضل متطابقة معاها.
+function buildOwnerDashboardSnapshot(){
+  try{
+    const tm=calcT(isM);
+    const liqM=calcLiquidity(isM);
+    const _ob=openingFor(todayStr.slice(0,7));
+    const cashNow=_ob+liqM.net;
+    const amt=(rec,total,method)=>{
+      if(rec.payment==='مقسّم'&&rec.paymentSplit){const s=rec.paymentSplit,tot=(s.cash||0)+(s.visa||0);if(tot>0)return total*((method==='كاش'?(s.cash||0):(s.visa||0))/tot);return 0;}
+      return rec.payment===method?total:0;
+    };
+    const todayByMethod=(method)=>
+      DB.sales.filter(s=>s.date===todayStr&&isMyBranch(s)).reduce((s,x)=>s+amt(x,x.total||0,method),0)
+      +(DB.taxInvoices||[]).filter(t=>t.taxType==='sale'&&t.date===todayStr&&isMyBranch(t)).reduce((s,x)=>s+amt(x,x.total||0,method),0)
+      +(DB.maintInvoices||[]).filter(m=>m.date===todayStr&&m.exit!=='warranty'&&isMyBranch(m)).reduce((s,x)=>s+amt(x,x.cost||0,method),0)
+      +(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&t.date===todayStr&&t.exit!=='warranty'&&isMyBranch(t)).reduce((s,x)=>s+amt(x,x.total||0,method),0);
+    const todayCash=todayByMethod('كاش');
+    const todayVisa=todayByMethod('فيزا');
+    const todayCreditTotal=
+      DB.sales.filter(s=>s.date===todayStr&&isMyBranch(s)&&isDeferredInv(s)).reduce((s,x)=>s+(x.total||0),0)
+      +(DB.maintInvoices||[]).filter(m=>m.date===todayStr&&isMyBranch(m)&&m.exit!=='warranty'&&isDeferredInv(m)).reduce((s,x)=>s+(x.cost||0),0);
+    const todayInvCount=
+      DB.sales.filter(s=>s.date===todayStr&&isMyBranch(s)).length
+      +(DB.maintInvoices||[]).filter(m=>m.date===todayStr&&isMyBranch(m)&&m.exit!=='warranty').length;
+    const lowStock=DB.products.filter(p=>(p.alert||0)>0&&(p.qty||0)<=p.alert);
+    const deferredSalesCount=[...DB.sales,...(DB.taxInvoices||[]).filter(t=>t.taxType==='sale')].filter(x=>isDeferredInv(x)&&isMyBranch(x)&&getRemain('sale',x.id,x.total||0)>0.5).length;
+    const deferredMaintCount=[...(DB.maintInvoices||[]).filter(m=>m.exit!=='warranty'),...(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&t.exit!=='warranty')].filter(x=>isDeferredInv(x)&&isMyBranch(x)&&getRemain('maint',x.id,(x.cost||x.total||0))>0.5).length;
+    const debtToMe=[...DB.sales,...(DB.taxInvoices||[]).filter(t=>t.taxType==='sale')].filter(x=>isDeferredInv(x)&&isMyBranch(x)).reduce((a,s)=>a+getRemain('sale',s.id,s.total||0),0)+
+      [...(DB.maintInvoices||[]).filter(m=>m.exit!=='warranty'),...(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&t.exit!=='warranty')].filter(x=>isDeferredInv(x)&&isMyBranch(x)).reduce((a,m)=>a+getRemain('maint',m.id,(m.cost||m.total||0)),0);
+    const pendingWa=(DB.pendingWhatsapp||[]).filter(m=>!m.sent&&!m.dismissed).length;
+    return {
+      shopName:(getStoreCfg().name)||'المحل',
+      updatedAt:Date.now(),
+      todaySales:{cash:Math.round(todayCash*100)/100,visa:Math.round(todayVisa*100)/100,credit:Math.round(todayCreditTotal*100)/100,count:todayInvCount},
+      monthSalesTotal:Math.round((tm.sm+tm.mm)*100)/100,
+      cashNow:Math.round(cashNow*100)/100,
+      lowStockCount:lowStock.length,
+      lowStockItems:lowStock.slice(0,15).map(p=>({name:p.name,qty:p.qty||0,alert:p.alert||0})),
+      deferredTotal:Math.round(debtToMe*100)/100,
+      deferredCount:deferredSalesCount+deferredMaintCount,
+      pendingWhatsappCount:pendingWa,
+    };
+  }catch(e){try{logger.warn('buildOwnerDashboardSnapshot failed:',e&&e.message);}catch(_n){}return null;}
+}
+// مُحدّد أقصى مرة كل ٢٠ ثانية — عشان الحفظات الكتير المتكررة (كل ما تعمل أي حاجة صغيرة
+// في البرنامج) متبقاش كل واحدة فيها كتابة لـFirestore لمستند الملخص ده بلا داعي
+let _ownerDashLastPush=0,_ownerDashPending=false;
+function pushOwnerDashboardSnapshot(){
+  try{
+    if(!FS_COL)return; // مفيش اتصال سحابي مُعد أصلاً — مفيش داعي نحاول
+    const now=Date.now();
+    if(now-_ownerDashLastPush<20000){
+      if(!_ownerDashPending){
+        _ownerDashPending=true;
+        setTimeout(()=>{_ownerDashPending=false;try{pushOwnerDashboardSnapshot();}catch(_e){}},20000-(now-_ownerDashLastPush));
+      }
+      return;
+    }
+    _ownerDashLastPush=now;
+    const snap=buildOwnerDashboardSnapshot();
+    if(!snap)return;
+    (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_dashboard').set(snap)).catch(e=>{try{logger.warn('pushOwnerDashboardSnapshot failed:',e&&e.message);}catch(_n){}});
+  }catch(e){}
 }
 function loadFromFirebase(silent){
   const el=$('db-status'),ls=$('db-last-save');

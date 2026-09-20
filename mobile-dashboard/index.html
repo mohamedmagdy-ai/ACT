@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>لوحة متابعة المحل</title>
+<meta name="theme-color" content="#0f2c47" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="mobile-web-app-capable" content="yes" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230f2c47'/%3E%3Ctext x='50' y='66' font-size='54' text-anchor='middle' fill='%234f9cff' font-family='Arial'%3E%D8%B9%3C/text%3E%3C/svg%3E" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230f2c47'/%3E%3Ctext x='50' y='66' font-size='54' text-anchor='middle' fill='%234f9cff' font-family='Arial'%3E%D8%B9%3C/text%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#eef2f7; --surface:#ffffff; --surface-2:#f6f8fb; --ink:#132030; --muted:#5b6b7d;
+    --brand:#0f2c47; --brand-2:#1565c0; --accent:#4f9cff;
+    --good:#1b8a5a; --good-bg:#e7f6ef; --warn:#b45309; --warn-bg:#fdf1e2; --bad:#c62828; --bad-bg:#fdeaea;
+    --line:#e1e8f0; --shadow:0 1px 2px rgba(16,32,52,.06), 0 8px 24px -12px rgba(16,32,52,.18);
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0b1420; --surface:#101c2b; --surface-2:#15233a; --ink:#e7edf5; --muted:#93a7bd;
+      --brand:#132c46; --brand-2:#4f9cff; --accent:#7fb6ff;
+      --good:#34c281; --good-bg:#0f2a20; --warn:#e2a13d; --warn-bg:#2c2210; --bad:#ef6a6a; --bad-bg:#2c1414;
+      --line:#223349; --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b1420; --surface:#101c2b; --surface-2:#15233a; --ink:#e7edf5; --muted:#93a7bd;
+    --brand:#132c46; --brand-2:#4f9cff; --accent:#7fb6ff;
+    --good:#34c281; --good-bg:#0f2a20; --warn:#e2a13d; --warn-bg:#2c2210; --bad:#ef6a6a; --bad-bg:#2c1414;
+    --line:#223349; --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);}
+  body{font-family:'Tajawal','Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;-webkit-font-smoothing:antialiased;}
+  body{padding-inline:16px;}
+  h1,h2,h3{text-wrap:balance;margin:0;}
+  .num{font-variant-numeric:tabular-nums;}
+  [hidden]{display:none!important;}
+  a{color:var(--brand-2);}
+
+  /* ===== header ===== */
+  .topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;margin-inline:-16px;padding:14px 16px;background:linear-gradient(180deg,var(--brand),#0c223a);color:#fff;box-shadow:var(--shadow);}
+  .topbar-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .shop-name{font-size:17px;font-weight:900;letter-spacing:.2px;}
+  .conn{display:flex;align-items:center;gap:6px;font-size:11.5px;color:rgba(255,255,255,.75);}
+  .dot{width:8px;height:8px;border-radius:50%;background:#8a97a8;flex:none;}
+  .dot.ok{background:#34c281;box-shadow:0 0 0 3px rgba(52,194,129,.25);}
+  .dot.bad{background:#ef6a6a;box-shadow:0 0 0 3px rgba(239,106,106,.25);}
+  .iconbtn{width:34px;height:34px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;flex:none;}
+  .iconbtn:active{background:rgba(255,255,255,.18);}
+  .updated{font-size:11.5px;color:rgba(255,255,255,.65);margin-top:4px;}
+
+  main{max-width:520px;margin:0 auto;padding-block:16px 40px;display:flex;flex-direction:column;gap:14px;}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:16px;}
+  .section-title{font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
+  .badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:20px;font-size:11px;font-weight:700;}
+  .badge.warn{background:var(--warn-bg);color:var(--warn);}
+  .badge.bad{background:var(--bad-bg);color:var(--bad);}
+  .badge.good{background:var(--good-bg);color:var(--good);}
+
+  /* ===== today sales hero ===== */
+  .hero{background:linear-gradient(160deg,var(--brand),#123a5e);color:#fff;border:none;}
+  .hero .section-title{color:rgba(255,255,255,.65);}
+  .hero-total{font-size:34px;font-weight:900;line-height:1.1;}
+  .hero-total small{font-size:14px;font-weight:500;color:rgba(255,255,255,.65);}
+  .hero-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;}
+  .hero-tile{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px 8px;text-align:center;}
+  .hero-tile .lbl{font-size:11px;color:rgba(255,255,255,.65);margin-bottom:4px;}
+  .hero-tile .val{font-size:15.5px;font-weight:800;}
+  .hero-count{margin-top:12px;font-size:12px;color:rgba(255,255,255,.7);}
+
+  /* ===== stat tiles row ===== */
+  .stat-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:14px;}
+  .stat .lbl{font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .stat .val{font-size:22px;font-weight:800;}
+  .stat.good .val{color:var(--good);}
+  .stat.warn .val{color:var(--warn);}
+  .stat.bad .val{color:var(--bad);}
+
+  /* ===== list rows ===== */
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}
+  .row:last-child{border-bottom:none;}
+  .row .name{font-size:13.5px;font-weight:600;}
+  .row .sub{font-size:11px;color:var(--muted);margin-top:1px;}
+  .row .amt{font-size:13.5px;font-weight:800;white-space:nowrap;}
+  .empty{text-align:center;padding:18px 8px;color:var(--good);background:var(--good-bg);border-radius:10px;font-size:13px;font-weight:600;}
+
+  .footer-note{font-size:11px;color:var(--muted);text-align:center;padding:6px 10px 0;line-height:1.7;}
+
+  /* ===== setup screen ===== */
+  .setup-wrap{max-width:440px;margin:0 auto;padding-block:28px 40px;display:flex;flex-direction:column;gap:16px;}
+  .setup-hero{text-align:center;padding-block:10px 4px;}
+  .setup-hero .mark{width:52px;height:52px;border-radius:14px;background:linear-gradient(160deg,var(--brand),#123a5e);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;margin:0 auto 12px;box-shadow:var(--shadow);}
+  .setup-hero h1{font-size:19px;font-weight:900;}
+  .setup-hero p{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.7;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:12px;font-weight:700;color:var(--muted);}
+  .field input{width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink);font-size:13.5px;font-family:inherit;direction:ltr;text-align:left;}
+  .field input:focus{outline:none;border-color:var(--brand-2);}
+  .field.rtl-field input{direction:rtl;text-align:right;}
+  .fields-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .btn-main{width:100%;padding:13px;border-radius:12px;border:none;background:var(--brand-2);color:#fff;font-size:14.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:var(--shadow);}
+  .btn-main:active{opacity:.85;}
+  .btn-ghost{width:100%;padding:11px;border-radius:12px;border:1.5px solid var(--line);background:transparent;color:var(--muted);font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;}
+  .hint{font-size:11.5px;color:var(--muted);line-height:1.8;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;}
+  .err-box{font-size:12.5px;color:var(--bad);background:var(--bad-bg);border-radius:10px;padding:10px 12px;line-height:1.7;}
+  .spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--brand-2);animation:spin 0.8s linear infinite;margin:30px auto;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion: reduce){.spinner{animation-duration:2s;}}
+</style>
+</head>
+<body>
+
+<div id="setup-screen" class="setup-wrap">
+  <div class="setup-hero">
+    <div class="mark">ع</div>
+    <h1>لوحة متابعة المحل</h1>
+    <p>شاشة قراءة بس — تشوف منها مبيعات النهارده والخزنة والنواقص، من غير ما تقدر تعدّل أي حاجة من هنا.</p>
+  </div>
+
+  <div class="card">
+    <div class="section-title">بيانات الاتصال بالسحابة</div>
+    <div class="hint">
+      انسخها بالظبط من برنامج سطح المكتب: <strong>الإعدادات ← ☁️ إعدادات المزامنة السحابية</strong>.
+      نفس البيانات اللي داخلة هناك بالظبط.
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:12px;">
+      <div class="field"><label>apiKey</label><input id="in-apiKey" placeholder="AIzaSy..." /></div>
+      <div class="fields-grid">
+        <div class="field"><label>projectId</label><input id="in-projectId" placeholder="my-project" /></div>
+        <div class="field"><label>authDomain</label><input id="in-authDomain" placeholder="my-project.firebaseapp.com" /></div>
+      </div>
+      <div class="field"><label>storageBucket</label><input id="in-storageBucket" placeholder="my-project.firebasestorage.app" /></div>
+      <div class="fields-grid">
+        <div class="field"><label>messagingSenderId</label><input id="in-messagingSenderId" placeholder="123456789" /></div>
+        <div class="field"><label>appId</label><input id="in-appId" placeholder="1:123:web:abc" /></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">دخول المدير</div>
+    <div class="hint">نفس إيميل وكلمة سر "دخول Firebase" اللي مدخّلة في نفس شاشة الإعدادات على سطح المكتب.</div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:12px;">
+      <div class="field rtl-field"><label>الإيميل</label><input id="in-email" type="email" placeholder="owner@example.com" /></div>
+      <div class="field rtl-field"><label>كلمة السر</label><input id="in-pass" type="password" placeholder="••••••••" /></div>
+    </div>
+  </div>
+
+  <div id="setup-err" class="err-box" hidden></div>
+  <button class="btn-main" id="setup-save-btn">حفظ والدخول</button>
+  <div class="footer-note">بياناتك دي بتتخزّن على الموبايل ده بس، عشان الصفحة تقدر تدخل باسمك كل مرة من غير ما تكتبها تاني — زي بالظبط برنامج سطح المكتب.</div>
+</div>
+
+<div id="loading-screen" hidden>
+  <div class="spinner"></div>
+  <div style="text-align:center;color:var(--muted);font-size:13px;">بيتم الاتصال بالسحابة...</div>
+</div>
+
+<div id="dash-screen" hidden>
+  <div class="topbar">
+    <div class="topbar-row">
+      <div>
+        <div class="shop-name" id="dash-shop-name">المحل</div>
+        <div class="conn"><span class="dot" id="conn-dot"></span><span id="conn-text">بيتوصّل...</span></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="iconbtn" id="refresh-btn" title="تحديث">↻</button>
+        <button class="iconbtn" id="settings-btn" title="إعدادات الاتصال">⚙</button>
+      </div>
+    </div>
+    <div class="updated" id="updated-text"></div>
+  </div>
+
+  <main>
+    <div id="no-data-box" class="card" hidden>
+      <div class="section-title">لسه معندناش بيانات</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.8;">
+        سيب برنامج المحل شغال على الجهاز شوية وهو متّصل بالإنترنت — أول حفظة هتوصل هنا تلقائي.
+      </div>
+    </div>
+
+    <div class="card hero">
+      <div class="section-title">مبيعات النهارده</div>
+      <div class="hero-total"><span id="hero-total" class="num">0</span> <small>جنيه</small></div>
+      <div class="hero-grid">
+        <div class="hero-tile"><div class="lbl">💵 كاش</div><div class="val num" id="v-cash">0</div></div>
+        <div class="hero-tile"><div class="lbl">💳 فيزا</div><div class="val num" id="v-visa">0</div></div>
+        <div class="hero-tile"><div class="lbl">🧾 آجل</div><div class="val num" id="v-credit">0</div></div>
+      </div>
+      <div class="hero-count">عدد الفواتير النهارده: <strong id="v-count" class="num">0</strong></div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat good"><div class="lbl">💰 الخزنة الحالية</div><div class="val num" id="v-cashnow">0</div></div>
+      <div class="stat"><div class="lbl">📈 مبيعات الشهر</div><div class="val num" id="v-month">0</div></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">⚠️ أصناف محتاجة شراء <span class="badge warn num" id="lowstock-badge">0</span></div>
+      <div id="lowstock-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">🧾 فواتير آجلة مستحقة <span class="badge bad num" id="deferred-badge">0</span></div>
+      <div id="deferred-box"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">📱 رسائل واتساب معلّقة <span class="badge warn num" id="wa-badge">0</span></div>
+      <div id="wa-box"></div>
+    </div>
+
+    <div class="footer-note">الأرقام دي بتتحدّث لوحدها كل ما البرنامج على الجهاز يحفظ حاجة جديدة — من غير ما تحتاج تعمل حاجة.</div>
+    <button class="btn-ghost" id="logout-btn">تسجيل خروج من الإعداد</button>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+  // ملحوظة: الكود ده مقصود إنه top-level (مش IIFE)، عشان دوال زي render()/esc()
+  // تفضل متاحة كـglobal — ده اللي بيخلي اختبارات Playwright تقدر تنادي عليها مباشرة
+  // (page.evaluate) من غير ما تحتاج تعمل اتصال Firebase حقيقي عشان تختبر الرندر بس.
+  var CFG_KEY='owner_dash_cfg_v1';
+  var $=function(id){return document.getElementById(id);};
+  // نفس تنسيق fmtN() المستخدم في برنامج سطح المكتب بالظبط (أرقام هندية عربية،
+  // زي ٣٠٠٫٠٠) — عشان الأرقام تحسّ إنها من نفس البرنامج بالظبط
+  var fmtN=function(n){
+    n=Number(n)||0;
+    var s=Math.round(n*100)/100;
+    return s.toLocaleString('ar-EG',{minimumFractionDigits:2,maximumFractionDigits:2});
+  };
+  var showScreen=function(name){
+    $('setup-screen').hidden=(name!=='setup');
+    $('loading-screen').hidden=(name!=='loading');
+    $('dash-screen').hidden=(name!=='dash');
+  };
+
+  function loadCfg(){
+    try{ var raw=localStorage.getItem(CFG_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; }
+  }
+  function saveCfg(cfg){
+    try{ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }catch(e){}
+  }
+  function clearCfg(){
+    try{ localStorage.removeItem(CFG_KEY); }catch(e){}
+  }
+
+  function fillSetupFromCfg(cfg){
+    if(!cfg)return;
+    var fb=cfg.firebase||{};
+    ['apiKey','projectId','authDomain','storageBucket','messagingSenderId','appId'].forEach(function(k){
+      var el=$('in-'+k); if(el) el.value=fb[k]||'';
+    });
+    if($('in-email')) $('in-email').value=cfg.email||'';
+    if($('in-pass')) $('in-pass').value=cfg.pass||'';
+  }
+
+  function readSetupForm(){
+    var firebase_cfg={
+      apiKey:$('in-apiKey').value.trim(),
+      projectId:$('in-projectId').value.trim(),
+      authDomain:$('in-authDomain').value.trim(),
+      storageBucket:$('in-storageBucket').value.trim(),
+      messagingSenderId:$('in-messagingSenderId').value.trim(),
+      appId:$('in-appId').value.trim()
+    };
+    return { firebase:firebase_cfg, email:$('in-email').value.trim(), pass:$('in-pass').value };
+  }
+
+  var app=null, db=null, unsub=null;
+
+  function connectAndStart(cfg){
+    showScreen('loading');
+    try{
+      if(!app){ app=firebase.initializeApp(cfg.firebase); }
+      db=firebase.firestore();
+    }catch(e){
+      // ممكن يكون firebase.initializeApp اتنادت قبل كده (زي لو رجعنا من شاشة الإعدادات) — نتجاهل
+      try{ db=firebase.firestore(); }catch(e2){ return fail('تعذّر الاتصال ببيانات Firebase — راجع البيانات وجرّب تاني.'); }
+    }
+    firebase.auth().signInWithEmailAndPassword(cfg.email, cfg.pass).then(function(){
+      showScreen('dash');
+      startListening();
+    }).catch(function(err){
+      fail('فشل الدخول: '+(err&&err.message?err.message:'تأكد من الإيميل وكلمة السر'));
+    });
+  }
+
+  function fail(msg){
+    showScreen('setup');
+    var box=$('setup-err');
+    box.hidden=false;
+    box.textContent=msg;
+  }
+
+  function setConn(ok, text){
+    var dot=$('conn-dot');
+    dot.className='dot '+(ok?'ok':'bad');
+    $('conn-text').textContent=text;
+  }
+
+  function startListening(){
+    if(unsub){ try{unsub();}catch(e){} unsub=null; }
+    setConn(false,'بيتوصّل...');
+    try{
+      unsub=db.collection('sz_data').doc('_dashboard').onSnapshot(function(doc){
+        if(!doc.exists){
+          $('no-data-box').hidden=false;
+          setConn(true,'متصل — لسه مفيش بيانات');
+          return;
+        }
+        $('no-data-box').hidden=true;
+        setConn(true,'متصل ومتحدّث لحظيًا');
+        render(doc.data());
+      }, function(err){
+        setConn(false,'انقطع الاتصال');
+        console.warn('onSnapshot error', err);
+      });
+    }catch(e){
+      setConn(false,'تعذّر الاتصال');
+    }
+  }
+
+  function render(d){
+    d=d||{};
+    var ts=d.todaySales||{cash:0,visa:0,credit:0,count:0};
+    $('dash-shop-name').textContent=d.shopName||'المحل';
+    $('hero-total').textContent=fmtN((ts.cash||0)+(ts.visa||0)+(ts.credit||0));
+    $('v-cash').textContent=fmtN(ts.cash);
+    $('v-visa').textContent=fmtN(ts.visa);
+    $('v-credit').textContent=fmtN(ts.credit);
+    $('v-count').textContent=String(ts.count||0);
+    $('v-cashnow').textContent=fmtN(d.cashNow);
+    $('v-month').textContent=fmtN(d.monthSalesTotal);
+
+    var ls=d.lowStockItems||[];
+    $('lowstock-badge').textContent=String(d.lowStockCount||0);
+    $('lowstock-list').innerHTML = ls.length ? ls.map(function(p){
+      return '<div class="row"><div><div class="name">'+esc(p.name)+'</div><div class="sub">الحد الأدنى: '+fmtN(p.alert)+'</div></div><div class="amt" style="color:var(--warn);">'+fmtN(p.qty)+'</div></div>';
+    }).join('') : '<div class="empty">✅ المخزون تمام</div>';
+
+    var defCount=d.deferredCount||0;
+    $('deferred-badge').textContent=String(defCount);
+    $('deferred-box').innerHTML = defCount>0
+      ? '<div class="row"><div class="name">إجمالي المستحق</div><div class="amt" style="color:var(--bad);">'+fmtN(d.deferredTotal)+' ج</div></div>'
+      : '<div class="empty">✅ مفيش فواتير آجلة متأخرة</div>';
+
+    var waCount=d.pendingWhatsappCount||0;
+    $('wa-badge').textContent=String(waCount);
+    $('wa-box').innerHTML = waCount>0
+      ? '<div class="row"><div class="name">رسائل لسه محتاجة تتبعت</div><div class="amt" style="color:var(--warn);">'+waCount+'</div></div>'
+      : '<div class="empty">✅ مفيش رسائل معلّقة</div>';
+
+    if(d.updatedAt){
+      var mins=Math.round((Date.now()-d.updatedAt)/60000);
+      var txt = mins<1 ? 'آخر تحديث: دلوقتي' : (mins<60 ? 'آخر تحديث: من '+mins+' دقيقة' : 'آخر تحديث: من '+Math.round(mins/60)+' ساعة');
+      $('updated-text').textContent=txt;
+    }
+  }
+
+  function esc(s){
+    return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  // ===== أحداث الأزرار =====
+  $('setup-save-btn').addEventListener('click', function(){
+    var cfg=readSetupForm();
+    if(!cfg.firebase.apiKey||!cfg.firebase.projectId||!cfg.email||!cfg.pass){
+      var box=$('setup-err'); box.hidden=false; box.textContent='من فضلك املا كل الحقول.';
+      return;
+    }
+    $('setup-err').hidden=true;
+    saveCfg(cfg);
+    connectAndStart(cfg);
+  });
+  $('refresh-btn').addEventListener('click', function(){
+    var cfg=loadCfg();
+    if(cfg) startListening();
+  });
+  $('settings-btn').addEventListener('click', function(){
+    if(unsub){ try{unsub();}catch(e){} unsub=null; }
+    fillSetupFromCfg(loadCfg());
+    showScreen('setup');
+  });
+  $('logout-btn').addEventListener('click', function(){
+    if(unsub){ try{unsub();}catch(e){} unsub=null; }
+    clearCfg();
+    try{ firebase.auth().signOut(); }catch(e){}
+    document.querySelectorAll('#setup-screen input').forEach(function(el){ el.value=''; });
+    showScreen('setup');
+  });
+
+  // ===== بداية التشغيل =====
+  var savedCfg=loadCfg();
+  if(savedCfg && savedCfg.firebase && savedCfg.firebase.apiKey){
+    fillSetupFromCfg(savedCfg);
+    connectAndStart(savedCfg);
+  }else{
+    showScreen('setup');
+  }
+</script>
+</body>
+</html>
