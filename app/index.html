@@ -18300,7 +18300,24 @@ function fsWriteAll(payload){
   const jobs=[FS_COL.doc('_meta').set(meta)];
   const fat=[];
   DB_KEYS.forEach(k=>{
-    const shard={d:payload[k]||[],_updatedAt:payload._updatedAt||Date.now()};
+    let arr=payload[k]||[];
+    // syncConflicts سجل تشخيصي بس (مش بيانات عمل أساسية زي المبيعات/العملاء)،
+    // فآمن نقصّه هنا بالحجم الفعلي مباشرةً قبل الرفع — بدل ما نستنى تعارض جديد
+    // يحصل عشان القصّ يشتغل (زي منطق logSyncConflict)، يعني أي تراكم قديم زي
+    // اللي سبب تحذير "قرب من حد السعة" بيتصلّح من أول حفظة جاية، مش بعدها بفترة
+    if(k==='syncConflicts'&&Array.isArray(arr)&&arr.length>10){
+      let trimmed=arr;let guard2=0;
+      while(trimmed.length>10&&guard2<250){
+        let len2=0;
+        try{len2=JSON.stringify(trimmed).length;}catch(_e3){break;}
+        if(len2<=300000)break;
+        if(trimmed===arr)trimmed=arr.slice();
+        trimmed.pop();
+        guard2++;
+      }
+      arr=trimmed;
+    }
+    const shard={d:arr,_updatedAt:payload._updatedAt||Date.now()};
     try{const len=JSON.stringify(shard).length;if(len>780000)fat.push(k+' ('+Math.round(len/10485.76)+'%)');}catch(e){}
     jobs.push(FS_COL.doc(k).set(shard));
   });
@@ -19367,6 +19384,19 @@ function logSyncConflict(table,recordId,detail){
     // الحد كان ٥٠٠ قبل كده، لكن اتضح إنه لسه بيوصل لـ٨٠٪ من حد فايربيز حتى بعده —
     // قللناه لهامش أمان أكبر بكتير (المعلومة القديمة جدًا مش مهمة زي الجديدة أصلاً)
     if(DB.syncConflicts.length>200)DB.syncConflicts.length=200;
+    // حماية إضافية بالحجم الفعلي (مش بس العدد): لو التفاصيل بقت مطوّلة (فروع/منتجات
+    // كتير) ممكن حتى ٢٠٠ سجل توصل قريب من حد فايربيز تاني — فبنقيس الحجم الحقيقي
+    // ونقصّ من الأقدم لحد ما نرجع لهامش أمان كبير (~٣٠٪ من حد المستند)، مهما كان
+    // طول تفاصيل كل تعارض في المستقبل.
+    const SAFE_BYTES=300000;
+    let guard=0;
+    while(DB.syncConflicts.length>10&&guard<250){
+      let len=0;
+      try{len=JSON.stringify(DB.syncConflicts).length;}catch(_e2){break;}
+      if(len<=SAFE_BYTES)break;
+      DB.syncConflicts.pop();
+      guard++;
+    }
   }catch(_e){}
 }
 // أسماء عربية مقروءة لأسماء الجداول التقنية، عشان السجل يبقى واضح لغير مبرمج
