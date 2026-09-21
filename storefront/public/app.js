@@ -333,7 +333,15 @@ function applyBranding(){
   document.title = name;
   $('page-title').textContent = name;
   $('brand-name').textContent = name;
-  if(window.STORE_PHONE){ $('footer-phone').hidden = false; $('footer-phone').innerHTML = '📞 <span dir="ltr" class="mono-num">' + escapeHtml(window.STORE_PHONE) + '</span>'; }
+  const displayPhone = window.STORE_PHONE || (window.STORE_WHATSAPP ? window.STORE_WHATSAPP.replace(/^20/, '0') : '');
+  if(window.STORE_PHONE){
+    $('footer-phone').hidden = false;
+    $('footer-phone').innerHTML = '📞 <span dir="ltr" class="mono-num">' + escapeHtml(window.STORE_PHONE) + '</span>';
+  }
+  if(displayPhone){
+    const hp = $('header-phone');
+    if(hp){ hp.hidden = false; hp.textContent = displayPhone; }
+  }
   if(window.STORE_WHATSAPP){
     const a = $('footer-whatsapp');
     a.hidden = false;
@@ -341,15 +349,31 @@ function applyBranding(){
   }
 }
 
+function setSection(section){
+  state.section = section;
+  document.querySelectorAll('.section-tab').forEach((b) => b.classList.toggle('active', b.dataset.section === section));
+  document.querySelectorAll('.main-nav-link[data-nav-section]').forEach((a) => a.classList.toggle('active', a.dataset.navSection === section));
+  renderProducts();
+}
+function scrollToCatalog(){
+  const el = $('main-content');
+  if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function wireEvents(){
   document.querySelectorAll('.section-tab').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.section-tab').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      state.section = btn.dataset.section;
-      renderProducts();
+    btn.addEventListener('click', () => setSection(btn.dataset.section));
+  });
+  document.querySelectorAll('.main-nav-link[data-nav-section]').forEach((a) => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      setSection(a.dataset.navSection);
+      scrollToCatalog();
     });
   });
+  $('hero-browse-btn').addEventListener('click', () => { setSection('devices'); scrollToCatalog(); });
+  $('hero-maint-btn').addEventListener('click', openContact);
+  $('maint-block-btn').addEventListener('click', openContact);
   $('search-input').addEventListener('input', (e) => {
     state.search = e.target.value;
     renderProducts();
