@@ -260,6 +260,7 @@ tr:hover td{background:#fafafa;}
 <button class="ntab-group-header" onclick="toggleNavGroup('grp-sales',this)">🛒 المبيعات <span class="ntab-group-arrow">▾</span></button>
 <div class="ntab-group" id="grp-sales">
   <button class="ntab ntab-sub" onclick="showTab('sales',this)">🛒 المبيعات</button>
+  <button class="ntab ntab-sub" onclick="showTab('onlineorders',this)">📦 طلبات أونلاين <span id="onlineorders-badge" class="badge b-rd" style="display:none;margin-right:3px;"></span></button>
   <button class="ntab ntab-sub" onclick="showTab('deferred',this)">⏳ الآجل</button>
   <button class="ntab ntab-sub" onclick="showTab('returns',this)">↩ المرتجعات</button>
   <button class="ntab ntab-sub" onclick="showTab('customers',this)">👥 العملاء</button>
@@ -370,6 +371,20 @@ tr:hover td{background:#fafafa;}
 <thead><tr><th data-sort-field="id" data-label="رقم الفاتورة" onclick="toggleColSort('sales-tbl','id',()=>renderSales(TABLE_LAST_FILTER['sales-tbl']||'all'))" style="cursor:pointer;">رقم الفاتورة</th><th>العميل</th><th>المنتج</th><th data-sort-field="total" data-label="الإجمالي" onclick="toggleColSort('sales-tbl','total',()=>renderSales(TABLE_LAST_FILTER['sales-tbl']||'all'))" style="cursor:pointer;">الإجمالي</th><th>المدفوع</th><th>المتبقى</th><th data-sort-field="date" data-label="التاريخ" onclick="toggleColSort('sales-tbl','date',()=>renderSales(TABLE_LAST_FILTER['sales-tbl']||'all'))" style="cursor:pointer;">التاريخ</th><th>الحالة / الدفع</th><th></th></tr></thead>
 <tbody id="sales-tbl"></tbody>
 </table></div></div></div>
+</div>
+<!-- طلبات أونلاين: الطلبات الجاية من موقع المتجر (حجز، لسه محتاج مراجعة وتأكيد
+     منك قبل ما يتحول لفاتورة حقيقية وتُخصم من المخزون) -->
+<div class="section" id="s-onlineorders">
+<div class="ar">
+<div style="font-size:12px;color:#666;">الطلبات الجاية من موقع المتجر — راجع الطلب، وبعدين "✅ تأكيد" يحوّله لفاتورة عادية ويخصم من المخزون، أو "❌ إلغاء" لو مش هينفذ.</div>
+<div class="chips">
+<span class="chip active" onclick="fltOnlineOrders('pending',this)">قيد المراجعة</span>
+<span class="chip" onclick="fltOnlineOrders('confirmed',this)">مؤكدة</span>
+<span class="chip" onclick="fltOnlineOrders('cancelled',this)">ملغية</span>
+<span class="chip" onclick="fltOnlineOrders('all',this)">الكل</span>
+</div>
+</div>
+<div id="onlineorders-list"></div>
 </div>
 <!-- إذن الاستلام -->
 <div class="section" id="s-rcpt">
@@ -772,6 +787,7 @@ tr:hover td{background:#fafafa;}
     <button class="stab" onclick="switchStab('stab-partners',this);renderPartnersCapital()">🤝 الشركاء ورأس المال</button>
     <button class="stab" onclick="switchStab('stab-tax',this)">🧾 الضريبة</button>
     <button class="stab" onclick="switchStab('stab-counters',this)">🔢 العدادات</button>
+    <button class="stab" onclick="switchStab('stab-online',this);loadOnlineStoreSettings()">🛒 المتجر الأونلاين</button>
     <button class="stab" onclick="switchStab('stab-audit',this);renderAuditLog();renderSnapshots()">📜 السجل والنسخ</button>
     <button class="stab" onclick="switchStab('stab-advanced',this);renderSyncConflictLog();">🛠 متقدم</button>
 </div>
@@ -913,6 +929,30 @@ tr:hover td{background:#fafafa;}
       <span>إظهار شريط أرقام الفواتير أعلى الشاشة <span style="color:#888;font-size:11px;">(مخفي افتراضياً — الأرقام بتشتغل عادي والتعديل من هنا)</span></span>
     </label>
     <div id="counters-settings-list" style="margin-top:8px;"></div>
+  </div>
+  <!-- المتجر الأونلاين: تفعيل المتجر، جدول أسعار الشحن (فئتين: عادي/أعلى)، ومحافظات
+       الصعيد اللي بتاخد الفئة الأعلى — نفس بيانات "بيانات المحل" بتتخزن محليًا وتتزامن
+       لقاعدة بيانات مخصصة (سz_data/_online_store_settings) عشان الموقع يقراها لايف -->
+  <div class="stab-content" id="stab-online">
+    <label style="display:flex;align-items:center;gap:8px;background:#f0f7ff;border:1px solid #90caf9;border-radius:6px;padding:10px 12px;margin-bottom:14px;cursor:pointer;font-size:13px;font-weight:bold;color:#1a3a5c;">
+      <input type="checkbox" id="ost-enabled" style="width:17px;height:17px;cursor:pointer;"/>
+      <span>تفعيل المتجر الأونلاين <span style="color:#888;font-size:11px;font-weight:normal;">(لو متلغي، الموقع يوري "المتجر مقفول مؤقتًا" حتى لو منتجات مفعّلة)</span></span>
+    </label>
+
+    <div style="font-weight:bold;font-size:13px;color:#1a3a5c;margin-bottom:8px;">🚚 أسعار الشحن</div>
+    <div style="font-size:11.5px;color:#666;margin-bottom:10px;">فيه فئتين: العادية (منتج صغير/متوسط لمعظم المحافظات)، والأعلى (منتج كبير، أو الشحن لمحافظات الصعيد المحددة تحت — أي شرط منهم كافي).</div>
+    <div class="fgrid">
+      <div class="fg"><label>الفئة العادية — التكلفة الحقيقية</label><input id="ost-std-cost" type="number" placeholder="110"/></div>
+      <div class="fg"><label>الفئة العادية — العميل يدفع</label><input id="ost-std-customer" type="number" placeholder="60"/></div>
+      <div class="fg"><label>الفئة الأعلى — التكلفة الحقيقية</label><input id="ost-high-cost" type="number" placeholder="150"/></div>
+      <div class="fg"><label>الفئة الأعلى — العميل يدفع</label><input id="ost-high-customer" type="number" placeholder="75"/></div>
+    </div>
+    <div style="font-size:11px;color:#888;margin:6px 0 16px;">الفرق بين التكلفة الحقيقية واللي العميل بيدفعه بيتسجل تلقائيًا كمصروف "شحن أونلاين" لما تأكد أي أوردر.</div>
+
+    <div style="font-weight:bold;font-size:13px;color:#1a3a5c;margin-bottom:8px;">🗺️ محافظات "الصعيد" (تاخد الفئة الأعلى تلقائيًا)</div>
+    <div id="ost-saeed-list" style="display:flex;flex-wrap:wrap;gap:10px;background:#fafafa;border:1px solid #eee;border-radius:6px;padding:12px;margin-bottom:14px;"></div>
+
+    <button class="btn btn-p" onclick="saveOnlineStoreSettings()">💾 حفظ إعدادات المتجر الأونلاين</button>
   </div>
   <!-- متقدم: النسخ الاحتياطي والاستيراد ومسح البيانات — كانت أزرار دايمًا ظاهرة أعلى
        الشاشة، اتنقلت هنا عشان تبقى بعيدة عن أي ضغطة بالغلط أثناء الشغل العادي -->
@@ -3788,7 +3828,8 @@ const SAMPLE_DATA = {
   receipts:[],
   workOrders:[],
   maintInvoices:[],
-  returns:[]
+  returns:[],
+  onlineOrders:[]
 };
 
 // Load DB from localStorage or use sample data
@@ -3868,7 +3909,7 @@ function loadDB(){
   // نسخة .exe جديدة على جهاز فاضي. دلوقتي الافتراضي عكسه: قاعدة فاضية تمامًا، إلا
   // لو حد طلب بيانات تجريبية صراحة (مش موجود حاليًا أي مكان بيطلبها).
   if(localStorage.getItem('sz_want_sample')!=='1'){
-    return {customers:[],products:[],sales:[],maintenance:[],purchases:[],custody:[],expenses:[],receipts:[],workOrders:[],maintInvoices:[],taxInvoices:[],returns:[],employees:[],payments:[],insuranceLimits:[],insurancePayments:[],fixedAssets:[],partnerCapital:[],partnerInitialCapital:[],serviceCenters:[],branches:[{id:'BR-MAIN',name:'الفرع الرئيسي',isDefault:true,createdAt:Date.now()}],_deleted:{}};
+    return {customers:[],products:[],sales:[],maintenance:[],purchases:[],custody:[],expenses:[],receipts:[],workOrders:[],maintInvoices:[],taxInvoices:[],returns:[],employees:[],payments:[],insuranceLimits:[],insurancePayments:[],fixedAssets:[],partnerCapital:[],partnerInitialCapital:[],serviceCenters:[],onlineOrders:[],branches:[{id:'BR-MAIN',name:'الفرع الرئيسي',isDefault:true,createdAt:Date.now()}],_deleted:{}};
   }
   return JSON.parse(JSON.stringify(SAMPLE_DATA));
 }
@@ -4724,6 +4765,7 @@ function renderTab(id){
   else if(id==='insurance')renderInsurance();
   else if(id==='assets')renderAssets();
   else if(id==='deferred')renderDeferred();
+  else if(id==='onlineorders')renderOnlineOrders();
   else if(id==='treasury')renderTreasury();
   else if(id==='settings'){
     if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');showTab('dash',document.querySelector('.ntab'));return;}
@@ -9298,6 +9340,7 @@ try{if(typeof toggleMIFields==='function')toggleMIFields();}catch(e){}
 buildCalibGrid();
 renderProdCatChips();
 if(!DB.returns) DB.returns=[];
+if(!DB.onlineOrders) DB.onlineOrders=[];
 
 // Auto-backup daily
 (function(){
@@ -18611,6 +18654,56 @@ function pushMobileEditableSettings(){
     (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_mobile_settings').set(payload)).catch(e=>{try{logger.warn('pushMobileEditableSettings failed:',e&&e.message);}catch(_n2){}});
   }catch(e){}
 }
+// ===== إعدادات المتجر الأونلاين: تفعيل + جدول أسعار الشحن (فئتين: عادي/أعلى) +
+// محافظات "الصعيد" اللي بتاخد الفئة الأعلى تلقائيًا. بتتخزن محليًا (زي "بيانات
+// المحل") وتتزامن لمستند مخصص _online_store_settings — ده المستند اللي موقع
+// المتجر (صفحة عامة منفصلة، من غير تسجيل دخول) هيقراه لايف عشان يحسب الشحن صح.
+// المصدر الوحيد للتعديل هو البرنامج (زي كل حاجة تانية دلوقتي)، فمفيش تعارض نسخ
+// محتاج نحله — بس لو الجهاز ده جديد ومفيهوش إعدادات محلية لسه، بنجيبها من السحابة
+// أول مرة عشان مايحصلش أي تعارض بين فروع/أجهزة مختلفة.
+const EGYPT_GOVERNORATES=['القاهرة','الجيزة','القليوبية','الإسكندرية','البحيرة','مطروح','كفر الشيخ','الدقهلية','دمياط','الشرقية','بورسعيد','الإسماعيلية','السويس','شمال سيناء','جنوب سيناء','الغربية','المنوفية','بني سويف','الفيوم','المنيا','أسيوط','سوهاج','قنا','الأقصر','أسوان','البحر الأحمر','الوادي الجديد'];
+const DEFAULT_SAEED_GOVS=['بني سويف','الفيوم','المنيا','أسيوط','سوهاج','قنا','الأقصر','أسوان'];
+function getOnlineStoreCfg(){
+  try{ const raw=localStorage.getItem('sz_online_store_cfg'); return raw?JSON.parse(raw):null; }catch(e){ return null; }
+}
+function renderOnlineStoreForm(){
+  const cfg=getOnlineStoreCfg()||{};
+  if($('ost-enabled'))$('ost-enabled').checked=!!cfg.enabled;
+  const std=(cfg.shipping&&cfg.shipping.std)||{}, high=(cfg.shipping&&cfg.shipping.high)||{};
+  if($('ost-std-cost'))$('ost-std-cost').value=(std.cost!=null)?std.cost:110;
+  if($('ost-std-customer'))$('ost-std-customer').value=(std.customer!=null)?std.customer:60;
+  if($('ost-high-cost'))$('ost-high-cost').value=(high.cost!=null)?high.cost:150;
+  if($('ost-high-customer'))$('ost-high-customer').value=(high.customer!=null)?high.customer:75;
+  const saeed=(cfg.saeedGovs&&cfg.saeedGovs.length)?cfg.saeedGovs:DEFAULT_SAEED_GOVS;
+  const list=$('ost-saeed-list');
+  if(list){
+    list.innerHTML=EGYPT_GOVERNORATES.map(g=>`<label style="display:flex;align-items:center;gap:5px;font-size:12px;background:white;border:1px solid #ddd;border-radius:5px;padding:5px 9px;cursor:pointer;"><input type="checkbox" class="ost-gov-chk" value="${e(g)}" ${saeed.indexOf(g)>-1?'checked':''} style="width:auto;"/>${e(g)}</label>`).join('');
+  }
+}
+function loadOnlineStoreSettings(){
+  const cfg=getOnlineStoreCfg();
+  if(!cfg && FS_COL){
+    // جهاز جديد من غير إعدادات محلية — نجيبها من السحابة أول مرة لو موجودة
+    (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_online_store_settings').get()).then(doc=>{
+      if(doc&&doc.exists){
+        try{localStorage.setItem('sz_online_store_cfg',JSON.stringify(doc.data()));}catch(_n){}
+        if($('stab-online')&&$('stab-online').classList.contains('active'))renderOnlineStoreForm();
+      }
+    }).catch(e=>{try{logger.warn('loadOnlineStoreSettings failed:',e&&e.message);}catch(_n){}});
+  }
+  renderOnlineStoreForm();
+}
+function saveOnlineStoreSettings(){
+  const std={cost:parseFloat($('ost-std-cost').value)||0,customer:parseFloat($('ost-std-customer').value)||0};
+  const high={cost:parseFloat($('ost-high-cost').value)||0,customer:parseFloat($('ost-high-customer').value)||0};
+  const saeedGovs=[...document.querySelectorAll('.ost-gov-chk:checked')].map(c=>c.value);
+  const cfg={enabled:!!$('ost-enabled').checked,shipping:{std,high},saeedGovs,updatedAt:Date.now()};
+  localStorage.setItem('sz_online_store_cfg',JSON.stringify(cfg));
+  toast('✓ تم حفظ إعدادات المتجر الأونلاين');
+  try{
+    if(FS_COL)(window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_online_store_settings').set(cfg)).catch(e=>{try{logger.warn('saveOnlineStoreSettings push failed:',e&&e.message);}catch(_n){}});
+  }catch(e){}
+}
 function pullMobileEditableSettingsIfNewer(){
   try{
     if(!FS_COL)return;
@@ -18757,6 +18850,163 @@ function pullAndApplyMobileAdminRequests(){
       if(Object.keys(upd).length)FS_COL.doc('_mobile_admin_write').update(upd).catch(()=>{});
     }).catch(e=>{try{logger.warn('pullAndApplyMobileAdminRequests failed:',e&&e.message);}catch(_n){}});
   }catch(e){}
+}
+// ===== طلبات أونلاين: الموقع (صفحة عامة، من غير تسجيل دخول) بيكتب الطلبات الجديدة
+// جوه مستند sz_data/_online_orders_incoming (arrayUnion، بالظبط زي _mobile_admin_write)،
+// والبرنامج بيقراه كل ٣٠ ثانية (نفس دورة pullAndApplyMobileAdminRequests) وبيحوّل كل
+// طلب لسجل محلي DB.onlineOrders بحالة "pending" لحد ما المالك يراجعه بنفسه ويأكّده.
+//
+// مهم جدًا (أمان): السعر والشحن اللي بيوصل من الموقع مبنتقلش فيه — بنعيد حسابهم هنا
+// من بيانات المنتج الحقيقية (سعر أونلاين/حجم الشحن) وإعدادات الشحن الحالية، عشان محدش
+// يقدر يتلاعب بالسعر عن طريق تعديل الطلب المُرسل مباشرة.
+function _computeOnlineOrderPricing(rawItems,governorate){
+  const cfg=getOnlineStoreCfg()||{};
+  const std=(cfg.shipping&&cfg.shipping.std)||{cost:110,customer:60};
+  const high=(cfg.shipping&&cfg.shipping.high)||{cost:150,customer:75};
+  const saeed=(cfg.saeedGovs&&cfg.saeedGovs.length)?cfg.saeedGovs:DEFAULT_SAEED_GOVS;
+  const items=[],missing=[];
+  let itemsTotal=0,hasLarge=false;
+  (rawItems||[]).forEach(it=>{
+    const p=findProdByAny(it&&it.name,it&&it.code);
+    if(!p){missing.push((it&&it.name)||'؟');return;}
+    const qty=Math.max(1,parseInt(it&&it.qty,10)||1);
+    const price=(p.onlinePrice!=null)?p.onlinePrice:(p.sell||0);
+    if(p.shipSize==='large')hasLarge=true;
+    itemsTotal+=qty*price;
+    items.push({name:p.name,code:p.id,qty,price,disc:0});
+  });
+  const isSaeed=saeed.indexOf(governorate)>-1;
+  const tier=(hasLarge||isSaeed)?'high':'std';
+  const shipCustomer=(tier==='high')?(high.customer||0):(std.customer||0);
+  const shipRealCost=(tier==='high')?(high.cost||0):(std.cost||0);
+  return {items,missing,itemsTotal,tier,shipCustomer,shipRealCost,grandTotal:itemsTotal+shipCustomer};
+}
+function pullIncomingOnlineOrders(){
+  try{
+    if(!FS_COL||!window.firebase||!firebase.firestore)return;
+    (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_online_orders_incoming').get()).then(doc=>{
+      if(!doc||!doc.exists)return;
+      const d=doc.data()||{};
+      const raw=d.orders||[];
+      if(!raw.length)return;
+      const toRemove=[];
+      raw.forEach(o=>{
+        try{
+          if(o&&o.customerName&&o.items&&o.items.length){
+            const pricing=_computeOnlineOrderPricing(o.items,o.governorate||'');
+            if(pricing.items.length){
+              DB.onlineOrders.unshift({
+                id:nextFreeId('ONL-','onlineOrders',4),
+                createdAt:o.createdAt||Date.now(),
+                customerName:String(o.customerName).trim(),
+                customerPhone:String(o.customerPhone||'').trim(),
+                address:String(o.address||'').trim(),
+                governorate:o.governorate||'',
+                items:pricing.items,itemsTotal:pricing.itemsTotal,
+                shipTier:pricing.tier,shipCustomer:pricing.shipCustomer,shipRealCost:pricing.shipRealCost,
+                grandTotal:pricing.grandTotal,
+                payMethod:(o.payMethod==='instapay')?'instapay':'cod',
+                status:'pending',saleId:'',
+                notes:String(o.notes||'').trim(),
+                missingItems:pricing.missing,
+              });
+            }
+          }
+        }catch(_e1){}
+        toRemove.push(o);
+      });
+      if(!toRemove.length)return;
+      saveDB();
+      try{if($('s-onlineorders')&&$('s-onlineorders').classList.contains('active'))renderOnlineOrders();}catch(_e2){}
+      try{updateOnlineOrdersBadge();}catch(_e3){}
+      FS_COL.doc('_online_orders_incoming').update({orders:firebase.firestore.FieldValue.arrayRemove(...toRemove)}).catch(()=>{});
+    }).catch(e=>{try{logger.warn('pullIncomingOnlineOrders failed:',e&&e.message);}catch(_n){}});
+  }catch(e){}
+}
+function updateOnlineOrdersBadge(){
+  const n=(DB.onlineOrders||[]).filter(o=>o.status==='pending').length;
+  const b=$('onlineorders-badge');
+  if(!b)return;
+  if(n>0){b.textContent=String(n);b.style.display='';}else{b.style.display='none';}
+}
+let _onlineOrdersFilter='pending';
+function fltOnlineOrders(f,el){
+  _onlineOrdersFilter=f;
+  document.querySelectorAll('#s-onlineorders .chip').forEach(c=>c.classList.remove('active'));
+  if(el)el.classList.add('active');
+  renderOnlineOrders();
+}
+function renderOnlineOrders(){
+  updateOnlineOrdersBadge();
+  const list=$('onlineorders-list');if(!list)return;
+  const rows=sortByNewest((DB.onlineOrders||[]).filter(o=>_onlineOrdersFilter==='all'||o.status===_onlineOrdersFilter));
+  if(!rows.length){list.innerHTML='<div class="empty" style="padding:20px;text-align:center;color:#999;">مفيش طلبات هنا دلوقتي</div>';return;}
+  list.innerHTML=rows.map(o=>{
+    const statusBadge=o.status==='pending'?'<span class="badge b-am">⏳ قيد المراجعة</span>':o.status==='confirmed'?'<span class="badge b-gn">✓ مؤكدة — '+e(o.saleId)+'</span>':'<span class="badge b-rd">✕ ملغية</span>';
+    const payLabel=o.payMethod==='instapay'?'📲 انستا باي':'💵 كاش عند الاستلام';
+    const itemsStr=(o.items||[]).map(it=>e(it.name)+' ×'+it.qty).join('، ');
+    const warnMissing=(o.missingItems&&o.missingItems.length)?`<div style="color:#c62828;font-size:11px;margin-top:4px;">⚠️ أصناف مش لاقيها في المخزون: ${e(o.missingItems.join('، '))}</div>`:'';
+    return `<div class="card" style="margin-bottom:10px;"><div class="cb">
+      <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px;">
+        <div>
+          <strong>${e(o.customerName)}</strong> ${o.customerPhone?'— '+e(o.customerPhone):''}<br>
+          <span style="font-size:12px;color:#666;">${e(o.governorate||'')}${o.address?' — '+e(o.address):''}</span>
+        </div>
+        <div style="text-align:left;">${statusBadge}<div style="font-size:11px;color:#888;margin-top:3px;">${e(o.id)}</div></div>
+      </div>
+      <div style="margin:8px 0;font-size:13px;">${itemsStr}</div>
+      ${warnMissing}
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:12.5px;color:#555;margin-top:6px;">
+        <span>الأصناف: ${fmtN(o.itemsTotal)} ج + شحن ${fmtN(o.shipCustomer)} ج (${o.shipTier==='high'?'فئة أعلى':'فئة عادية'})</span>
+        <strong style="color:#1a3a5c;">الإجمالي: ${fmtN(o.grandTotal)} ج</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+        <span style="font-size:12px;">${payLabel}</span>
+        ${o.status==='pending'?`<div style="display:flex;gap:6px;"><button class="btn btn-sm btn-g" onclick="confirmOnlineOrder('${o.id}')">✅ تأكيد وتحويل لفاتورة</button><button class="btn btn-sm btn-r" onclick="cancelOnlineOrder('${o.id}')">❌ إلغاء</button></div>`:''}
+      </div>
+    </div></div>`;
+  }).join('');
+}
+function cancelOnlineOrder(id){
+  const o=(DB.onlineOrders||[]).find(x=>x.id===id);if(!o||o.status!=='pending')return;
+  showDangerConfirm('إلغاء الطلب '+id+'؟',()=>{
+    o.status='cancelled';saveDB();renderOnlineOrders();toast('تم إلغاء الطلب','warn');
+  });
+}
+function confirmOnlineOrder(id){
+  const o=(DB.onlineOrders||[]).find(x=>x.id===id);if(!o||o.status!=='pending')return;
+  if(o.missingItems&&o.missingItems.length){toast('⚠ فيه أصناف في الطلب مش موجودة في المخزون حاليًا — راجعها الأول','warn');return;}
+  const items=o.items.map(it=>({...it}));
+  items.push({name:'رسوم الشحن',code:'',qty:1,price:o.shipCustomer,disc:0,cost:0});
+  snapItemCosts(items);
+  const isInstapay=o.payMethod==='instapay';
+  const payMethod=isInstapay?'مقسّم انستا':'آجل';
+  const no=consumeNum('sinv');
+  getOrCreateCustomer(o.customerPhone,o.customerName);
+  const rec={
+    id:no,customer:o.customerName,customerPhone:fmtPhone(o.customerPhone||''),items,total:o.grandTotal,invDiscPct:0,
+    date:todayStr,
+    status:isInstapay?'paid':'pending',
+    notes:'طلب أونلاين '+o.id+(o.address?' — '+o.address+' ('+o.governorate+')':''),
+    payment:payMethod,dueDate:'',
+    channel:'online',
+    branch:CURRENT_BRANCH||'BR-MAIN',
+    paymentSplit:isInstapay?{cash:0,instapay:o.grandTotal}:null,
+  };
+  warnOverstock(items);
+  rec.stockApplied=true;
+  const _st=invApplyItems(items,-1);
+  if(_st.missed.length)setTimeout(()=>toast('⚠ بنود لم تُخصم من المخزون (الاسم غير مطابق لأي صنف): '+_st.missed.join('، '),'warn'),700);
+  DB.sales.unshift(rec);
+  // مصروف "شحن أونلاين" تلقائي — الفرق بين التكلفة الحقيقية واللي العميل دفعه فعلاً
+  const shipDiff=Math.max(0,(o.shipRealCost||0)-(o.shipCustomer||0));
+  if(shipDiff>0){
+    DB.expenses.unshift({id:nextFreeId('EXP-','expenses',3),desc:'شحن أونلاين — طلب '+o.id+' ('+o.customerName+')',type:'شحن أونلاين',amount:shipDiff,date:todayStr,payment:'كاش',notes:'تكلفة حقيقية '+fmtN(o.shipRealCost)+' ج — العميل دفع '+fmtN(o.shipCustomer)+' ج',branch:CURRENT_BRANCH||'BR-MAIN',createdAt:Date.now(),updatedAt:Date.now()});
+  }
+  o.status='confirmed';o.saleId=no;
+  addLog('تأكيد طلب أونلاين '+o.id+' → فاتورة '+no);
+  saveDB();renderOnlineOrders();renderSalesStats();renderProds();renderDash();
+  toast('✓ اتحول الطلب لفاتورة '+no);
 }
 function loadFromFirebase(silent){
   const el=$('db-status'),ls=$('db-last-save');
@@ -19314,6 +19564,8 @@ setInterval(()=>{
     if(typeof pullMobileEditableSettingsIfNewer==='function')pullMobileEditableSettingsIfNewer();
     // نفس الدورة كمان: طلبات إدارية من الموبايل (مستخدم جديد/فرع جديد/مساهمة رأس مال/عداد)
     if(typeof pullAndApplyMobileAdminRequests==='function')pullAndApplyMobileAdminRequests();
+    // نفس الدورة كمان: طلبات جديدة جاية من موقع المتجر الأونلاين
+    if(typeof pullIncomingOnlineOrders==='function')pullIncomingOnlineOrders();
   }catch(e){}
 },30000);
 </script>
