@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title id="page-title">الشروط والأحكام</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="legal.css">
+</head>
+<body>
+
+<header class="site-header" id="site-header">
+  <div class="header-inner">
+    <a class="brand" href="index.html" style="text-decoration:none;color:inherit;">
+      <span class="brand-mark" id="brand-mark">🔌</span>
+      <span class="brand-name" id="brand-name">المتجر الأونلاين</span>
+    </a>
+  </div>
+</header>
+
+<main class="legal-page">
+  <a class="legal-back" href="index.html">→ رجوع للمتجر</a>
+  <h1 id="legal-title">الشروط والأحكام</h1>
+  <div class="legal-loading" id="legal-loading">بنحمّل النص...</div>
+  <div class="legal-body" id="legal-body" hidden></div>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<script src="config.js"></script>
+<script src="legal.js"></script>
+<script>renderLegalPage('terms');</script>
+</body>
+</html>

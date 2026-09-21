@@ -102,11 +102,14 @@ function productCardHtml(p){
   const letter = (p.name || '؟').trim().charAt(0).toUpperCase();
   const inCart = state.cart[p.id] || 0;
   const tag = [p.brand, p.subcat || p.cat].filter(Boolean).join(' · ');
+  const thumbInner = p.image
+    ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" loading="lazy" onerror="this.remove()">`
+    : `<span class="thumb-letter">${escapeHtml(letter)}</span>`;
   return `
     <div class="product-card" data-id="${escapeHtml(p.id)}">
-      <div class="product-thumb">
+      <div class="product-thumb ${p.image ? 'has-image' : ''}">
         <span class="stock-badge ${inStock ? '' : 'out'}">${inStock ? 'متوفر' : 'غير متوفر'}</span>
-        <span class="thumb-letter">${escapeHtml(letter)}</span>
+        ${thumbInner}
       </div>
       <div class="product-info">
         ${tag ? `<div class="product-cat">${escapeHtml(tag)}</div>` : ''}
@@ -180,7 +183,7 @@ function renderCart(){
   $('cart-summary').hidden = lines.length === 0;
   $('cart-items').innerHTML = lines.map((l) => `
     <div class="cart-line">
-      <div class="cart-line-thumb">${escapeHtml((l.p.name||'؟').charAt(0).toUpperCase())}</div>
+      <div class="cart-line-thumb">${l.p.image ? `<img src="${escapeHtml(l.p.image)}" alt="" onerror="this.remove()">` : escapeHtml((l.p.name||'؟').charAt(0).toUpperCase())}</div>
       <div class="cart-line-info">
         <div class="cart-line-name">${escapeHtml(l.p.name)}</div>
         <div class="cart-line-price">${l.qty} × ${fmtMoney(l.p.price)}</div>
@@ -276,6 +279,53 @@ function closeSuccess(){
   setTimeout(() => { $('success-overlay').hidden = true; }, 180);
 }
 
+// ===== نافذة "راسلنا" (قناة تواصل تانية بجانب واتساب) =====
+function openContact(){
+  $('contact-overlay').hidden = false;
+  $('contact-modal').classList.add('open');
+  $('contact-modal').setAttribute('aria-hidden', 'false');
+}
+function closeContact(){
+  $('contact-modal').classList.remove('open');
+  $('contact-modal').setAttribute('aria-hidden', 'true');
+  setTimeout(() => { $('contact-overlay').hidden = true; }, 180);
+}
+function submitContact(ev){
+  ev.preventDefault();
+  const message = $('c-message').value.trim();
+  if(!message) return;
+  const btn = $('submit-contact-btn');
+  btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+
+  const msg = {
+    name: $('c-name').value.trim(),
+    phone: $('c-phone').value.trim(),
+    message: message,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+
+  db.collection('sz_data').doc('_online_messages_incoming').collection('items').add(msg)
+    .then(() => {
+      closeContact();
+      $('contact-form').reset();
+      $('contact-success-overlay').hidden = false;
+      $('contact-success-modal').classList.add('open');
+      $('contact-success-modal').setAttribute('aria-hidden', 'false');
+    })
+    .catch((e) => {
+      console.error('submitContact failed', e);
+      alert('حصل خطأ وإحنا بنبعت رسالتك، حاول تاني أو تواصل معانا عبر واتساب.');
+    })
+    .finally(() => {
+      btn.disabled = false; btn.textContent = 'إرسال';
+    });
+}
+function closeContactSuccess(){
+  $('contact-success-modal').classList.remove('open');
+  $('contact-success-modal').setAttribute('aria-hidden', 'true');
+  setTimeout(() => { $('contact-success-overlay').hidden = true; }, 180);
+}
+
 // ===== إعداد الصفحة =====
 function applyBranding(){
   const name = window.STORE_NAME || 'المتجر الأونلاين';
@@ -312,6 +362,11 @@ function wireEvents(){
   $('f-gov').addEventListener('change', renderCheckoutSummary);
   $('checkout-form').addEventListener('submit', submitOrder);
   $('success-close-btn').addEventListener('click', closeSuccess);
+  $('contact-open-btn').addEventListener('click', openContact);
+  $('contact-close').addEventListener('click', closeContact);
+  $('contact-overlay').addEventListener('click', closeContact);
+  $('contact-form').addEventListener('submit', submitContact);
+  $('contact-success-close-btn').addEventListener('click', closeContactSuccess);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
