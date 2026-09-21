@@ -18881,10 +18881,15 @@ function pullAndApplyMobileAdminRequests(){
     }).catch(e=>{try{logger.warn('pullAndApplyMobileAdminRequests failed:',e&&e.message);}catch(_n){}});
   }catch(e){}
 }
-// ===== طلبات أونلاين: الموقع (صفحة عامة، من غير تسجيل دخول) بيكتب الطلبات الجديدة
-// جوه مستند sz_data/_online_orders_incoming (arrayUnion، بالظبط زي _mobile_admin_write)،
-// والبرنامج بيقراه كل ٣٠ ثانية (نفس دورة pullAndApplyMobileAdminRequests) وبيحوّل كل
-// طلب لسجل محلي DB.onlineOrders بحالة "pending" لحد ما المالك يراجعه بنفسه ويأكّده.
+// ===== طلبات أونلاين: الموقع (صفحة عامة، من غير تسجيل دخول) بيكتب كل طلب جديد
+// كمستند مستقل جوه الـsubcollection: sz_data/_online_orders_incoming/items/{autoId}
+// (مش array جوه مستند واحد — عشان قاعدة الأمان تقدر تسمح "إضافة طلب جديد بس" من غير
+// تسجيل دخول، من غير ما تديله صلاحية يقرا أو يعدّل طلبات التانيين؛ Firestore مفيهوش
+// طريقة تسمح لمجهول "يضيف لمصفوفة داخل مستند" من غير ما تديله صلاحية "يعدّل المستند"
+// كامل، فمستند واحد بمصفوفة كان هيبقى ثغرة أمان حقيقية هنا).
+// البرنامج بيقرا الـsubcollection كل ٣٠ ثانية (نفس دورة pullAndApplyMobileAdminRequests)
+// وبيحوّل كل مستند لسجل محلي DB.onlineOrders بحالة "pending" لحد ما المالك يراجعه
+// بنفسه ويأكّده، وبعدين بيمسح المستند من الـsubcollection (المالك بس اللي يقدر يمسح).
 //
 // مهم جدًا (أمان): السعر والشحن اللي بيوصل من الموقع مبنتقلش فيه — بنعيد حسابهم هنا
 // من بيانات المنتج الحقيقية (سعر أونلاين/حجم الشحن) وإعدادات الشحن الحالية، عشان محدش
@@ -18914,14 +18919,13 @@ function _computeOnlineOrderPricing(rawItems,governorate){
 function pullIncomingOnlineOrders(){
   try{
     if(!FS_COL||!window.firebase||!firebase.firestore)return;
-    (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_online_orders_incoming').get()).then(doc=>{
-      if(!doc||!doc.exists)return;
-      const d=doc.data()||{};
-      const raw=d.orders||[];
-      if(!raw.length)return;
-      const toRemove=[];
-      raw.forEach(o=>{
+    const itemsCol=FS_COL.doc('_online_orders_incoming').collection('items');
+    (window._fbReady||Promise.resolve()).then(()=>itemsCol.get()).then(snap=>{
+      if(!snap||snap.empty)return;
+      const toDelete=[];
+      snap.forEach(docSnap=>{
         try{
+          const o=docSnap.data()||{};
           if(o&&o.customerName&&o.items&&o.items.length){
             const pricing=_computeOnlineOrderPricing(o.items,o.governorate||'');
             if(pricing.items.length){
@@ -18943,13 +18947,15 @@ function pullIncomingOnlineOrders(){
             }
           }
         }catch(_e1){}
-        toRemove.push(o);
+        toDelete.push(docSnap.ref);
       });
-      if(!toRemove.length)return;
+      if(!toDelete.length)return;
       saveDB();
       try{if($('s-onlineorders')&&$('s-onlineorders').classList.contains('active'))renderOnlineOrders();}catch(_e2){}
       try{updateOnlineOrdersBadge();}catch(_e3){}
-      FS_COL.doc('_online_orders_incoming').update({orders:firebase.firestore.FieldValue.arrayRemove(...toRemove)}).catch(()=>{});
+      // بنمسح كل مستند اتعالج لوحده (مش batch واحد) عشان لو واحد فيهم فشل لأي سبب،
+      // الباقي يتمسح عادي وميتعلقش كله بسبب واحد بس
+      toDelete.forEach(ref=>{ref.delete().catch(()=>{});});
     }).catch(e=>{try{logger.warn('pullIncomingOnlineOrders failed:',e&&e.message);}catch(_n){}});
   }catch(e){}
 }
