@@ -1,0 +1,337 @@
+/* ============================================================
+   المتجر الأونلاين — تصميم عام
+   لوحة الألوان: حبر داكن + نحاسي دافئ (يفتكّر لون الأجهزة والمعادن)
+   الخط: Cairo (عربي حديث، وزنات متعددة)
+   ============================================================ */
+
+:root{
+  --ink: #1c2128;
+  --ink-soft: #3a4150;
+  --paper: #f7f5f1;
+  --paper-raised: #ffffff;
+  --line: #e6e2da;
+  --copper: #b8703c;
+  --copper-deep: #9a5a2c;
+  --copper-tint: #f3e4d6;
+  --good: #2f7d4f;
+  --good-tint: #e5f3ea;
+  --bad: #b23b3b;
+  --bad-tint: #fbe9e9;
+  --shadow: 0 1px 3px rgba(28,33,40,.06), 0 8px 24px rgba(28,33,40,.05);
+  --radius: 14px;
+  --radius-sm: 9px;
+  --header-h: 60px;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Cairo',system-ui,-apple-system,'Segoe UI',Tahoma,sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  line-height:1.5;
+  padding-bottom:40px;
+}
+img{max-width:100%;}
+button{font-family:inherit;}
+[hidden]{display:none!important;}
+a{color:inherit;}
+
+/* ===== هيدر ===== */
+.site-header{
+  position:sticky; top:0; z-index:30;
+  background:var(--ink);
+  color:#fff;
+  box-shadow:var(--shadow);
+}
+.header-inner{
+  max-width:1100px; margin:0 auto;
+  height:var(--header-h);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 16px;
+}
+.brand{display:flex; align-items:center; gap:10px;}
+.brand-mark{
+  width:36px; height:36px; border-radius:10px;
+  background:var(--copper);
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px;
+}
+.brand-name{font-weight:800; font-size:18px; letter-spacing:.2px;}
+.cart-btn{
+  position:relative;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.14);
+  color:#fff;
+  width:42px; height:42px; border-radius:12px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  transition:background .15s;
+}
+.cart-btn:hover{background:rgba(255,255,255,.16);}
+.cart-count{
+  position:absolute; top:-6px; left:-6px;
+  background:var(--copper);
+  color:#fff; font-weight:700; font-size:11px;
+  min-width:19px; height:19px; padding:0 4px;
+  border-radius:999px;
+  display:flex; align-items:center; justify-content:center;
+  border:2px solid var(--ink);
+}
+
+/* ===== تابات الأقسام ===== */
+.section-tabs{
+  max-width:1100px; margin:0 auto;
+  display:flex; gap:8px;
+  padding:14px 16px 0;
+  overflow-x:auto;
+}
+.section-tab{
+  flex:0 0 auto;
+  border:1px solid var(--line);
+  background:var(--paper-raised);
+  color:var(--ink-soft);
+  padding:9px 18px;
+  border-radius:999px;
+  font-family:inherit; font-weight:700; font-size:14px;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:all .15s;
+}
+.section-tab.active{
+  background:var(--ink); color:#fff; border-color:var(--ink);
+}
+
+/* ===== البحث ===== */
+.search-bar{
+  max-width:1100px; margin:0 auto;
+  padding:12px 16px 4px;
+}
+.search-bar input{
+  width:100%;
+  border:1px solid var(--line);
+  background:var(--paper-raised);
+  border-radius:var(--radius-sm);
+  padding:11px 14px;
+  font-family:inherit; font-size:15px;
+  color:var(--ink);
+}
+.search-bar input:focus{outline:2px solid var(--copper); outline-offset:1px;}
+
+/* ===== المحتوى ===== */
+#main-content{max-width:1100px; margin:0 auto; padding:12px 16px 20px;}
+
+.loading-state, .empty-state, .offline-state{
+  text-align:center; color:var(--ink-soft);
+  padding:60px 16px;
+}
+.spinner{
+  width:34px; height:34px; margin:0 auto 14px;
+  border:3px solid var(--line); border-top-color:var(--copper);
+  border-radius:50%;
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.product-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(160px, 1fr));
+  gap:12px;
+}
+@media (min-width:600px){
+  .product-grid{grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:16px;}
+}
+
+.product-card{
+  background:var(--paper-raised);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  overflow:hidden;
+  display:flex; flex-direction:column;
+  box-shadow:var(--shadow);
+}
+.product-thumb{
+  aspect-ratio:1/1;
+  display:flex; align-items:center; justify-content:center;
+  font-size:34px;
+  background:linear-gradient(155deg, var(--copper-tint), #eee7dc);
+  color:var(--copper-deep);
+  position:relative;
+}
+.product-thumb .thumb-letter{
+  font-family:'Cairo',sans-serif; font-weight:800; font-size:30px;
+}
+.stock-badge{
+  position:absolute; top:8px; inset-inline-start:8px;
+  font-size:11px; font-weight:700;
+  padding:3px 9px; border-radius:999px;
+  background:var(--good-tint); color:var(--good);
+}
+.stock-badge.out{background:var(--bad-tint); color:var(--bad);}
+.product-info{padding:10px 12px 12px; display:flex; flex-direction:column; gap:6px; flex:1;}
+.product-cat{font-size:11px; color:var(--ink-soft); font-weight:600;}
+.product-name{font-size:14px; font-weight:700; line-height:1.35; min-height:38px;}
+.product-bottom{margin-top:auto; display:flex; align-items:center; justify-content:space-between; gap:8px;}
+.product-price{font-weight:800; font-size:15px; color:var(--copper-deep);}
+.add-btn{
+  border:none; background:var(--ink); color:#fff;
+  width:34px; height:34px; border-radius:10px;
+  font-size:18px; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .15s, transform .1s;
+}
+.add-btn:hover{background:var(--copper);}
+.add-btn:active{transform:scale(.92);}
+.add-btn:disabled{background:var(--line); color:#999; cursor:not-allowed;}
+
+.qty-stepper{
+  display:flex; align-items:center; gap:0;
+  border:1px solid var(--line); border-radius:10px; overflow:hidden;
+}
+.qty-stepper button{
+  border:none; background:var(--paper); width:28px; height:30px;
+  font-size:16px; cursor:pointer; color:var(--ink);
+}
+.qty-stepper button:hover{background:var(--copper-tint);}
+.qty-stepper span{width:26px; text-align:center; font-weight:700; font-size:13px;}
+
+/* ===== فوتر ===== */
+.site-footer{
+  max-width:1100px; margin:24px auto 0; padding:0 16px;
+  text-align:center; color:var(--ink-soft); font-size:13px;
+}
+.footer-note{margin-top:6px;}
+.wa-fab{
+  position:fixed; bottom:20px; inset-inline-start:20px;
+  width:54px; height:54px; border-radius:50%;
+  background:#25d366; color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 6px 18px rgba(37,211,102,.4);
+  z-index:20; text-decoration:none;
+}
+
+/* ===== الدرج الجانبي (السلة) ===== */
+.drawer-overlay, .modal-overlay{
+  position:fixed; inset:0; background:rgba(20,22,26,.5);
+  z-index:40; opacity:0; transition:opacity .2s;
+}
+.drawer-overlay:not([hidden]), .modal-overlay:not([hidden]){opacity:1;}
+
+.cart-drawer{
+  position:fixed; top:0; bottom:0; inset-inline-end:0;
+  width:min(400px, 92vw);
+  background:var(--paper-raised);
+  z-index:41;
+  display:flex; flex-direction:column;
+  transform:translateX(100%);
+  transition:transform .25s ease;
+  box-shadow:-8px 0 30px rgba(0,0,0,.15);
+}
+html[dir="rtl"] .cart-drawer{transform:translateX(-100%);}
+.cart-drawer.open{transform:translateX(0)!important;}
+
+.drawer-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 18px; border-bottom:1px solid var(--line);
+}
+.drawer-head h2{margin:0; font-size:17px;}
+.icon-btn{
+  border:none; background:var(--paper); width:32px; height:32px; border-radius:9px;
+  font-size:15px; cursor:pointer; color:var(--ink-soft);
+}
+.icon-btn:hover{background:var(--copper-tint); color:var(--copper-deep);}
+
+.cart-items{flex:1; overflow-y:auto; padding:10px 16px;}
+.cart-empty{flex:1; display:flex; align-items:center; justify-content:center; color:var(--ink-soft);}
+
+.cart-line{
+  display:flex; gap:10px; align-items:center;
+  padding:10px 0; border-bottom:1px solid var(--line);
+}
+.cart-line-thumb{
+  width:44px; height:44px; border-radius:9px; flex:0 0 auto;
+  background:var(--copper-tint); color:var(--copper-deep);
+  display:flex; align-items:center; justify-content:center; font-weight:800;
+}
+.cart-line-info{flex:1; min-width:0;}
+.cart-line-name{font-size:13.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.cart-line-price{font-size:12.5px; color:var(--ink-soft);}
+.cart-line-remove{
+  border:none; background:none; color:var(--bad); font-size:12px; cursor:pointer; padding:4px;
+}
+
+.cart-summary{padding:14px 18px 18px; border-top:1px solid var(--line);}
+.sum-row{display:flex; justify-content:space-between; font-size:14px; padding:4px 0; color:var(--ink-soft);}
+.sum-row.sum-total{font-size:16px; color:var(--ink); font-weight:800; border-top:1px dashed var(--line); margin-top:6px; padding-top:10px;}
+.sum-note{font-size:11.5px; color:var(--ink-soft); margin:6px 0 12px;}
+
+.btn-primary{
+  background:var(--copper); color:#fff; border:none;
+  font-family:inherit; font-weight:700; font-size:15px;
+  padding:13px 20px; border-radius:11px; cursor:pointer;
+  transition:background .15s;
+}
+.btn-primary:hover{background:var(--copper-deep);}
+.btn-primary:disabled{background:var(--line); color:#999; cursor:not-allowed;}
+.btn-block{width:100%; display:block;}
+
+/* ===== نافذة إتمام الطلب ===== */
+.modal{
+  position:fixed; top:50%; inset-inline-start:50%;
+  transform:translate(-50%,-50%) scale(.96);
+  width:min(480px, 92vw);
+  max-height:88vh; overflow-y:auto;
+  background:var(--paper-raised);
+  border-radius:var(--radius);
+  z-index:41;
+  opacity:0; pointer-events:none;
+  transition:opacity .18s, transform .18s;
+}
+html[dir="rtl"] .modal{transform:translate(50%,-50%) scale(.96);}
+.modal.open{opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1);}
+html[dir="rtl"] .modal.open{transform:translate(50%,-50%) scale(1);}
+
+.modal-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 18px; border-bottom:1px solid var(--line);
+  position:sticky; top:0; background:var(--paper-raised);
+}
+.modal-head h2{margin:0; font-size:17px;}
+
+.checkout-form{padding:16px 18px 20px; display:flex; flex-direction:column; gap:12px;}
+.field{display:flex; flex-direction:column; gap:5px; font-size:13px; font-weight:600; color:var(--ink-soft);}
+.field input, .field select, .field textarea{
+  font-family:inherit; font-size:14.5px; color:var(--ink);
+  border:1px solid var(--line); border-radius:var(--radius-sm);
+  padding:10px 12px; background:var(--paper);
+  resize:vertical;
+}
+.field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--copper); outline-offset:1px;}
+
+.pay-method{border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px 12px; margin:0;}
+.pay-method legend{font-size:13px; font-weight:700; color:var(--ink-soft); padding:0 4px;}
+.radio-opt{display:flex; align-items:center; gap:8px; padding:6px 2px; font-size:14px; cursor:pointer;}
+
+.checkout-summary{
+  background:var(--paper); border:1px solid var(--line); border-radius:var(--radius-sm);
+  padding:10px 14px; font-size:13.5px;
+}
+.checkout-summary .sum-row{font-size:13.5px; padding:3px 0;}
+
+/* ===== نافذة النجاح ===== */
+.modal-success{text-align:center; padding:32px 24px;}
+.success-icon{
+  width:56px; height:56px; margin:0 auto 14px;
+  background:var(--good-tint); color:var(--good);
+  border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:26px; font-weight:800;
+}
+.modal-success h2{margin:0 0 8px; font-size:19px;}
+.modal-success p{color:var(--ink-soft); margin:0 0 6px; font-size:14px;}
+.order-ref{font-weight:700; color:var(--copper-deep)!important; margin-bottom:18px!important;}
+
+/* ===== موبايل ===== */
+@media (max-width:420px){
+  .brand-name{font-size:16px;}
+  .modal{width:94vw;}
+}

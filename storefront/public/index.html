@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title id="page-title">المتجر الأونلاين</title>
+<meta name="description" content="تسوق أجهزة كينوود وديلونجي وقطع الغيار والإكسسوارات أونلاين">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== هيدر ===== -->
+<header class="site-header" id="site-header">
+  <div class="header-inner">
+    <div class="brand">
+      <span class="brand-mark" id="brand-mark">🔌</span>
+      <span class="brand-name" id="brand-name">المتجر الأونلاين</span>
+    </div>
+    <button class="cart-btn" id="cart-btn" aria-label="السلة">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+      <span class="cart-count" id="cart-count" hidden>0</span>
+    </button>
+  </div>
+</header>
+
+<!-- ===== شريط تحديد القسم ===== -->
+<nav class="section-tabs" id="section-tabs">
+  <button class="section-tab active" data-section="devices">🔌 أجهزة كاملة</button>
+  <button class="section-tab" data-section="parts">🛠️ قطع غيار وإكسسوارات</button>
+</nav>
+
+<!-- ===== البحث ===== -->
+<div class="search-bar">
+  <input type="search" id="search-input" placeholder="ابحث عن جهاز أو قطعة...">
+</div>
+
+<main id="main-content">
+  <div class="loading-state" id="loading-state">
+    <div class="spinner"></div>
+    <p>بنحمّل المنتجات...</p>
+  </div>
+  <div class="empty-state" id="empty-state" hidden>
+    <p>مفيش منتجات في القسم ده دلوقتي</p>
+  </div>
+  <div class="offline-state" id="offline-state" hidden>
+    <p>المتجر مش متاح دلوقتي، حاول تاني بعد شوية 🙏</p>
+  </div>
+  <div class="product-grid" id="product-grid"></div>
+</main>
+
+<footer class="site-footer" id="site-footer">
+  <p id="footer-phone" hidden></p>
+  <a id="footer-whatsapp" class="wa-fab" href="#" target="_blank" rel="noopener" hidden aria-label="تواصل عبر واتساب">
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.004 2.003c-5.514 0-9.997 4.483-9.997 9.997 0 1.762.462 3.478 1.34 4.985L2 22l5.146-1.35a9.96 9.96 0 0 0 4.858 1.237h.004c5.514 0 9.997-4.483 9.997-9.997 0-2.67-1.04-5.182-2.929-7.071a9.935 9.935 0 0 0-7.072-2.929zm0 18.174h-.003a8.16 8.16 0 0 1-4.158-1.14l-.298-.177-3.054.801.815-2.978-.194-.306a8.15 8.15 0 0 1-1.253-4.377c0-4.513 3.672-8.184 8.188-8.184a8.13 8.13 0 0 1 5.79 2.398 8.13 8.13 0 0 1 2.396 5.792c0 4.514-3.673 8.185-8.191 8.185z"/></svg>
+  </a>
+  <p class="footer-note">الأسعار والتوفر بتتحدّث لايف من المخزن. طريقة الدفع: كاش عند الاستلام أو انستاباي.</p>
+</footer>
+
+<!-- ===== سلة المشتريات (درج جانبي) ===== -->
+<div class="drawer-overlay" id="cart-overlay" hidden></div>
+<aside class="cart-drawer" id="cart-drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <h2>سلة المشتريات</h2>
+    <button class="icon-btn" id="cart-close" aria-label="إغلاق">✕</button>
+  </div>
+  <div class="cart-items" id="cart-items"></div>
+  <div class="cart-empty" id="cart-empty" hidden>
+    <p>السلة فاضية</p>
+  </div>
+  <div class="cart-summary" id="cart-summary" hidden>
+    <div class="sum-row"><span>الأصناف</span><strong id="sum-items">0 ج.م</strong></div>
+    <div class="sum-row"><span>الشحن (تقديري)</span><strong id="sum-ship">0 ج.م</strong></div>
+    <div class="sum-row sum-total"><span>الإجمالي التقديري</span><strong id="sum-total">0 ج.م</strong></div>
+    <p class="sum-note">هيتأكد السعر النهائي معاك لما نراجع طلبك</p>
+    <button class="btn-primary btn-block" id="checkout-btn">إتمام الطلب</button>
+  </div>
+</aside>
+
+<!-- ===== نافذة إتمام الطلب ===== -->
+<div class="modal-overlay" id="checkout-overlay" hidden></div>
+<div class="modal" id="checkout-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal-head">
+    <h2>بيانات التوصيل</h2>
+    <button class="icon-btn" id="checkout-close" aria-label="إغلاق">✕</button>
+  </div>
+  <form id="checkout-form" class="checkout-form">
+    <label class="field">
+      <span>الاسم بالكامل</span>
+      <input type="text" id="f-name" required autocomplete="name">
+    </label>
+    <label class="field">
+      <span>رقم الموبايل</span>
+      <input type="tel" id="f-phone" required autocomplete="tel" placeholder="01xxxxxxxxx">
+    </label>
+    <label class="field">
+      <span>المحافظة</span>
+      <select id="f-gov" required></select>
+    </label>
+    <label class="field">
+      <span>العنوان بالتفصيل</span>
+      <textarea id="f-address" required rows="2" placeholder="المنطقة، الشارع، رقم العقار/الدور..."></textarea>
+    </label>
+    <label class="field">
+      <span>ملاحظات (اختياري)</span>
+      <textarea id="f-notes" rows="2"></textarea>
+    </label>
+    <fieldset class="pay-method">
+      <legend>طريقة الدفع</legend>
+      <label class="radio-opt">
+        <input type="radio" name="pay" value="cod" checked>
+        <span>💵 كاش عند الاستلام</span>
+      </label>
+      <label class="radio-opt">
+        <input type="radio" name="pay" value="instapay">
+        <span>📲 انستاباي</span>
+      </label>
+    </fieldset>
+    <div class="checkout-summary" id="checkout-summary"></div>
+    <button type="submit" class="btn-primary btn-block" id="submit-order-btn">تأكيد الطلب</button>
+  </form>
+</div>
+
+<!-- ===== نافذة تأكيد نجاح الطلب ===== -->
+<div class="modal-overlay" id="success-overlay" hidden></div>
+<div class="modal modal-success" id="success-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="success-icon">✓</div>
+  <h2>تم استلام طلبك!</h2>
+  <p>هنراجع طلبك ونتواصل معاك في أقرب وقت لتأكيده.</p>
+  <p class="order-ref" id="order-ref"></p>
+  <button class="btn-primary btn-block" id="success-close-btn">تمام</button>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
