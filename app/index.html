@@ -1801,6 +1801,11 @@ tr:hover td{background:#fafafa;}
   <div class="fg full" style="margin-top:10px;">
     <label>🖼️ صورة المنتج (اختياري — هتظهر في الموقع بدل الحرف الافتراضي)</label>
     <input type="file" id="pr-image-file" accept="image/*" onchange="handleProdImageSelect(event)"/>
+    <div style="font-size:11px;color:#888;margin:4px 0 2px;">محتاج "تخزين سحابي" (Storage) مفعّل في Firebase عشان الرفع من هنا يشتغل. لو مش متفعّل عندك، استخدم الطريقة التانية تحت دي بدلاً منه (من غير أي إعداد إضافي):</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:6px;">
+      <input type="text" id="pr-image-url-input" placeholder="أو الصق رابط صورة من الإنترنت (مثلاً من imgbb.com)" style="flex:1;"/>
+      <button type="button" class="btn btn-sm" onclick="applyProdImageUrl()">استخدم الرابط</button>
+    </div>
     <input type="hidden" id="pr-image-url" value=""/>
     <div id="pr-image-preview" style="margin-top:8px;display:flex;align-items:center;gap:10px;"></div>
     <div id="pr-image-status" style="font-size:12px;color:#1a6fb0;margin-top:4px;"></div>
@@ -9358,11 +9363,20 @@ function openProdModal(editId){
 function renderProdImagePreview(url){
   if($('pr-image-url'))$('pr-image-url').value=url||'';
   if($('pr-image-file'))$('pr-image-file').value='';
+  if($('pr-image-url-input'))$('pr-image-url-input').value='';
   if($('pr-image-status'))$('pr-image-status').textContent='';
   const box=$('pr-image-preview');if(!box)return;
   box.innerHTML=url
     ? `<img src="${e(url)}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #ddd;"/><button type="button" class="btn btn-sm" onclick="renderProdImagePreview('')">🗑️ إزالة الصورة</button>`
     : '';
+}
+function applyProdImageUrl(){
+  const input=$('pr-image-url-input');
+  const url=input?input.value.trim():'';
+  if(!url){toast('الصق رابط الصورة الأول','warn');return;}
+  if(!/^https?:\/\//i.test(url)){toast('الرابط لازم يبدأ بـ http:// أو https://','warn');return;}
+  renderProdImagePreview(url);
+  toast('✓ اترفعت الصورة');
 }
 function handleProdImageSelect(ev){
   const file=ev&&ev.target&&ev.target.files&&ev.target.files[0];
