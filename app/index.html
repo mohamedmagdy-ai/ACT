@@ -533,6 +533,7 @@ tr:hover td{background:#fafafa;}
   <button class="psec-tab" onclick="switchProdSection('parts',this)">🔩 قطع الغيار</button>
 </div>
 <div class="chips" id="prod-cat-chips" style="margin-bottom:8px;"><span class="chip active" onclick="fltProds('all',this)">الكل</span></div>
+<div style="margin-bottom:8px;"><button id="prod-online-filter-btn" class="btn btn-gold" onclick="toggleProdOnlineFilter()" title="عشان تقدر تراجع وتحدد المنتجات اللي هتظهر في المتجر الأونلاين من غير ما تدوّر على كل صنف — القايمة بتقصّر لما تعلّم على الصنف وتحفظ">🛒 عرض اللي لسه مش متعلّم للمتجر الأونلاين بس</button></div>
 <div class="sb"><span>🔍</span><input id="prod-search" oninput="srch('prod-tbl',this.value)" placeholder="بحث..."/></div>
 <div class="card"><div class="cb" style="padding:0;"><div class="tbl-wrap"><table>
 <thead><tr><th>الكود</th><th data-sort-field="name" data-label="المنتج" onclick="toggleColSort('prod-tbl','name',()=>renderProdsFiltered(_prodLastFilter||'all'))" style="cursor:pointer;">المنتج</th><th>القسم</th><th>الفئة</th><th data-sort-field="buy" data-label="سعر الشراء" onclick="toggleColSort('prod-tbl','buy',()=>renderProdsFiltered(_prodLastFilter||'all'))" style="cursor:pointer;">سعر الشراء</th><th data-sort-field="sell" data-label="سعر البيع" onclick="toggleColSort('prod-tbl','sell',()=>renderProdsFiltered(_prodLastFilter||'all'))" style="cursor:pointer;">سعر البيع</th><th data-sort-field="qty" data-label="المخزون" onclick="toggleColSort('prod-tbl','qty',()=>renderProdsFiltered(_prodLastFilter||'all'))" style="cursor:pointer;">المخزون</th><th>الحالة</th><th></th></tr></thead>
@@ -14227,17 +14228,43 @@ function renderCustody(){
 let _prodSection='all';
 function switchProdSection(sec,el){_prodSection=sec;document.querySelectorAll('.psec-tab').forEach(b=>b.classList.remove('active'));el.classList.add('active');renderProds();}
 let _prodLastFilter='all';
+// فلتر "لسه مش متعلّم للمتجر الأونلاين": بيخلي قايمة المنتجات تقصر تدريجيًا وانت
+// بتعلّم على كل صنف، بدل ما تفضل تقلّب في قايمة طويلة كاملة (ده اللي كان بيبقى
+// تقيل وبطيء لو حد عمل "عرض الكل" على مخزن فيه مئات الأصناف عشان يراجعها كلها)
+let _prodOnlineFilterOn=false;
+function toggleProdOnlineFilter(){
+  _prodOnlineFilterOn=!_prodOnlineFilterOn;
+  renderProds();
+}
+// تعليم/إلغاء تعليم "يظهر في المتجر الأونلاين" من الجدول مباشرةً، من غير ما تفتح
+// شاشة تعديل المنتج كاملة — أسرع بكتير لو بتراجع مخزن فيه أصناف كتير
+function quickToggleOnlineVisible(id){
+  if(!canEditProducts()){toast('عرض بس — مفيش صلاحية تعديل المنتجات ⚠️','warn');return;}
+  const p=DB.products.find(x=>x.id===id);if(!p)return;
+  p.onlineVisible=!p.onlineVisible;
+  saveDB();
+  toast(p.onlineVisible?'✓ هيظهر في المتجر الأونلاين':'اتشال من المتجر الأونلاين');
+  if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();
+  renderProdsFiltered(_prodLastFilter||'all');
+}
 function renderProdsFiltered(f){
   _prodLastFilter=f;
   let rows=f==='all'?DB.products:DB.products.filter(p=>p.cat===f||p.subcat===f);
   if(_prodSection==='devices') rows=rows.filter(p=>p.section!=='parts');
   else if(_prodSection==='parts') rows=rows.filter(p=>p.section==='parts');
+  if(_prodOnlineFilterOn) rows=rows.filter(p=>!p.onlineVisible);
   rows=applyTableSort('prod-tbl',rows);
   const cap=applyDisplayCap('prod-tbl',rows);
   const _dispQtyList=p=>(CURRENT_BRANCH==='ALL')?getProdQtyAllBranches(p):getProdQty(p);
-  $('prod-tbl').innerHTML=cap.visible.map(p=>{const _q=_dispQtyList(p);return `<tr><td><code style="font-size:10px;background:#f0f0f0;padding:2px 5px;border-radius:3px;">${e(p.id)}</code>${p.egs?`<div style="font-size:9px;color:#7b1fa2;direction:ltr;">🏛 ${e(p.egs)}</div>`:''}</td><td><strong>${e(p.name)}</strong>${p.brand?`<br><span style="font-size:10px;color:#888;">${e(p.brand)}</span>`:''}</td><td><span class="badge ${p.section==='parts'?'b-am':'b-tl'}">${p.section==='parts'?'🔩 قطع':'📺 أجهزة'}</span></td><td><span class="badge b-bl">${e(p.cat||'')}</span></td><td>${(CURRENT_USER&&CURRENT_USER.role==='admin')?fmtN(p.buy||0)+' ج':'—'}</td><td>${fmtN(p.sell||0)} ج</td><td>${stk(_q,p.alert)}</td><td>${(p.alert||0)>0?(_q<=p.alert?'<span class="badge b-rd">منخفض</span>':'<span class="badge b-gn">متوفر</span>'):'<span class="badge" style="background:#eee;color:#999;">🔕 بدون تنبيه</span>'}</td><td style="display:flex;gap:3px;"><button class="btn btn-sm" onclick="toggleAlert('${p.id}')" title="${(p.alert||0)>0?'إيقاف التنبيه لهذا الصنف':'تشغيل التنبيه لهذا الصنف'}">${(p.alert||0)>0?'🔔':'🔕'}</button><button class="btn btn-sm" onclick="openProdMoves('${p.id}')" title="كشف حركة الصنف">📊 كشف الحركة</button>${p.section==='devices'?`<button class="btn btn-sm" onclick="openDismantle('${p.id}')" title="تفكيك لقطع غيار">🔧 تفكيك</button>`:''}${canEditProducts()?`<button class="btn btn-sm" onclick="editProd('${p.id}')">✏️ تعديل</button><button class="btn btn-sm btn-r" onclick="deleteProd('${p.id}')">🗑</button>`:''}</td></tr>`;}).join('')+showAllBannerRow('prod-tbl',cap,'renderProdsFiltered(_prodLastFilter);');
+  $('prod-tbl').innerHTML=cap.visible.map(p=>{const _q=_dispQtyList(p);return `<tr><td><code style="font-size:10px;background:#f0f0f0;padding:2px 5px;border-radius:3px;">${e(p.id)}</code>${p.egs?`<div style="font-size:9px;color:#7b1fa2;direction:ltr;">🏛 ${e(p.egs)}</div>`:''}</td><td><strong>${e(p.name)}</strong>${p.brand?`<br><span style="font-size:10px;color:#888;">${e(p.brand)}</span>`:''}</td><td><span class="badge ${p.section==='parts'?'b-am':'b-tl'}">${p.section==='parts'?'🔩 قطع':'📺 أجهزة'}</span></td><td><span class="badge b-bl">${e(p.cat||'')}</span></td><td>${(CURRENT_USER&&CURRENT_USER.role==='admin')?fmtN(p.buy||0)+' ج':'—'}</td><td>${fmtN(p.sell||0)} ج</td><td>${stk(_q,p.alert)}</td><td>${(p.alert||0)>0?(_q<=p.alert?'<span class="badge b-rd">منخفض</span>':'<span class="badge b-gn">متوفر</span>'):'<span class="badge" style="background:#eee;color:#999;">🔕 بدون تنبيه</span>'}</td><td style="display:flex;gap:3px;flex-wrap:wrap;">${canEditProducts()?`<button class="btn btn-sm ${p.onlineVisible?'btn-g':''}" onclick="quickToggleOnlineVisible('${p.id}')" title="${p.onlineVisible?'اتعلّم — يظهر في المتجر الأونلاين (دوس تاني عشان تشيله)':'يظهر في المتجر الأونلاين؟'}">${p.onlineVisible?'🛒✓':'🛒'}</button>`:''}<button class="btn btn-sm" onclick="toggleAlert('${p.id}')" title="${(p.alert||0)>0?'إيقاف التنبيه لهذا الصنف':'تشغيل التنبيه لهذا الصنف'}">${(p.alert||0)>0?'🔔':'🔕'}</button><button class="btn btn-sm" onclick="openProdMoves('${p.id}')" title="كشف حركة الصنف">📊 كشف الحركة</button>${p.section==='devices'?`<button class="btn btn-sm" onclick="openDismantle('${p.id}')" title="تفكيك لقطع غيار">🔧 تفكيك</button>`:''}${canEditProducts()?`<button class="btn btn-sm" onclick="editProd('${p.id}')">✏️ تعديل</button><button class="btn btn-sm btn-r" onclick="deleteProd('${p.id}')">🗑</button>`:''}</td></tr>`;}).join('')+showAllBannerRow('prod-tbl',cap,'renderProdsFiltered(_prodLastFilter);');
   // البحث بيثبت: إعادة البناء (جرس/تعديل/حذف/جرد) تعيد تطبيق آخر بحث مكتوب
   const _q=$('prod-search');if(_q&&_q.value.trim())srch('prod-tbl',_q.value.trim());
+  const _fbtn=$('prod-online-filter-btn');
+  if(_fbtn){
+    const _remaining=DB.products.filter(x=>!x.onlineVisible).length;
+    _fbtn.textContent=_prodOnlineFilterOn?('🛒 عرض الكل (رجوع) — باقي '+_remaining+' لسه مش متعلّم'):('🛒 عرض اللي لسه مش متعلّم للمتجر الأونلاين بس ('+_remaining+')');
+    _fbtn.classList.toggle('btn-g',_prodOnlineFilterOn);
+  }
 }
 function renderProds(){renderProdsFiltered('all');if(typeof renderProdCatChips==='function')renderProdCatChips();}
 function deleteProd(id){if(!canEditProducts()){toast('عرض بس — مفيش صلاحية تعديل المنتجات ⚠️','warn');return;}showDangerConfirm('حذف المنتج؟',()=>{markDeleted('products',id);DB.products=DB.products.filter(p=>p.id!==id);saveDB();renderProds();toast('تم الحذف','warn');if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();});}
