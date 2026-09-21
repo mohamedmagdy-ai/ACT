@@ -261,6 +261,7 @@ tr:hover td{background:#fafafa;}
 <div class="ntab-group" id="grp-sales">
   <button class="ntab ntab-sub" onclick="showTab('sales',this)">🛒 المبيعات</button>
   <button class="ntab ntab-sub" onclick="showTab('onlineorders',this)">📦 طلبات أونلاين <span id="onlineorders-badge" class="badge b-rd" style="display:none;margin-right:3px;"></span></button>
+  <button class="ntab ntab-sub" onclick="showTab('sitemsgs',this)">📨 رسائل الموقع <span id="sitemsgs-badge" class="badge b-rd" style="display:none;margin-right:3px;"></span></button>
   <button class="ntab ntab-sub" onclick="showTab('deferred',this)">⏳ الآجل</button>
   <button class="ntab ntab-sub" onclick="showTab('returns',this)">↩ المرتجعات</button>
   <button class="ntab ntab-sub" onclick="showTab('customers',this)">👥 العملاء</button>
@@ -385,6 +386,20 @@ tr:hover td{background:#fafafa;}
 </div>
 </div>
 <div id="onlineorders-list"></div>
+</div>
+<!-- رسائل موقع المتجر: نموذج "تواصل معنا" في الموقع (بجانب زرار الواتساب —
+     العميل يختار أي طريقة يتواصل بيها) — الرسايل بتوصل هنا للمراجعة والرد -->
+<div class="section" id="s-sitemsgs">
+<div class="ar">
+<div style="font-size:12px;color:#666;">رسائل جايه من نموذج "تواصل معنا" في موقع المتجر (بديل الواتساب لمين مش عايز يفتح واتساب).</div>
+<div class="chips">
+<span class="chip active" onclick="fltSiteMsgs('new',this)">جديدة</span>
+<span class="chip" onclick="fltSiteMsgs('read',this)">مقروءة</span>
+<span class="chip" onclick="fltSiteMsgs('archived',this)">مؤرشفة</span>
+<span class="chip" onclick="fltSiteMsgs('all',this)">الكل</span>
+</div>
+</div>
+<div id="sitemsgs-list"></div>
 </div>
 <!-- إذن الاستلام -->
 <div class="section" id="s-rcpt">
@@ -787,7 +802,7 @@ tr:hover td{background:#fafafa;}
     <button class="stab" onclick="switchStab('stab-partners',this);renderPartnersCapital()">🤝 الشركاء ورأس المال</button>
     <button class="stab" onclick="switchStab('stab-tax',this)">🧾 الضريبة</button>
     <button class="stab" onclick="switchStab('stab-counters',this)">🔢 العدادات</button>
-    <button class="stab" onclick="switchStab('stab-online',this);loadOnlineStoreSettings()">🛒 المتجر الأونلاين</button>
+    <button class="stab" onclick="switchStab('stab-online',this);loadOnlineStoreSettings();loadSiteContentSettings()">🛒 المتجر الأونلاين</button>
     <button class="stab" onclick="switchStab('stab-audit',this);renderAuditLog();renderSnapshots()">📜 السجل والنسخ</button>
     <button class="stab" onclick="switchStab('stab-advanced',this);renderSyncConflictLog();">🛠 متقدم</button>
 </div>
@@ -953,6 +968,20 @@ tr:hover td{background:#fafafa;}
     <div id="ost-saeed-list" style="display:flex;flex-wrap:wrap;gap:10px;background:#fafafa;border:1px solid #eee;border-radius:6px;padding:12px;margin-bottom:14px;"></div>
 
     <button class="btn btn-p" onclick="saveOnlineStoreSettings()">💾 حفظ إعدادات المتجر الأونلاين</button>
+
+    <hr style="margin:22px 0;border:none;border-top:1px solid #eee;"/>
+    <div style="font-weight:bold;font-size:13px;color:#1a3a5c;margin-bottom:8px;">📄 الشروط والأحكام وسياسة الخصوصية</div>
+    <div style="font-size:11.5px;color:#666;margin-bottom:10px;">النص ده هيظهر في صفحتين منفصلتين في موقع المتجر (رابط في الفوتر). عدّل فيه براحتك — أي تعديل هنا بيحدّث الموقع تلقائيًا خلال دقيقة.</div>
+    <div class="fg full" style="margin-bottom:10px;">
+      <label>الشروط والأحكام</label>
+      <textarea id="ost-terms-text" rows="10" style="font-family:inherit;font-size:12.5px;line-height:1.6;"></textarea>
+    </div>
+    <div class="fg full" style="margin-bottom:10px;">
+      <label>سياسة الخصوصية</label>
+      <textarea id="ost-privacy-text" rows="10" style="font-family:inherit;font-size:12.5px;line-height:1.6;"></textarea>
+    </div>
+    <div style="font-size:11px;color:#888;margin-bottom:10px;">⚠️ النصوص دي عامة واسترشادية، وليست بديلاً عن استشارة قانونية متخصصة بما يناسب نشاطك.</div>
+    <button class="btn btn-p" onclick="saveSiteContent()">💾 حفظ الشروط والخصوصية</button>
   </div>
   <!-- متقدم: النسخ الاحتياطي والاستيراد ومسح البيانات — كانت أزرار دايمًا ظاهرة أعلى
        الشاشة، اتنقلت هنا عشان تبقى بعيدة عن أي ضغطة بالغلط أثناء الشغل العادي -->
@@ -1768,6 +1797,13 @@ tr:hover td{background:#fafafa;}
     <div class="fg"><label>💻 سعر أونلاين (اختياري)</label><input id="pr-online-price" placeholder="فاضي = نفس سعر البيع" type="number"/></div>
     <div class="fg"><label>📦 حجم الشحن</label><select id="pr-ship-size"><option value="small">صغير</option><option value="medium">متوسط</option><option value="large">كبير</option></select></div>
     <div class="fg" style="display:flex;align-items:end;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0;"><input type="checkbox" id="pr-online-visible" style="width:auto;"/> يظهر في المتجر الأونلاين</label></div>
+  </div>
+  <div class="fg full" style="margin-top:10px;">
+    <label>🖼️ صورة المنتج (اختياري — هتظهر في الموقع بدل الحرف الافتراضي)</label>
+    <input type="file" id="pr-image-file" accept="image/*" onchange="handleProdImageSelect(event)"/>
+    <input type="hidden" id="pr-image-url" value=""/>
+    <div id="pr-image-preview" style="margin-top:8px;display:flex;align-items:center;gap:10px;"></div>
+    <div id="pr-image-status" style="font-size:12px;color:#1a6fb0;margin-top:4px;"></div>
   </div>
 </div>
 <div class="fg full"><label>ملاحظات</label><input id="pr-notes" placeholder="..." type="text"/></div>
@@ -3829,7 +3865,8 @@ const SAMPLE_DATA = {
   workOrders:[],
   maintInvoices:[],
   returns:[],
-  onlineOrders:[]
+  onlineOrders:[],
+  onlineMessages:[]
 };
 
 // Load DB from localStorage or use sample data
@@ -3909,7 +3946,7 @@ function loadDB(){
   // نسخة .exe جديدة على جهاز فاضي. دلوقتي الافتراضي عكسه: قاعدة فاضية تمامًا، إلا
   // لو حد طلب بيانات تجريبية صراحة (مش موجود حاليًا أي مكان بيطلبها).
   if(localStorage.getItem('sz_want_sample')!=='1'){
-    return {customers:[],products:[],sales:[],maintenance:[],purchases:[],custody:[],expenses:[],receipts:[],workOrders:[],maintInvoices:[],taxInvoices:[],returns:[],employees:[],payments:[],insuranceLimits:[],insurancePayments:[],fixedAssets:[],partnerCapital:[],partnerInitialCapital:[],serviceCenters:[],onlineOrders:[],branches:[{id:'BR-MAIN',name:'الفرع الرئيسي',isDefault:true,createdAt:Date.now()}],_deleted:{}};
+    return {customers:[],products:[],sales:[],maintenance:[],purchases:[],custody:[],expenses:[],receipts:[],workOrders:[],maintInvoices:[],taxInvoices:[],returns:[],employees:[],payments:[],insuranceLimits:[],insurancePayments:[],fixedAssets:[],partnerCapital:[],partnerInitialCapital:[],serviceCenters:[],onlineOrders:[],onlineMessages:[],branches:[{id:'BR-MAIN',name:'الفرع الرئيسي',isDefault:true,createdAt:Date.now()}],_deleted:{}};
   }
   return JSON.parse(JSON.stringify(SAMPLE_DATA));
 }
@@ -4766,6 +4803,7 @@ function renderTab(id){
   else if(id==='assets')renderAssets();
   else if(id==='deferred')renderDeferred();
   else if(id==='onlineorders')renderOnlineOrders();
+  else if(id==='sitemsgs')renderSiteMsgs();
   else if(id==='treasury')renderTreasury();
   else if(id==='settings'){
     if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');showTab('dash',document.querySelector('.ntab'));return;}
@@ -9300,6 +9338,7 @@ function openProdModal(editId){
     if($('pr-online-price'))$('pr-online-price').value=(p.onlinePrice!=null)?p.onlinePrice:'';
     if($('pr-ship-size'))$('pr-ship-size').value=p.shipSize||'small';
     if($('pr-online-visible'))$('pr-online-visible').checked=!!p.onlineVisible;
+    renderProdImagePreview(p.imageUrl||'');
     const _bw=$('pr-buy')?$('pr-buy').closest('.fg'):null;if(_bw)_bw.style.display=(CURRENT_USER&&CURRENT_USER.role==='admin')?'':'none';
   } else {
     $('prod-modal-title').textContent='🔌 إضافة منتج جديد';
@@ -9310,9 +9349,39 @@ function openProdModal(editId){
     if($('pr-online-price'))$('pr-online-price').value='';
     if($('pr-ship-size'))$('pr-ship-size').value='small';
     if($('pr-online-visible'))$('pr-online-visible').checked=false;
+    renderProdImagePreview('');
     updateSubCats();
   }
   openM('m-prod');
+}
+// ===== صورة المنتج: رفع لـ Firebase Storage، ومعاينة =====
+function renderProdImagePreview(url){
+  if($('pr-image-url'))$('pr-image-url').value=url||'';
+  if($('pr-image-file'))$('pr-image-file').value='';
+  if($('pr-image-status'))$('pr-image-status').textContent='';
+  const box=$('pr-image-preview');if(!box)return;
+  box.innerHTML=url
+    ? `<img src="${e(url)}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #ddd;"/><button type="button" class="btn btn-sm" onclick="renderProdImagePreview('')">🗑️ إزالة الصورة</button>`
+    : '';
+}
+function handleProdImageSelect(ev){
+  const file=ev&&ev.target&&ev.target.files&&ev.target.files[0];
+  if(!file)return;
+  if(!window.fsStorage){toast('التخزين السحابي مش متاح دلوقتي (تأكد إنك متصل بالإنترنت)','warn');return;}
+  if(!/^image\//.test(file.type)){toast('اختار ملف صورة بس (jpg/png/webp...)','warn');return;}
+  if(file.size>5*1024*1024){toast('حجم الصورة كبير أوي (الحد الأقصى 5 ميجا)','warn');return;}
+  const statusEl=$('pr-image-status');
+  if(statusEl)statusEl.textContent='⏳ بيتم رفع الصورة...';
+  const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
+  const path='product-images/'+Date.now()+'_'+Math.random().toString(36).slice(2,8)+'.'+ext;
+  const ref=window.fsStorage.ref().child(path);
+  (window._fbReady||Promise.resolve()).then(()=>ref.put(file)).then(snap=>snap.ref.getDownloadURL()).then(url=>{
+    renderProdImagePreview(url);
+    toast('✓ اترفعت الصورة');
+  }).catch(e=>{
+    if(statusEl)statusEl.textContent='';
+    toast('فشل رفع الصورة: '+((e&&e.message)||'خطأ غير معروف'),'warn');
+  });
 }
 
 // ============================================================
@@ -9341,6 +9410,7 @@ buildCalibGrid();
 renderProdCatChips();
 if(!DB.returns) DB.returns=[];
 if(!DB.onlineOrders) DB.onlineOrders=[];
+if(!DB.onlineMessages) DB.onlineMessages=[];
 
 // Auto-backup daily
 (function(){
@@ -14161,8 +14231,8 @@ function editProd(id){
   if(!canEditProducts()){toast('عرض بس — مفيش صلاحية تعديل المنتجات ⚠️','warn');return;}
   initProdCatSelect();const brands=[...new Set(DB.products.map(p=>p.brand).filter(Boolean))];const dl=$('brand-list');if(dl)dl.innerHTML=brands.map(b=>`<option value="${e(b)}">`).join('');
   $('pr-edit-id').value=id||'';
-  if(id){const p=DB.products.find(x=>x.id===id);if(!p)return;$('prod-modal-title').textContent='✏️ تعديل منتج';if($('pr-section'))$('pr-section').value=p.section||'devices';$('pr-nm').value=p.name;if($('pr-egs'))$('pr-egs').value=p.egs||'';$('pr-cat').value=p.cat||'';updateSubCats();if(p.subcat)$('pr-subcat').value=p.subcat;$('pr-brand').value=p.brand||'';$('pr-buy').value=p.buy||0;$('pr-sell').value=p.sell||0;$('pr-qty').value=getProdQty(p);$('pr-alrt').value=p.alert||5;$('pr-notes').value=p.notes||'';if($('pr-online-price'))$('pr-online-price').value=(p.onlinePrice!=null)?p.onlinePrice:'';if($('pr-ship-size'))$('pr-ship-size').value=p.shipSize||'small';if($('pr-online-visible'))$('pr-online-visible').checked=!!p.onlineVisible;}
-  else{$('prod-modal-title').textContent='🔌 إضافة منتج';if($('pr-section'))$('pr-section').value='devices';if($('pr-egs'))$('pr-egs').value='';['pr-nm','pr-brand','pr-buy','pr-sell','pr-qty','pr-notes'].forEach(id=>$(id)&&($(id).value=''));$('pr-alrt')&&($('pr-alrt').value=5);if($('pr-online-price'))$('pr-online-price').value='';if($('pr-ship-size'))$('pr-ship-size').value='small';if($('pr-online-visible'))$('pr-online-visible').checked=false;updateSubCats();}
+  if(id){const p=DB.products.find(x=>x.id===id);if(!p)return;$('prod-modal-title').textContent='✏️ تعديل منتج';if($('pr-section'))$('pr-section').value=p.section||'devices';$('pr-nm').value=p.name;if($('pr-egs'))$('pr-egs').value=p.egs||'';$('pr-cat').value=p.cat||'';updateSubCats();if(p.subcat)$('pr-subcat').value=p.subcat;$('pr-brand').value=p.brand||'';$('pr-buy').value=p.buy||0;$('pr-sell').value=p.sell||0;$('pr-qty').value=getProdQty(p);$('pr-alrt').value=p.alert||5;$('pr-notes').value=p.notes||'';if($('pr-online-price'))$('pr-online-price').value=(p.onlinePrice!=null)?p.onlinePrice:'';if($('pr-ship-size'))$('pr-ship-size').value=p.shipSize||'small';if($('pr-online-visible'))$('pr-online-visible').checked=!!p.onlineVisible;renderProdImagePreview(p.imageUrl||'');}
+  else{$('prod-modal-title').textContent='🔌 إضافة منتج';if($('pr-section'))$('pr-section').value='devices';if($('pr-egs'))$('pr-egs').value='';['pr-nm','pr-brand','pr-buy','pr-sell','pr-qty','pr-notes'].forEach(id=>$(id)&&($(id).value=''));$('pr-alrt')&&($('pr-alrt').value=5);if($('pr-online-price'))$('pr-online-price').value='';if($('pr-ship-size'))$('pr-ship-size').value='small';if($('pr-online-visible'))$('pr-online-visible').checked=false;renderProdImagePreview('');updateSubCats();}
   openM('m-prod');
 }
 function saveProd(){
@@ -14173,15 +14243,16 @@ function saveProd(){
   const _onlinePrice=_onlinePriceRaw!==''?(parseFloat(_onlinePriceRaw)||0):null;
   const _shipSize=$('pr-ship-size')?$('pr-ship-size').value:'small';
   const _onlineVisible=$('pr-online-visible')?!!$('pr-online-visible').checked:false;
+  const _imageUrl=$('pr-image-url')?$('pr-image-url').value.trim():'';
   if(editId){const p=DB.products.find(x=>x.id===editId);if(p){const _oldBuy=p.buy,_oldSell=p.sell;p.name=nm;if($('pr-egs'))p.egs=$('pr-egs').value.trim();p.cat=$('pr-cat').value;p.subcat=subcat||'';p.section=sec;p.brand=$('pr-brand').value;p.buy=(CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy;
-  if(_oldBuy!==p.buy||_oldSell!==(parseFloat($('pr-sell').value)||0))addLog('تعديل أسعار "'+nm+'": شراء '+_oldBuy+'→'+((CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy)+' | بيع '+_oldSell+'→'+(parseFloat($('pr-sell').value)||0));p.sell=parseFloat($('pr-sell').value)||0;setProdQty(p,parseFloat($('pr-qty').value)||0);p.alert=parseFloat($('pr-alrt').value)||5;p.notes=$('pr-notes').value;p.onlinePrice=_onlinePrice;p.shipSize=_shipSize;p.onlineVisible=_onlineVisible;}saveDB();closeM('m-prod');renderProds();toast('✓ تم تحديث المنتج');if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();}
+  if(_oldBuy!==p.buy||_oldSell!==(parseFloat($('pr-sell').value)||0))addLog('تعديل أسعار "'+nm+'": شراء '+_oldBuy+'→'+((CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy)+' | بيع '+_oldSell+'→'+(parseFloat($('pr-sell').value)||0));p.sell=parseFloat($('pr-sell').value)||0;setProdQty(p,parseFloat($('pr-qty').value)||0);p.alert=parseFloat($('pr-alrt').value)||5;p.notes=$('pr-notes').value;p.onlinePrice=_onlinePrice;p.shipSize=_shipSize;p.onlineVisible=_onlineVisible;p.imageUrl=_imageUrl;}saveDB();closeM('m-prod');renderProds();toast('✓ تم تحديث المنتج');if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();}
   else{
     // توليد ID فريد بصيغة PRD-D (أجهزة) أو PRD-P (قطع غيار) لمنع التضارب مع الأصناف الموجودة
     const prefix=sec==='parts'?'PRD-P':'PRD-D';
     const newId=nextFreeId(prefix,'products',3);
     if($('prod-search'))$('prod-search').value='';
     const _newQty=parseFloat($('pr-qty').value)||0;
-    const _newProd={id:newId,name:nm,egs:($('pr-egs')?$('pr-egs').value.trim():''),cat:$('pr-cat').value,subcat:subcat||'',section:sec,brand:$('pr-brand').value,buy:parseFloat($('pr-buy').value)||0,sell:parseFloat($('pr-sell').value)||0,qty:_newQty,qtyByBranch:{[activeBranchKey()]:_newQty},alert:parseFloat($('pr-alrt').value)||5,notes:$('pr-notes').value,onlinePrice:_onlinePrice,shipSize:_shipSize,onlineVisible:_onlineVisible};
+    const _newProd={id:newId,name:nm,egs:($('pr-egs')?$('pr-egs').value.trim():''),cat:$('pr-cat').value,subcat:subcat||'',section:sec,brand:$('pr-brand').value,buy:parseFloat($('pr-buy').value)||0,sell:parseFloat($('pr-sell').value)||0,qty:_newQty,qtyByBranch:{[activeBranchKey()]:_newQty},alert:parseFloat($('pr-alrt').value)||5,notes:$('pr-notes').value,onlinePrice:_onlinePrice,shipSize:_shipSize,onlineVisible:_onlineVisible,imageUrl:_imageUrl};
     DB.products.unshift(_newProd);
     saveDB();closeM('m-prod');renderProds();toast('✓ تم إضافة المنتج');
     if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();
@@ -17483,7 +17554,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   // الحل: تحميل مباشر وبسيط من الشبكة، غير متزامن (async بطبيعته زي أي script tag عادي).
   ['https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
    'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js',
-   'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js'].forEach(u=>{
+   'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
+   'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js'].forEach(u=>{
      document.write('<script src="'+u+'" crossorigin="anonymous"><'+'/script>');
    });
 </script>
@@ -17523,6 +17595,8 @@ try{
     // تهيئة Firestore المتزامن أولاً — لازم تتأكد قبل الدخول
     try{ fsdb=firebase.firestore(); }catch(eFs){ logger.warn('Firestore init failed:',eFs&&eFs.message); fsdb=null; }
     try{ if(fsdb){ FS_COL=fsdb.collection('sz_data'); FS_DOC=FS_COL.doc('main'); window.FS_COUNTERS_DOC=FS_COL.doc('_counters'); } }catch(e2){ FS_COL=null; FS_DOC=null; }
+    // تخزين الصور (صور المنتجات للمتجر الأونلاين) — نفس مشروع Firebase، bucket منفصل
+    try{ window.fsStorage=firebase.storage?firebase.storage():null; }catch(eSt){ window.fsStorage=null; }
     // === 4. OFFLINE CAPABILITY: SCHEDULE IndexedDB persistence ONLY AFTER login UI is rendered ===
     //  هذا مهم جدًا لعدم تجميد زر "دخول" بسبب انتظار IndexedDB microtask.
     //  نؤجله 250ms بعيدًا عن مسار النقر التزامني تمامًا (fire-and-forget).
@@ -18705,6 +18779,98 @@ function saveOnlineStoreSettings(){
     if(FS_COL)(window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_online_store_settings').set(cfg)).catch(e=>{try{logger.warn('saveOnlineStoreSettings push failed:',e&&e.message);}catch(_n){}});
   }catch(e){}
 }
+// ===== محتوى صفحتي الشروط والأحكام وسياسة الخصوصية في موقع المتجر — نص عام
+// استرشادي مكتوب من الصفر بناءً على سياسات المتجر الفعلية (الدفع كاش/انستا،
+// مراجعة الطلب يدويًا قبل التأكيد، الشحن حسب المحافظة والحجم)، مش منسوخ من أي
+// موقع تاني. قابل للتعديل بالكامل من هنا، ومتخزن في _online_site_content
+// (قراءة عامة، زي الكتالوج بالظبط) عشان صفحتي terms.html/privacy.html في
+// الموقع يقروه لايف.
+const DEFAULT_TERMS_TEXT=`الشروط والأحكام
+
+1. عن الموقع
+هذا الموقع منصة عرض وطلب أونلاين، وهو امتداد لنشاط المحل الفعلي.
+
+2. الطلب والتأكيد
+تقديم الطلب من خلال الموقع لا يعني تأكيده تلقائيًا. يقوم فريق المتجر بمراجعة كل طلب والتواصل مع العميل (تليفون أو واتساب) لتأكيد التفاصيل والسعر النهائي قبل التنفيذ. الأسعار والكميات المعروضة تقديرية وتُحدَّث بشكل دوري من المخزون الفعلي، وقد تختلف الكمية المتاحة وقت المراجعة.
+
+3. الأسعار
+الأسعار المعروضة بالجنيه المصري وتشمل تكلفة المنتج فقط؛ تكلفة الشحن تُحسب وتُعرض بشكل منفصل حسب المحافظة وحجم المنتج.
+
+4. طرق الدفع
+الدفع عند الاستلام (كاش)، أو تحويل عبر إنستاباي. لا يتم قبول أي طرق دفع أخرى حاليًا عبر الموقع.
+
+5. الشحن والتوصيل
+يتم تأكيد المحافظة وميعاد التسليم التقريبي وقت مراجعة الطلب. قد تختلف مدة التوصيل حسب المنطقة وظروف الشحن.
+
+6. الاستبدال والإرجاع
+يحق للعميل طلب استبدال المنتج خلال 14 يومًا من تاريخ الاستلام في حال وجود عيب صناعة أو اختلاف المنتج المستلم عما تم طلبه، بشرط أن يكون المنتج بحالته الأصلية وبكامل ملحقاته. يُستثنى من ذلك أي تلف ناتج عن سوء الاستخدام.
+
+7. الملكية
+جميع المحتويات المعروضة على الموقع (الأسماء، الأوصاف، الشعار) ملك للمتجر، ولا يجوز نسخها أو استخدامها دون إذن.
+
+8. التعديل
+يحتفظ المتجر بحقه في تعديل هذه الشروط أو الأسعار أو سياسة الشحن في أي وقت، ويُعمل بالنسخة المنشورة وقت تقديم الطلب.
+
+9. التواصل
+لأي استفسار حول طلب أو هذه الشروط، تواصل معنا عبر واتساب أو نموذج التواصل في الموقع.
+
+هذا نص عام استرشادي ولا يغني عن المراجعة القانونية المتخصصة بما يناسب طبيعة النشاط.`;
+const DEFAULT_PRIVACY_TEXT=`سياسة الخصوصية
+
+1. البيانات التي نجمعها
+عند تقديم طلب أو التواصل معنا، نجمع الاسم، رقم الهاتف، العنوان، والمحافظة، بالإضافة لتفاصيل الطلب أو الرسالة المُرسلة.
+
+2. الغرض من الجمع
+تُستخدم هذه البيانات فقط لتنفيذ الطلب والتواصل بخصوصه (تأكيد، تسليم، متابعة)، ولا تُستخدم لأي غرض تسويقي دون موافقتك.
+
+3. المشاركة
+لا نشارك بياناتك مع أي جهة خارج نطاق تنفيذ طلبك (مثل شركة الشحن) إلا بالقدر اللازم لإتمام عملية التوصيل.
+
+4. الحفظ
+تُحفظ بيانات الطلبات ضمن سجلات المتجر لأغراض المتابعة والمحاسبة.
+
+5. حقوقك
+يمكنك طلب الاطلاع على بياناتك المسجلة لدينا أو طلب حذفها (فيما لا يتعارض مع الالتزامات المحاسبية) بالتواصل معنا مباشرة.
+
+6. الأمان
+نستخدم قواعد بيانات محمية، ولا تُعرض بيانات العملاء أو تفاصيل طلباتهم لأي طرف عام.
+
+7. التحديثات
+قد تُحدَّث سياسة الخصوصية هذه من وقت لآخر، ويُعمل بأحدث نسخة منشورة على الموقع.
+
+هذا نص عام استرشادي، ويُنصح بمراجعته مع مستشار قانوني بما يناسب طبيعة النشاط ومتطلبات حماية البيانات.`;
+function getSiteContentCfg(){
+  try{ const raw=localStorage.getItem('sz_online_site_content'); return raw?JSON.parse(raw):null; }catch(e){ return null; }
+}
+function renderSiteContentForm(){
+  const cfg=getSiteContentCfg();
+  if($('ost-terms-text'))$('ost-terms-text').value=(cfg&&cfg.terms!=null)?cfg.terms:DEFAULT_TERMS_TEXT;
+  if($('ost-privacy-text'))$('ost-privacy-text').value=(cfg&&cfg.privacy!=null)?cfg.privacy:DEFAULT_PRIVACY_TEXT;
+}
+function loadSiteContentSettings(){
+  const cfg=getSiteContentCfg();
+  if(!cfg && FS_COL){
+    (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_online_site_content').get()).then(doc=>{
+      if(doc&&doc.exists){
+        try{localStorage.setItem('sz_online_site_content',JSON.stringify(doc.data()));}catch(_n){}
+        if($('stab-online')&&$('stab-online').classList.contains('active'))renderSiteContentForm();
+      }
+    }).catch(e=>{try{logger.warn('loadSiteContentSettings failed:',e&&e.message);}catch(_n){}});
+  }
+  renderSiteContentForm();
+}
+function saveSiteContent(){
+  const cfg={
+    terms:$('ost-terms-text')?$('ost-terms-text').value:DEFAULT_TERMS_TEXT,
+    privacy:$('ost-privacy-text')?$('ost-privacy-text').value:DEFAULT_PRIVACY_TEXT,
+    updatedAt:Date.now(),
+  };
+  localStorage.setItem('sz_online_site_content',JSON.stringify(cfg));
+  toast('✓ تم حفظ الشروط والخصوصية');
+  try{
+    if(FS_COL)(window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_online_site_content').set(cfg)).catch(e=>{try{logger.warn('saveSiteContent push failed:',e&&e.message);}catch(_n){}});
+  }catch(e){}
+}
 // ===== كتالوج المتجر الأونلاين: بيرفع بس المنتجات اللي onlineVisible=true، وبس
 // الحقول الآمنة للعرض العام (اسم/سعر أونلاين أو سعر البيع العادي/تصنيف/حجم الشحن/
 // الكمية المتاحة) — سعر الشراء (buy) وأي بيانات تكلفة تانية متتبعتش أبدًا لمستند
@@ -18726,6 +18892,7 @@ function pushOnlineCatalogIfChanged(){
       brand:p.brand||'',
       shipSize:p.shipSize||'small',
       qty:Math.max(0,parseFloat(p.qty)||0),
+      image:p.imageUrl||'',
     }));
     const cfg=getOnlineStoreCfg()||{};
     // نبعت مع الكتالوج كمان "الوجه العام" بس من إعدادات الشحن — العميل يدفع كام لكل
@@ -19055,6 +19222,83 @@ function confirmOnlineOrder(id){
   addLog('تأكيد طلب أونلاين '+o.id+' → فاتورة '+no);
   saveDB();renderOnlineOrders();renderSalesStats();renderProds();renderDash();
   toast('✓ اتحول الطلب لفاتورة '+no);
+}
+// ===== رسائل نموذج "تواصل معنا" في الموقع — نفس فكرة الطلبات الأونلاين بالظبط:
+// الموقع (بدون تسجيل دخول) بيكتب كل رسالة كمستند مستقل جوه
+// sz_data/_online_messages_incoming/items/{autoId}، والبرنامج بيقراها كل ٣٠ ثانية
+// ويمسحها بعد التحويل لسجل محلي DB.onlineMessages.
+function pullIncomingSiteMessages(){
+  try{
+    if(!FS_COL||!window.firebase||!firebase.firestore)return;
+    const itemsCol=FS_COL.doc('_online_messages_incoming').collection('items');
+    (window._fbReady||Promise.resolve()).then(()=>itemsCol.get()).then(snap=>{
+      if(!snap||snap.empty)return;
+      const toDelete=[];
+      snap.forEach(docSnap=>{
+        try{
+          const m=docSnap.data()||{};
+          if(m&&m.message&&String(m.message).trim()){
+            DB.onlineMessages.unshift({
+              id:nextFreeId('MSG-','onlineMessages',4),
+              createdAt:m.createdAt||Date.now(),
+              name:String(m.name||'').trim(),
+              phone:String(m.phone||'').trim(),
+              message:String(m.message).trim(),
+              status:'new',
+            });
+          }
+        }catch(_e1){}
+        toDelete.push(docSnap.ref);
+      });
+      if(!toDelete.length)return;
+      saveDB();
+      try{if($('s-sitemsgs')&&$('s-sitemsgs').classList.contains('active'))renderSiteMsgs();}catch(_e2){}
+      try{updateSiteMsgsBadge();}catch(_e3){}
+      toDelete.forEach(ref=>{ref.delete().catch(()=>{});});
+    }).catch(e=>{try{logger.warn('pullIncomingSiteMessages failed:',e&&e.message);}catch(_n){}});
+  }catch(e){}
+}
+function updateSiteMsgsBadge(){
+  const n=(DB.onlineMessages||[]).filter(m=>m.status==='new').length;
+  const b=$('sitemsgs-badge');
+  if(!b)return;
+  if(n>0){b.textContent=String(n);b.style.display='';}else{b.style.display='none';}
+}
+let _siteMsgsFilter='new';
+function fltSiteMsgs(f,el){
+  _siteMsgsFilter=f;
+  document.querySelectorAll('#s-sitemsgs .chip').forEach(c=>c.classList.remove('active'));
+  if(el)el.classList.add('active');
+  renderSiteMsgs();
+}
+function renderSiteMsgs(){
+  updateSiteMsgsBadge();
+  const list=$('sitemsgs-list');if(!list)return;
+  const rows=sortByNewest((DB.onlineMessages||[]).filter(m=>_siteMsgsFilter==='all'||m.status===_siteMsgsFilter));
+  if(!rows.length){list.innerHTML='<div class="empty" style="padding:20px;text-align:center;color:#999;">مفيش رسائل هنا دلوقتي</div>';return;}
+  list.innerHTML=rows.map(m=>{
+    const statusBadge=m.status==='new'?'<span class="badge b-rd">🆕 جديدة</span>':m.status==='read'?'<span class="badge b-am">👁️ مقروءة</span>':'<span class="badge" style="background:#eee;color:#999;">🗄️ مؤرشفة</span>';
+    return `<div class="card" style="margin-bottom:10px;"><div class="cb">
+      <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px;">
+        <div><strong>${e(m.name||'بدون اسم')}</strong> ${m.phone?'— '+e(m.phone):''}</div>
+        <div style="text-align:left;">${statusBadge}<div style="font-size:11px;color:#888;margin-top:3px;">${e(m.id)}</div></div>
+      </div>
+      <div style="margin:8px 0;font-size:13.5px;white-space:pre-wrap;">${e(m.message)}</div>
+      <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px;">
+        ${m.phone?`<button class="btn btn-sm" onclick="waSend('${e(m.phone)}','')">💬 واتساب</button>`:''}
+        ${m.status==='new'?`<button class="btn btn-sm btn-g" onclick="markSiteMsgRead('${m.id}')">👁️ اتقرت</button>`:''}
+        ${m.status!=='archived'?`<button class="btn btn-sm" onclick="archiveSiteMsg('${m.id}')">🗄️ أرشفة</button>`:''}
+      </div>
+    </div></div>`;
+  }).join('');
+}
+function markSiteMsgRead(id){
+  const m=(DB.onlineMessages||[]).find(x=>x.id===id);if(!m)return;
+  m.status='read';saveDB();renderSiteMsgs();
+}
+function archiveSiteMsg(id){
+  const m=(DB.onlineMessages||[]).find(x=>x.id===id);if(!m)return;
+  m.status='archived';saveDB();renderSiteMsgs();
 }
 function loadFromFirebase(silent){
   const el=$('db-status'),ls=$('db-last-save');
@@ -19614,6 +19858,8 @@ setInterval(()=>{
     if(typeof pullAndApplyMobileAdminRequests==='function')pullAndApplyMobileAdminRequests();
     // نفس الدورة كمان: طلبات جديدة جاية من موقع المتجر الأونلاين
     if(typeof pullIncomingOnlineOrders==='function')pullIncomingOnlineOrders();
+    // نفس الدورة كمان: رسائل "تواصل معنا" جديدة جاية من موقع المتجر
+    if(typeof pullIncomingSiteMessages==='function')pullIncomingSiteMessages();
     // نفس الدورة كمان: تحديث كتالوج المتجر الأونلاين لو تغيّرت كمية أو سعر أي
     // منتج ظاهر في المتجر (مثلاً بعد بيع في المعرض العادي حرك المخزون)
     if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();

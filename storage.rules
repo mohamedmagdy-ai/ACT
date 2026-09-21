@@ -1,0 +1,23 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // ===== صور المنتجات: قراءة عامة (عشان موقع المتجر يعرضها لأي زائر من غير
+    // تسجيل دخول)، والرفع/الحذف يفضل للمدير بس (بحسابه الحقيقي — نفس الـ UID
+    // المستخدم في firestore.rules). حد أقصى 5 ميجا للصورة، ولازم تكون صورة فعلاً
+    // (مش أي ملف تاني) — نفس التحقق اللي بيحصل في البرنامج قبل الرفع، لكن هنا
+    // على مستوى قاعدة الأمان عشان محدش يلف على التحقق ده برفع مباشر.
+    match /product-images/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.auth.uid == 'iAfujpAs5zabtruyxr5S34zcFU13'
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null
+                    && request.auth.uid == 'iAfujpAs5zabtruyxr5S34zcFU13';
+    }
+    // ===== كل حاجة تانية في التخزين: ممنوعة تمامًا افتراضيًا =====
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
