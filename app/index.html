@@ -14156,7 +14156,7 @@ function renderProdsFiltered(f){
   const _q=$('prod-search');if(_q&&_q.value.trim())srch('prod-tbl',_q.value.trim());
 }
 function renderProds(){renderProdsFiltered('all');if(typeof renderProdCatChips==='function')renderProdCatChips();}
-function deleteProd(id){if(!canEditProducts()){toast('عرض بس — مفيش صلاحية تعديل المنتجات ⚠️','warn');return;}showDangerConfirm('حذف المنتج؟',()=>{markDeleted('products',id);DB.products=DB.products.filter(p=>p.id!==id);saveDB();renderProds();toast('تم الحذف','warn');});}
+function deleteProd(id){if(!canEditProducts()){toast('عرض بس — مفيش صلاحية تعديل المنتجات ⚠️','warn');return;}showDangerConfirm('حذف المنتج؟',()=>{markDeleted('products',id);DB.products=DB.products.filter(p=>p.id!==id);saveDB();renderProds();toast('تم الحذف','warn');if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();});}
 function editProd(id){
   if(!canEditProducts()){toast('عرض بس — مفيش صلاحية تعديل المنتجات ⚠️','warn');return;}
   initProdCatSelect();const brands=[...new Set(DB.products.map(p=>p.brand).filter(Boolean))];const dl=$('brand-list');if(dl)dl.innerHTML=brands.map(b=>`<option value="${e(b)}">`).join('');
@@ -14174,7 +14174,7 @@ function saveProd(){
   const _shipSize=$('pr-ship-size')?$('pr-ship-size').value:'small';
   const _onlineVisible=$('pr-online-visible')?!!$('pr-online-visible').checked:false;
   if(editId){const p=DB.products.find(x=>x.id===editId);if(p){const _oldBuy=p.buy,_oldSell=p.sell;p.name=nm;if($('pr-egs'))p.egs=$('pr-egs').value.trim();p.cat=$('pr-cat').value;p.subcat=subcat||'';p.section=sec;p.brand=$('pr-brand').value;p.buy=(CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy;
-  if(_oldBuy!==p.buy||_oldSell!==(parseFloat($('pr-sell').value)||0))addLog('تعديل أسعار "'+nm+'": شراء '+_oldBuy+'→'+((CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy)+' | بيع '+_oldSell+'→'+(parseFloat($('pr-sell').value)||0));p.sell=parseFloat($('pr-sell').value)||0;setProdQty(p,parseFloat($('pr-qty').value)||0);p.alert=parseFloat($('pr-alrt').value)||5;p.notes=$('pr-notes').value;p.onlinePrice=_onlinePrice;p.shipSize=_shipSize;p.onlineVisible=_onlineVisible;}saveDB();closeM('m-prod');renderProds();toast('✓ تم تحديث المنتج');}
+  if(_oldBuy!==p.buy||_oldSell!==(parseFloat($('pr-sell').value)||0))addLog('تعديل أسعار "'+nm+'": شراء '+_oldBuy+'→'+((CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy)+' | بيع '+_oldSell+'→'+(parseFloat($('pr-sell').value)||0));p.sell=parseFloat($('pr-sell').value)||0;setProdQty(p,parseFloat($('pr-qty').value)||0);p.alert=parseFloat($('pr-alrt').value)||5;p.notes=$('pr-notes').value;p.onlinePrice=_onlinePrice;p.shipSize=_shipSize;p.onlineVisible=_onlineVisible;}saveDB();closeM('m-prod');renderProds();toast('✓ تم تحديث المنتج');if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();}
   else{
     // توليد ID فريد بصيغة PRD-D (أجهزة) أو PRD-P (قطع غيار) لمنع التضارب مع الأصناف الموجودة
     const prefix=sec==='parts'?'PRD-P':'PRD-D';
@@ -14184,6 +14184,7 @@ function saveProd(){
     const _newProd={id:newId,name:nm,egs:($('pr-egs')?$('pr-egs').value.trim():''),cat:$('pr-cat').value,subcat:subcat||'',section:sec,brand:$('pr-brand').value,buy:parseFloat($('pr-buy').value)||0,sell:parseFloat($('pr-sell').value)||0,qty:_newQty,qtyByBranch:{[activeBranchKey()]:_newQty},alert:parseFloat($('pr-alrt').value)||5,notes:$('pr-notes').value,onlinePrice:_onlinePrice,shipSize:_shipSize,onlineVisible:_onlineVisible};
     DB.products.unshift(_newProd);
     saveDB();closeM('m-prod');renderProds();toast('✓ تم إضافة المنتج');
+    if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();
   }
 }
 // خريطة اسم الجدول → الدالة اللي بترسمه بالكامل (من غير أي حد أقصى) — مستخدمة في
@@ -18704,6 +18705,35 @@ function saveOnlineStoreSettings(){
     if(FS_COL)(window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_online_store_settings').set(cfg)).catch(e=>{try{logger.warn('saveOnlineStoreSettings push failed:',e&&e.message);}catch(_n){}});
   }catch(e){}
 }
+// ===== كتالوج المتجر الأونلاين: بيرفع بس المنتجات اللي onlineVisible=true، وبس
+// الحقول الآمنة للعرض العام (اسم/سعر أونلاين أو سعر البيع العادي/تصنيف/حجم الشحن/
+// الكمية المتاحة) — سعر الشراء (buy) وأي بيانات تكلفة تانية متتبعتش أبدًا لمستند
+// عام هيقراه أي حد من غير تسجيل دخول. المستند: _online_catalog، جوه sz_data —
+// نفس الـcollection اللي كل مستندات المزامنة التانية فيها. بيتبعت بس لما فعليًا
+// فيه تغيير (مقارنة "توقيع" JSON بالنسخة اللي اتبعتت قبل كدا) عشان منزودش كتابات
+// فايرستور من غير داعي كل 30 ثانية.
+let _lastPushedCatalogSig='';
+function pushOnlineCatalogIfChanged(){
+  try{
+    if(!FS_COL)return;
+    const items=(DB.products||[]).filter(p=>p&&p.onlineVisible).map(p=>({
+      id:p.id,
+      name:p.name||'',
+      price:(p.onlinePrice!=null)?p.onlinePrice:(p.sell||0),
+      section:p.section||'devices',
+      cat:p.cat||'',
+      subcat:p.subcat||'',
+      brand:p.brand||'',
+      shipSize:p.shipSize||'small',
+      qty:Math.max(0,parseFloat(p.qty)||0),
+    }));
+    const sig=JSON.stringify(items);
+    if(sig===_lastPushedCatalogSig)return; // مفيش تغيير فعلي عن آخر مرة اتبعتت
+    const cfg=getOnlineStoreCfg()||{};
+    const payload={enabled:!!cfg.enabled,products:items,updatedAt:Date.now()};
+    (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_online_catalog').set(payload)).then(()=>{_lastPushedCatalogSig=sig;}).catch(e=>{try{logger.warn('pushOnlineCatalogIfChanged failed:',e&&e.message);}catch(_n){}});
+  }catch(e){}
+}
 function pullMobileEditableSettingsIfNewer(){
   try{
     if(!FS_COL)return;
@@ -19566,6 +19596,9 @@ setInterval(()=>{
     if(typeof pullAndApplyMobileAdminRequests==='function')pullAndApplyMobileAdminRequests();
     // نفس الدورة كمان: طلبات جديدة جاية من موقع المتجر الأونلاين
     if(typeof pullIncomingOnlineOrders==='function')pullIncomingOnlineOrders();
+    // نفس الدورة كمان: تحديث كتالوج المتجر الأونلاين لو تغيّرت كمية أو سعر أي
+    // منتج ظاهر في المتجر (مثلاً بعد بيع في المعرض العادي حرك المخزون)
+    if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();
   }catch(e){}
 },30000);
 </script>
