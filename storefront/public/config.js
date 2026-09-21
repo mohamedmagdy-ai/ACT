@@ -5,12 +5,12 @@
 // إعدادات Firebase (من Firebase Console → Project settings → Your apps → Web app).
 // انسخ كتلة الكود اللي هيديك ياها Firebase بالظبط والصقها هنا بدل القيم دي.
 window.FIREBASE_CONFIG = {
-  apiKey: "PASTE_API_KEY_HERE",
-  authDomain: "PASTE_AUTH_DOMAIN_HERE",
-  projectId: "PASTE_PROJECT_ID_HERE",
-  storageBucket: "PASTE_STORAGE_BUCKET_HERE",
-  messagingSenderId: "PASTE_SENDER_ID_HERE",
-  appId: "PASTE_APP_ID_HERE",
+  apiKey: "AIzaSyAab-c6oxbzoC6_2uu2JnOxvHC9sXvPH9o",
+  authDomain: "safeya-zoghloul.firebaseapp.com",
+  projectId: "safeya-zoghloul",
+  storageBucket: "safeya-zoghloul.firebasestorage.app",
+  messagingSenderId: "1094283858052",
+  appId: "1:1094283858052:web:8b666bae0b0760552ab2d1",
 };
 
 // اسم المتجر اللي هيظهر فوق في الموقع
