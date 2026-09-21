@@ -99,21 +99,22 @@ function renderProducts(){
 }
 function productCardHtml(p){
   const inStock = (p.qty || 0) > 0;
-  const letter = (p.name || '؟').trim().charAt(0).toUpperCase();
   const inCart = state.cart[p.id] || 0;
-  const tag = [p.brand, p.subcat || p.cat].filter(Boolean).join(' · ');
   const thumbInner = p.image
     ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" loading="lazy" onerror="this.remove()">`
-    : `<span class="thumb-letter">${escapeHtml(letter)}</span>`;
+    : `<span class="thumb-ph">PRODUCT 1:1</span>`;
   return `
     <div class="product-card" data-id="${escapeHtml(p.id)}">
+      <div class="stock-strip ${inStock ? '' : 'out'}">
+        <span>${inStock ? 'متوفر' : 'غير متوفر'}</span>
+        ${p.brand ? `<span class="strip-brand" dir="ltr">${escapeHtml(p.brand)}</span>` : ''}
+      </div>
       <div class="product-thumb ${p.image ? 'has-image' : ''}">
-        <span class="stock-badge ${inStock ? '' : 'out'}">${inStock ? 'متوفر' : 'غير متوفر'}</span>
         ${thumbInner}
       </div>
       <div class="product-info">
-        ${tag ? `<div class="product-cat">${escapeHtml(tag)}</div>` : ''}
         <div class="product-name">${escapeHtml(p.name)}</div>
+        <div class="product-code" dir="ltr">${escapeHtml(p.id)}</div>
         <div class="product-bottom">
           <span class="product-price">${fmtMoney(p.price)}</span>
           ${cartControlHtml(p, inStock, inCart)}
@@ -122,8 +123,8 @@ function productCardHtml(p){
     </div>`;
 }
 function cartControlHtml(p, inStock, inCart){
-  if(!inStock) return `<button class="add-btn" disabled>+</button>`;
-  if(!inCart) return `<button class="add-btn" onclick="cartAdd('${p.id}')">+</button>`;
+  if(!inStock) return `<button class="ask-btn" onclick="openContact()">اسأل</button>`;
+  if(!inCart) return `<button class="add-btn" onclick="cartAdd('${p.id}')">أضف</button>`;
   return `<div class="qty-stepper">
       <button onclick="cartAdd('${p.id}')">+</button>
       <span>${inCart}</span>
@@ -259,7 +260,7 @@ function submitOrder(ev){
       state.cart = {};
       saveCart(); renderProducts(); renderCart();
       closeCheckout();
-      $('order-ref').textContent = 'رقم مرجعي: ' + ref.id.slice(-6).toUpperCase();
+      $('order-ref').innerHTML = 'رقم مرجعي: <span dir="ltr" class="mono-num">' + escapeHtml(ref.id.slice(-6).toUpperCase()) + '</span>';
       $('checkout-form').reset();
       $('success-overlay').hidden = false;
       $('success-modal').classList.add('open');
@@ -332,7 +333,7 @@ function applyBranding(){
   document.title = name;
   $('page-title').textContent = name;
   $('brand-name').textContent = name;
-  if(window.STORE_PHONE){ $('footer-phone').hidden = false; $('footer-phone').textContent = '📞 ' + window.STORE_PHONE; }
+  if(window.STORE_PHONE){ $('footer-phone').hidden = false; $('footer-phone').innerHTML = '📞 <span dir="ltr" class="mono-num">' + escapeHtml(window.STORE_PHONE) + '</span>'; }
   if(window.STORE_WHATSAPP){
     const a = $('footer-whatsapp');
     a.hidden = false;
