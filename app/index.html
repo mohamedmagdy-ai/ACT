@@ -18727,10 +18727,22 @@ function pushOnlineCatalogIfChanged(){
       shipSize:p.shipSize||'small',
       qty:Math.max(0,parseFloat(p.qty)||0),
     }));
-    const sig=JSON.stringify(items);
-    if(sig===_lastPushedCatalogSig)return; // مفيش تغيير فعلي عن آخر مرة اتبعتت
     const cfg=getOnlineStoreCfg()||{};
-    const payload={enabled:!!cfg.enabled,products:items,updatedAt:Date.now()};
+    // نبعت مع الكتالوج كمان "الوجه العام" بس من إعدادات الشحن — العميل يدفع كام لكل
+    // فئة، ومحافظات الصعيد — عشان الموقع يقدر يوري تقدير شحن صح للعميل وهو بيطلب.
+    // التكلفة الحقيقية (cost) وأي رقم داخلي تاني متترفعش هنا أبدًا؛ الحساب النهائي
+    // الرسمي بيتعمل على البرنامج نفسه في confirmOnlineOrder() برضه، فمفيش خطورة
+    // حتى لو حد عدّل في القيم دي وهو باعت الطلب.
+    const std=(cfg.shipping&&cfg.shipping.std)||{customer:60};
+    const high=(cfg.shipping&&cfg.shipping.high)||{customer:75};
+    const shippingPublic={
+      std:{customer:std.customer||0},
+      high:{customer:high.customer||0},
+      saeedGovs:(cfg.saeedGovs&&cfg.saeedGovs.length)?cfg.saeedGovs:DEFAULT_SAEED_GOVS,
+    };
+    const sig=JSON.stringify({items,enabled:!!cfg.enabled,shippingPublic});
+    if(sig===_lastPushedCatalogSig)return; // مفيش تغيير فعلي عن آخر مرة اتبعتت
+    const payload={enabled:!!cfg.enabled,products:items,shipping:shippingPublic,updatedAt:Date.now()};
     (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_online_catalog').set(payload)).then(()=>{_lastPushedCatalogSig=sig;}).catch(e=>{try{logger.warn('pushOnlineCatalogIfChanged failed:',e&&e.message);}catch(_n){}});
   }catch(e){}
 }
