@@ -4274,6 +4274,42 @@ function autoStampUpdatedAt(){
     _lastSnapshotForStamp[k]=newMap;
   });
 }
+// ======= مزامنة فايربيز: تجميع الحفظات السريعة المتتالية (Debounce) =======
+// السبب الجذري الحقيقي وراء شكوى "البرنامج تقيل عمومًا" (مش بس في جدول المخزن):
+// saveDB() كانت بتنادي saveToFirebase(DB) فورًا وبدون أي تأخير في كل مرة — وده
+// معناه: كل واحدة من الـ٣١ جدول (sales, receipts, workOrders...إلخ) بتتقرا من
+// السحابة (٣٣ قراءة مستند شبكة!) وتتدمج بالكامل في الذاكرة وترفع تاني، فى كل
+// حفظة واحدة لأي سجل واحد. لو المستخدم بيقلّب بسرعة (يفتح صنف، يعدّل، يحفظ،
+// يفتح التاني...) كل ضغطة "حفظ" كانت بتبدأ دورة قراءة+دمج+رفع كاملة، ودورات
+// كتير كانت بتتراكب فوق بعض على نفس الـmain thread — ده اللي كان بيحسسك إن
+// الجهاز "مهنج" والسهم بطيء وزرار الحفظ محتاج ضغطتين/تلاتة (الحفظ الأول كان
+// بيتاخد فعلاً، بس الـclick handler نفسه كان مشغول لسه بيعالج دورة مزامنة
+// سابقة لما ضغطت تاني، فالضغطة التانية كانت بتضيع).
+// الحل: بدل ما كل saveDB() تبدأ مزامنة سحابية فورية لوحدها، بنجمّع (debounce)
+// أي حفظات متتالية سريعة في مزامنة واحدة بس تحصل بعد فترة هدوء قصيرة (٧٠٠ مللي
+// ثانية) — تمامًا نفس فكرة الحفظ المؤجل الموجودة بالفعل لـSQLite تحت. الحفظ
+// المحلي (localStorage + IndexedDB) يفضل فوري زي ما هو تمامًا — الأمان مش
+// متأثر، الفرق بس إن رفع النسخة للسحابة (للمزامنة بين الأجهزة/الفروع) بياخد
+// أقل من ثانية زيادة، وبيحصل مرة واحدة لكل "دفعة" تعديلات بدل مرة لكل تعديل.
+let _fbSyncTimer=null;
+let _fbSyncInFlight=false;
+let _fbSyncPendingAgain=false;
+const FB_SYNC_DEBOUNCE_MS=700;
+function _runFirebaseSyncNow(){
+  if(typeof saveToFirebase!=='function')return;
+  if(_fbSyncInFlight){_fbSyncPendingAgain=true;return;}
+  _fbSyncInFlight=true;
+  let p;
+  try{p=saveToFirebase(DB);}catch(e){logger.warn('Firebase sync غير متاح:',e&&e.message);}
+  Promise.resolve(p).catch(()=>{}).then(()=>{
+    _fbSyncInFlight=false;
+    if(_fbSyncPendingAgain){_fbSyncPendingAgain=false;scheduleFirebaseSync(0);}
+  });
+}
+function scheduleFirebaseSync(delayMs){
+  clearTimeout(_fbSyncTimer);
+  _fbSyncTimer=setTimeout(_runFirebaseSyncNow,delayMs==null?FB_SYNC_DEBOUNCE_MS:delayMs);
+}
 function saveDB(){
   // ختم تلقائي مركزي لأي سجل اتغيّر — قبل أي حفظ فعلي، عشان دمج بيانات الفروع
   // (لو اتفعّلت لاحقًا) يقدر دايمًا يحدد "مين الأحدث" بدقة
@@ -4304,8 +4340,9 @@ function saveDB(){
   }
   // ٢) نسخة موازية في IndexedDB (مساحة أكبر بكتير، بتكبر مع الوقت من غير قلق)
   try{ idbSet(DB_KEY, DB).catch(e=>logger.warn('IndexedDB save issue:',e&&e.message)); }catch(e){}
-  // ٣) حفظ على Firebase (غير متزامن) — منفصل تماماً عشان فشل أي حاجة فوق ميمنعوش
-  if(typeof saveToFirebase==='function'){try{saveToFirebase(DB);}catch(e){logger.warn('Firebase sync غير متاح:',e&&e.message);}}
+  // ٣) حفظ على Firebase (غير متزامن، ومجمّع/debounced — راجع scheduleFirebaseSync
+  // فوق لشرح السبب) — منفصل تماماً عشان فشل أي حاجة فوق ميمنعوش
+  scheduleFirebaseSync();
   // ٣.أ) تحديث ملخص "لوحة متابعة المالك" على الموبايل (مُحدّد أقصى مرة كل ٢٠ ثانية — راجع pushOwnerDashboardSnapshot)
   if(typeof pushOwnerDashboardSnapshot==='function'){try{pushOwnerDashboardSnapshot();}catch(e){}}
   // ٤) نسخة موازية (شادو) في SQLite — لسه مرحلة تجريبية، مش المصدر الأساسي للبرنامج.
@@ -4891,6 +4928,134 @@ function showAllBannerRow(tableId,capResult,rerenderCallJs){
     ⚡ بيتعرض أول ${TABLE_PAGE_LIMIT} سجل بس (من إجمالي ${capResult.total}) عشان الشاشة تفضل سريعة —
     <button class="btn btn-sm btn-p" onclick="TABLE_SHOW_ALL['${tableId}']=true;${safeJs}">عرض كل الـ${capResult.total} سجل</button>
   </td></tr>`;
+}
+// ============================================================
+// ======= تمرير افتراضي عام (Virtual Scrolling) — لباقي الجداول الكبيرة =======
+// ============================================================
+// applyDisplayCap/showAllBannerRow فوق كانا العلاج المؤقت (حد ١٥٠ سجل + زرار
+// "عرض الكل") — بعد ما اتأكد إن الحل الجذري (تمرير افتراضي حقيقي، بُني الأول
+// لجدول المخزن prod-tbl بعد شكوى المستخدم المتكررة) شغال صح ومتحقق منه فعليًا،
+// طلب المستخدم صراحةً تعميمه على كل الجداول التانية (المبيعات، الإيصالات،
+// أوامر الشغل، فواتير الصيانة، المشتريات، العهدة، المصروفات، المرتجعات،
+// الآجل...) بدل ما يفضل الحل مقصور على المخزن بس.
+// دي أداة واحدة قابلة لإعادة الاستخدام (بدل ما نكرر نفس منطق prod-tbl تسع مرات
+// منفصلة) — كل جدول بينده renderVirtualTable(tableId, rows, rowHtmlFn, colspan,
+// emptyMsg) بدل map+join+showAllBannerRow، وبيتعامل مع البحث النصي عن طريق
+// applyVTableSearch (فلترة على مستوى البيانات، مش إخفاء DOM زي srch() القديمة،
+// عشان مع التمرير الافتراضي أغلب الصفوف أصلاً مش موجودة في الـDOM خالص).
+// ملحوظة مهمة عن حاوية السكرول: .tbl-wrap عندها overflow-x:auto بس في الـCSS،
+// لكن المتصفح بيحسب overflow-y:auto تلقائيًا معاها برضه (مينفعش محور يفضل
+// visible والتاني auto) — يعني .tbl-wrap نفسها هي اللي بيتم السكرول فيها فعليًا،
+// مش الصفحة/window ككل. نفس الاكتشاف اللي بنى عليه حل جدول المخزن.
+const VTABLE_STATE={};      // tableId -> {rows, rowH, bound, correcting, scrollEl}
+const VTABLE_SEARCH_Q={};   // tableId -> نص البحث الحالي (فارغ = مفيش بحث)
+function _vtState(tableId){
+  if(!VTABLE_STATE[tableId])VTABLE_STATE[tableId]={rows:[],rowH:40,bound:false,correcting:false,scrollEl:null};
+  return VTABLE_STATE[tableId];
+}
+function _vtGetScrollEl(tableId){
+  const st=_vtState(tableId);
+  if(st.scrollEl&&document.body.contains(st.scrollEl))return st.scrollEl;
+  const tbody=$(tableId);
+  st.scrollEl=tbody?tbody.closest('.tbl-wrap'):null;
+  return st.scrollEl;
+}
+function _vtRenderSlice(tableId,rowHtmlFn,colspan,emptyMsg){
+  const tbody=$(tableId);if(!tbody)return;
+  const st=_vtState(tableId);
+  const total=st.rows.length;
+  if(!total){
+    tbody.innerHTML='<tr><td colspan="'+colspan+'" style="text-align:center;color:#aaa;padding:20px;">'+(emptyMsg||'مفيش بيانات')+'</td></tr>';
+    return;
+  }
+  const table=tbody.closest('table');
+  const rect=table?table.getBoundingClientRect():{top:0};
+  const theadEl=table?table.querySelector('thead'):null;
+  const theadH=theadEl?theadEl.getBoundingClientRect().height:0;
+  const scrollEl=_vtGetScrollEl(tableId);
+  const elRect=scrollEl?scrollEl.getBoundingClientRect():{top:0};
+  const vh=scrollEl?scrollEl.clientHeight:(window.innerHeight||document.documentElement.clientHeight||800);
+  const bodyTopY=rect.top+theadH-elRect.top;
+  const buffer=10;
+  let startIdx=Math.floor(Math.max(0,-bodyTopY)/st.rowH)-buffer;
+  startIdx=Math.max(0,Math.min(startIdx,total-1));
+  const visibleN=Math.ceil(vh/st.rowH)+buffer*2;
+  let endIdx=Math.min(total,startIdx+visibleN);
+  const topH=startIdx*st.rowH;
+  const bottomH=(total-endIdx)*st.rowH;
+  let html='';
+  if(topH>0)html+=`<tr aria-hidden="true" style="height:${topH}px;padding:0;border:0;"><td colspan="${colspan}" style="padding:0;border:0;"></td></tr>`;
+  for(let i=startIdx;i<endIdx;i++)html+=rowHtmlFn(st.rows[i]);
+  if(bottomH>0)html+=`<tr aria-hidden="true" style="height:${bottomH}px;padding:0;border:0;"><td colspan="${colspan}" style="padding:0;border:0;"></td></tr>`;
+  tbody.innerHTML=html;
+  // أول صف حقيقي: لو فيه صف تباعد علوي هو التاني (index 1)، وإلا الأول (index 0) —
+  // من غير ما نحتاج نضيف أي data-attribute لقالب كل جدول لوحده
+  const firstReal=tbody.children[topH>0?1:0];
+  if(firstReal&&!st.correcting){
+    const h=firstReal.getBoundingClientRect().height;
+    if(h>10&&Math.abs(h-st.rowH)>2){
+      st.rowH=h;st.correcting=true;
+      _vtRenderSlice(tableId,rowHtmlFn,colspan,emptyMsg);
+      st.correcting=false;
+    }
+  }
+}
+function _vtOnScrollOrResize(tableId,rowHtmlFn,colspan,emptyMsg){
+  const sec=$('s-'+VTABLE_SECTION_OF[tableId]);
+  if(sec&&!sec.classList.contains('active'))return;
+  requestAnimationFrame(()=>_vtRenderSlice(tableId,rowHtmlFn,colspan,emptyMsg));
+}
+function _vtBind(tableId,rowHtmlFn,colspan,emptyMsg){
+  const st=_vtState(tableId);
+  if(st.bound)return;
+  st.bound=true;
+  const scrollEl=_vtGetScrollEl(tableId);
+  const handler=()=>_vtOnScrollOrResize(tableId,rowHtmlFn,colspan,emptyMsg);
+  (scrollEl||window).addEventListener('scroll',handler,{passive:true});
+  window.addEventListener('resize',handler);
+}
+// خريطة تقريبية (اختيارية) لاسم الشاشة اللي كل جدول فيها — بتستخدم بس كتحسين
+// أداء بسيط (منمنعش إعادة الرسم أثناء السكرول لو الشاشة مش ظاهرة أصلاً)؛ لو
+// جدول مش موجود في الخريطة، بيرسم عادي من غير الفحص ده (آمن، مش شرط أساسي)
+const VTABLE_SECTION_OF={
+  'sales-tbl':'sales','rcpt-tbl':'rcpt','wo-tbl':'wo','maintinv-tbl':'maintinv',
+  'purch-tbl':'purch','custody-tbl':'custody','exp-tbl':'exp','returns-tbl':'returns',
+  'deferred-tbl':'deferred','cust-tbl':'customers'
+};
+// الدالة الرئيسية اللي بتستخدمها كل شاشة: بتاخد الـid والبيانات المرتبة/المفلترة
+// خلاص ودالة رسم الصف (نفس الـtemplate القديم بالظبط، من غير أي تعديل فيه) وعدد
+// الأعمدة، وبترسم بس الجزء الظاهر فعليًا على الشاشة
+function renderVirtualTable(tableId,rows,rowHtmlFn,colspan,emptyMsg){
+  const st=_vtState(tableId);
+  st.rows=rows;
+  _vtBind(tableId,rowHtmlFn,colspan,emptyMsg);
+  _vtRenderSlice(tableId,rowHtmlFn,colspan,emptyMsg);
+}
+// بحث نصي عام على مستوى البيانات (مش DOM) — بديل لسلوك srch() القديم اللي كان
+// بيدوّر في textContent كل صف معروض فعليًا بالفحص المباشر؛ هنا بندوّر بعمق محدود
+// (٣ مستويات: يكفي لعنصر زي فاتورة فيها مصفوفة items فيها كائنات فيها name) في
+// كل قيمة نصية/رقمية في عنصر البيانات نفسه، فبيغطي أي حقل ظاهر في الصف تقريبًا
+// من غير ما نحتاج نكتب قايمة حقول بحث يدوية لكل جدول لوحده
+function _vtValueMatchesQuery(val,q,depth){
+  if(val==null)return false;
+  const t=typeof val;
+  if(t==='string')return val.toLowerCase().includes(q);
+  if(t==='number')return String(val).includes(q);
+  if(depth<=0)return false;
+  if(Array.isArray(val)){
+    for(let i=0;i<val.length;i++)if(_vtValueMatchesQuery(val[i],q,depth-1))return true;
+    return false;
+  }
+  if(t==='object'){
+    for(const k in val){if(_vtValueMatchesQuery(val[k],q,depth-1))return true;}
+    return false;
+  }
+  return false;
+}
+function applyVTableSearch(tableId,rows){
+  const q=(VTABLE_SEARCH_Q[tableId]||'').trim().toLowerCase();
+  if(!q)return rows;
+  return rows.filter(it=>_vtValueMatchesQuery(it,q,3));
 }
 // بيتنادى من onclick على أي عنوان عمود قابل للترتيب
 function toggleColSort(tableId,field,rerenderFn){
@@ -5529,8 +5694,8 @@ function renderRcpts(f){
   TABLE_LAST_FILTER['rcpt-tbl']=f;
   const el=$('rcpt-tbl');if(!el)return;
   let rows=applyTableSort('rcpt-tbl',DB.receipts.filter(r=>(f==='all'||r.status===f)&&isMyBranch(r)));
-  const cap=applyDisplayCap('rcpt-tbl',rows);
-  el.innerHTML=cap.visible.map(r=>`<tr>
+  rows=applyVTableSearch('rcpt-tbl',rows);
+  renderVirtualTable('rcpt-tbl',rows,r=>`<tr>
     <td><strong>${e(r.id)}</strong></td>
     <td>${e(r.customer)}${r.center?' <span class="badge b-bl" style="font-size:9px;" title="جاي من مركز خدمة">🏢 '+e(r.center)+'</span>':''}</td><td>${e(r.customerPhone||'')}</td>
     <td>${e(r.device)}</td>
@@ -5544,7 +5709,7 @@ function renderRcpts(f){
       <button class="btn btn-sm" onclick="openEditRcpt('${e(r.id)}')" title="تعديل">✏️ تعديل</button>
       ${r.status!=='cancelled'&&r.status!=='done'?`<button class="btn btn-sm btn-r" onclick="cancelRcpt('${e(r.id)}')" title="إلغاء / مرتجع" style="padding:3px 7px;">✗</button>`:''}
     </td>
-  </tr>`).join('')+showAllBannerRow('rcpt-tbl',cap,`renderRcpts(${JSON.stringify(f)});`);
+  </tr>`,99,'لا توجد إيصالات');
 }
 function fltRcpt(f,el){document.querySelectorAll('#s-rcpt .chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');renderRcpts(f);}
 
@@ -6332,14 +6497,14 @@ function renderExp(){
   // خصوصية: مصروفات الموظفين الحساسة (رواتب/سلف/مكافآت/تأمينات) بتفضل مخفية تمامًا عن
   // أي حد غير المدير — مش لازم الكاشير يشوف إن زميله أخد سلفة أو راتبه قد إيه
   const isAdminUser=canSwitchBranch(); // المدير أو المحاسب صاحب صلاحية العرض الكامل
-  const rows=applyTableSort('exp-tbl',DB.expenses.filter(e=>(_expFilter==='all'||(_expFilter==='doc'?e.hasInvoice:!e.hasInvoice))&&isMyBranch(e)&&(isAdminUser||!COMPANY_WIDE_EXPENSE_TYPES.has(e.type))));
-  const cap=applyDisplayCap('exp-tbl',rows);
-  $('exp-tbl').innerHTML=cap.visible.map(e=>`<tr${e.pendingCustody?' style="background:#fff8e1;"':(e.excludedAsInventoryPurchase?' style="background:#eef7ff;opacity:0.75;"':'')}>
+  let rows=applyTableSort('exp-tbl',DB.expenses.filter(e=>(_expFilter==='all'||(_expFilter==='doc'?e.hasInvoice:!e.hasInvoice))&&isMyBranch(e)&&(isAdminUser||!COMPANY_WIDE_EXPENSE_TYPES.has(e.type))));
+  rows=applyVTableSearch('exp-tbl',rows);
+  renderVirtualTable('exp-tbl',rows,e=>`<tr${e.pendingCustody?' style="background:#fff8e1;"':(e.excludedAsInventoryPurchase?' style="background:#eef7ff;opacity:0.75;"':'')}>
     <td><strong>${escapeHtml(e.id)}</strong></td><td>${escapeHtml(e.desc)}${e.hasInvoice?' <span class="badge b-gn" style="font-size:9px;" title="'+escapeHtml(e.docRef||'موثق بفاتورة')+'">📄 موثق</span>':' <span class="badge b-gy" style="font-size:9px;">بدون فاتورة</span>'}${e.pendingCustody?' <span class="badge b-am" style="font-size:9px;" title="المبلغ ده خرج من الخزنة فعليًا، لكن لسه مش مصروف مؤكد محاسبيًا — سوّي العهدة عشان يتأكد">⏳ تحت التسوية</span>':''}${e.excludedAsInventoryPurchase?' <span class="badge b-bl" style="font-size:9px;" title="اتحولت لفاتورة مشتريات — التكلفة هتتحسب من هناك وقت البيع، مش هنا">📦 محسوبة مع فاتورة المشتريات</span>':''}</td>
     <td><span class="badge b-pp">${escapeHtml(e.type)}</span></td>
     <td><strong>${fmtN(e.amount)} ج</strong></td><td>${escapeHtml(e.date)}</td><td>${escapeHtml(e.payment)}</td>
     <td style="display:flex;gap:3px;flex-wrap:wrap;"><button class="btn btn-sm" onclick="viewItem('exp','${e.id}')">👁 معاينة</button>${(CURRENT_USER&&CURRENT_USER.role==='admin')?`<button class="btn btn-sm" onclick="openEditExpense('${e.id}')" title="تعديل المصروف">✏️ تعديل</button><button class="btn btn-sm" onclick="convertExpToAsset('${e.id}')" title="حوّل لأصل ثابت (لو المصروف ده شراء جهاز/معدة مش استهلاكي)" style="color:#6a1b9a;">🏢 تحويل أصول</button><button class="btn btn-sm btn-r" onclick="deleteExpense('${e.id}')" title="إلغاء المصروف">🗑</button>`:``}
-  </tr>`).join('')+showAllBannerRow('exp-tbl',cap,'renderExp();');
+  </tr>`,99,'لا توجد مصروفات');
 }
 function deleteExpense(id){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
@@ -6369,14 +6534,28 @@ function deleteExpense(id){
 }
 // renderProds: see renderProdsFiltered below
 function renderCusts(){
-  $('cust-tbl').innerHTML=DB.customers.map(c=>`<tr>
+  if(!$('cust-tbl'))return;
+  // إصلاح أداء إضافي (نفس فئة باگ دمج فايربيز اللي اتصلح فوق): كان بيتعمل ٤ عمليات
+  // .filter() على DB.sales/taxInvoices/maintInvoices بالكامل لكل عميل لوحده — يعني
+  // O(عدد العملاء × عدد كل الفواتير)، وده بيتقل جدًا مع مرور الوقت (محل عنده آلاف
+  // العملاء وآلاف الفواتير = ملايين المقارنات في كل رسمة لشاشة العملاء). الحل: نمر
+  // على كل الفواتير مرة واحدة بس ونبني خريطة (Map) لعدد فواتير كل عميل بالاسم —
+  // نفس النتيجة بالظبط، تكلفة O(عملاء + فواتير) بدل الضرب فيهم في بعض.
+  const _custTxCount=new Map();
+  const _bump=(name)=>{if(!name)return;_custTxCount.set(name,(_custTxCount.get(name)||0)+1);};
+  DB.sales.forEach(s=>_bump(s.customer));
+  (DB.taxInvoices||[]).forEach(t=>{if(t.taxType==='sale'||t.taxType==='maint'||t.type==='tax-maint')_bump(t.customer);});
+  (DB.maintInvoices||[]).forEach(m=>_bump(m.customer));
+  let rows=DB.customers.map(c=>({...c,_txCount:_custTxCount.get(c.name)||0}));
+  rows=applyVTableSearch('cust-tbl',rows);
+  renderVirtualTable('cust-tbl',rows,c=>`<tr>
     <td><code style="font-size:10px;background:#f0f0f0;padding:2px 5px;border-radius:3px;">${escapeHtml(c.id)}</code></td>
     <td><strong>${escapeHtml(c.name)}</strong>${c.type==='عميل VIP'?' <span class="badge b-am">VIP</span>':''}</td>
     <td>${escapeHtml(c.phone)}</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.address)}</td>
     <td><span class="badge b-gy">${escapeHtml(c.type)}</span></td>
-    <td>${DB.sales.filter(s=>s.customer===c.name).length+(DB.taxInvoices||[]).filter(t=>t.taxType==='sale'&&t.customer===c.name).length+(DB.maintInvoices||[]).filter(m=>m.customer===c.name).length+(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&t.customer===c.name).length}</td>
+    <td>${c._txCount}</td>
     <td style="display:flex;gap:3px;"><button class="btn btn-sm" onclick="viewItem('cust','${c.id}')">👁 معاينة</button><button class="btn btn-sm btn-r" onclick="deleteCust('${c.id}')" title="حذف العميل">🗑</button></td>
-  </tr>`).join('');
+  </tr>`,6,'لا يوجد عملاء');
 }
 // ======= مراكز الخدمة: سجل مستقل تمامًا عن العملاء، كل مركز بحسابه الخاص =======
 function renderServiceCenters(){
@@ -9272,8 +9451,8 @@ function renderReturns(f){
     purch:'<span class="badge b-tl">↩ مشتريات</span>'
   };
   let rows=applyTableSort('returns-tbl',(f==='all'?DB.returns:DB.returns.filter(r=>r.type===f)).filter(r=>isMyBranch(r)).map(r=>({...r,total:r.amount||0})));
-  const cap=applyDisplayCap('returns-tbl',rows);
-  el.innerHTML=rows.length?cap.visible.map(r=>`<tr>
+  rows=applyVTableSearch('returns-tbl',rows);
+  renderVirtualTable('returns-tbl',rows,r=>`<tr>
     <td><strong>${e(r.id)}</strong></td>
     <td>${typeBadge2[r.type]||e(r.type)}</td>
     <td><span class="link-badge">${e(r.ref||'—')}</span></td>
@@ -9283,7 +9462,7 @@ function renderReturns(f){
     <td>${e(r.reason)}</td>
     <td>${e(r.date)}</td>
     <td style="display:flex;gap:3px;"><button class="btn btn-sm" onclick="viewReturn('${e(r.id)}')">👁 معاينة</button><button class="btn btn-sm btn-r" onclick="deleteReturn('${e(r.id)}')" title="حذف المرتجع وعكس أثره">🗑</button></td>
-  </tr>`).join('')+showAllBannerRow('returns-tbl',cap,`renderReturns(${JSON.stringify(f)});`):'<tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px;">لا توجد مرتجعات</td></tr>';
+  </tr>`,9,'لا توجد مرتجعات');
 }
 function deleteReturn(id){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
@@ -10931,8 +11110,8 @@ window.e=escapeHtml;
 function saveUsers(u){
   localStorage.setItem('sz_users',JSON.stringify(u));
   localStorage.setItem('sz_users_ts',String(Date.now()));
-  // مزامنة المستخدمين مع السحابة فوراً
-  if(typeof saveToFirebase==='function'){try{saveToFirebase(DB);}catch(e){}}
+  // مزامنة المستخدمين مع السحابة (مجمّعة/debounced زي أي حفظة تانية — راجع scheduleFirebaseSync)
+  if(typeof scheduleFirebaseSync==='function')scheduleFirebaseSync();
 }
 function getUsersBlob(){
   let list=null;try{const r=localStorage.getItem('sz_users');if(r)list=JSON.parse(r);}catch(e){}
@@ -14129,9 +14308,9 @@ function renderSales(f){
   TABLE_LAST_FILTER['sales-tbl']=f;
   const sales=DB.sales.filter(s=>(f==='all'||s.status===f)&&isMyBranch(s)).map(s=>({...s,_tax:false}));
   const taxS=(DB.taxInvoices||[]).filter(t=>t.taxType==='sale'&&(f==='all'||t.status===f)&&isMyBranch(t)).map(t=>({...t,_tax:true}));
-  const all=applyTableSort('sales-tbl',[...sales,...taxS]);
-  const cap=applyDisplayCap('sales-tbl',all);
-  $('sales-tbl').innerHTML=cap.visible.map(s=>{
+  let all=applyTableSort('sales-tbl',[...sales,...taxS]);
+  all=applyVTableSearch('sales-tbl',all);
+  renderVirtualTable('sales-tbl',all,s=>{
     const tot=s.total||0;
     const isDeferred=(s.payment==='آجل'||s.status==='pending');
     // كاش/فيزا/تحويل/شيك: المدفوع = الإجمالي، متبقي = 0 — الآجل فقط يحسب من DB.payments
@@ -14142,7 +14321,7 @@ function renderSales(f){
     return s._tax
     ?`<tr style="background:${hasRet?'#ffebee':'#fff8e1'};"><td><strong style="color:${hasRet?'#c62828':'#e65100'};">${e(s.id)}</strong>${hasRet?' <span class="badge b-rd" style="font-size:9px;">↩ مرتجع</span>':''} <span class="badge b-am" style="font-size:9px;">ض</span>${isDeferred?'<span class="badge b-rd" style="font-size:9px;">آجل</span>':''}</td><td>${e(s.customer)}</td><td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(s.items||[]).map(i=>e(i.name)+'×'+i.qty).join(', ')}</td><td><strong>${fmtN(tot)} ج</strong></td><td style="color:#2e7d32;">${fmtN(paid)} ج</td><td style="color:${isDeferred&&remain>0?'#c62828':'#2e7d32'};font-weight:bold;">${isDeferred&&remain>0?fmtN(remain)+' ج':'✓'}</td><td>${e(s.date)}</td><td>${pmtBadge(remain,tot,s.payment)}</td><td style="display:flex;gap:2px;flex-wrap:wrap;">${isDeferred&&remain>0?`<button class="btn btn-sm btn-g" onclick="openPaymentModal('sale','${s.id}',${tot},'${cust}')" title="دفعة آجل">💳</button>`:''}<button class="btn btn-sm" onclick="editTaxSaleInv('${s.id}')">✏️ تعديل</button><button class="btn btn-sm" onclick="printDtaxDoc((DB.taxInvoices||[]).find(x=>x.id==='${s.id}'))" style="color:#1a3a5c;">🖨️ طباعة</button><button class="btn btn-sm" onclick="waTaxInv('${s.id}')" title="واتساب للعميل" style="color:#25D366;">📱</button></td></tr>`
     :`<tr style="${hasRet?'background:#ffebee;':isDeferred&&remain>0?'background:#fff3e0;':''}"><td><strong style="${hasRet?'color:#c62828;':''}">${e(s.id)}</strong>${hasRet?'<span class="badge b-rd" style="font-size:9px;margin-right:2px;">↩ مرتجع</span>':''}${isDeferred&&remain>0?'<span class="badge b-rd" style="font-size:9px;margin-right:2px;">آجل</span>':''}</td><td>${e(s.customer)}</td><td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(s.items||[]).map(i=>e(i.name)+'×'+i.qty).join(', ')}</td><td><strong>${fmtN(tot)} ج</strong></td><td style="color:#2e7d32;">${fmtN(paid)} ج</td><td style="color:${isDeferred&&remain>0?'#c62828':'#2e7d32'};font-weight:bold;">${isDeferred&&remain>0?fmtN(remain)+' ج':'✓'}</td><td>${e(s.date)}</td><td>${pmtBadge(remain,tot,s.payment)}</td><td style="display:flex;gap:2px;flex-wrap:wrap;">${isDeferred&&remain>0?`<button class="btn btn-sm btn-g" onclick="openPaymentModal('sale','${s.id}',${tot},'${cust}')" title="دفعة آجل">💳</button>`:''}<button class="btn btn-sm" onclick="viewItem('sale','${s.id}')">👁 معاينة</button><button class="btn btn-sm" onclick="openEditSale('${s.id}')">✏️ تعديل</button><button class="btn btn-sm" onclick="printSaleInv(DB.sales.find(x=>x.id==='${s.id}'))" style="color:#1a3a5c;">🖨️ طباعة</button><button class="btn btn-sm" onclick="printTaxInv('sale',DB.sales.find(x=>x.id==='${s.id}'))" style="color:#e65100;">🧾 ضريبية</button><button class="btn btn-sm" onclick="waSale('${s.id}')" title="واتساب للعميل" style="color:#25D366;">📱</button></td></tr>`;
-  }).join('')+showAllBannerRow('sales-tbl',cap,`renderSales(${JSON.stringify(f)});`);
+  },99,'مفيش مبيعات');
 }
 
 // ============================================================
@@ -14161,9 +14340,9 @@ function renderMaintInvs(){
   if(thead)thead.innerHTML='<th data-sort-field="id" data-label="رقم الفاتورة" onclick="toggleColSort(\'maintinv-tbl\',\'id\',renderMaintInvs)" style="cursor:pointer;">رقم الفاتورة</th><th>رقم الأمر</th><th>العميل</th><th>الجهاز</th><th data-sort-field="total" data-label="الإجمالي" onclick="toggleColSort(\'maintinv-tbl\',\'total\',renderMaintInvs)" style="cursor:pointer;">الإجمالي</th><th>المدفوع</th><th>المتبقى</th><th>نوع المغادرة</th><th data-sort-field="date" data-label="التاريخ" onclick="toggleColSort(\'maintinv-tbl\',\'date\',renderMaintInvs)" style="cursor:pointer;">التاريخ</th><th></th>';
   const normal=(DB.maintInvoices||[]).filter(m=>isMyBranch(m)).map(m=>({...m,_tax:false,total:m.total||m.cost||0}));
   const taxM=(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&isMyBranch(t)).map(t=>({...t,_tax:true}));
-  const allRows=applyTableSort('maintinv-tbl',[...normal,...taxM]);
-  const cap=applyDisplayCap('maintinv-tbl',allRows);
-  el.innerHTML=allRows.length?cap.visible.map(m=>{
+  let allRows=applyTableSort('maintinv-tbl',[...normal,...taxM]);
+  allRows=applyVTableSearch('maintinv-tbl',allRows);
+  renderVirtualTable('maintinv-tbl',allRows,m=>{
     const tot=m._tax?(m.total||0):(m.cost||0);
     const isDeferred=(m.payment==='آجل'||m.payment==='معلق');
     const paid=m.exit==='warranty'?0:isDeferred?getPaid('maint',m.id):tot;
@@ -14185,8 +14364,7 @@ function renderMaintInvs(){
         <button class="btn btn-sm" onclick="${m._tax?`printTaxMaintFromRec('${m.id}')`:`printTaxInv('maint',(DB.maintInvoices||[]).find(x=>x.id==='${m.id}'))`}" style="color:#e65100;">🧾 ضريبية</button>
       </td>
     </tr>`;
-  }).join(''):'<tr><td colspan="10" style="text-align:center;color:#aaa;padding:20px;">لا توجد فواتير</td></tr>';
-  if(allRows.length)el.innerHTML+=showAllBannerRow('maintinv-tbl',cap,'renderMaintInvs();');
+  },10,'لا توجد فواتير');
 }
 
 // ============================================================
@@ -14195,9 +14373,9 @@ function renderPurch(f){
   TABLE_LAST_FILTER['purch-tbl']=f;
   const thead=document.querySelector('#purch-tbl')?.closest('table')?.querySelector('thead tr');
   if(thead)thead.innerHTML='<th data-sort-field="id" data-label="رقم" onclick="toggleColSort(\'purch-tbl\',\'id\',()=>renderPurch(TABLE_LAST_FILTER[\'purch-tbl\']||\'all\'))" style="cursor:pointer;">رقم</th><th>المورد</th><th>الصنف</th><th>كمية</th><th>سعر شراء</th><th>سعر بيع</th><th data-sort-field="total" data-label="الإجمالي" onclick="toggleColSort(\'purch-tbl\',\'total\',()=>renderPurch(TABLE_LAST_FILTER[\'purch-tbl\']||\'all\'))" style="cursor:pointer;">الإجمالي</th><th>المدفوع</th><th>المتبقى</th><th data-sort-field="date" data-label="التاريخ" onclick="toggleColSort(\'purch-tbl\',\'date\',()=>renderPurch(TABLE_LAST_FILTER[\'purch-tbl\']||\'all\'))" style="cursor:pointer;">التاريخ</th><th>النوع</th><th>الدفع</th><th></th>';
-  const purchRows=applyTableSort('purch-tbl',DB.purchases.filter(p=>(f==='all'||p.type===f)&&isMyBranch(p)));
-  const cap=applyDisplayCap('purch-tbl',purchRows);
-  $('purch-tbl').innerHTML=cap.visible.map(p=>{
+  let purchRows=applyTableSort('purch-tbl',DB.purchases.filter(p=>(f==='all'||p.type===f)&&isMyBranch(p)));
+  purchRows=applyVTableSearch('purch-tbl',purchRows);
+  renderVirtualTable('purch-tbl',purchRows,p=>{
     const tot=p.total||0;
     const hasRet=(DB.returns||[]).some(r=>r.type==='purch'&&r.ref===p.id);
     const isDeferred=(p.payment==='آجل'||p.payment==='معلق');
@@ -14211,15 +14389,15 @@ function renderPurch(f){
     const sellCell=multi?'—':(p.sellPrice?fmtN(p.sellPrice)+' ج':'—');
     return`<tr style="${hasRet?'background:#ffebee;':(isDeferred&&remain>0?'background:#fff3e0;':'')}"><td><strong>${e(p.id)}</strong>${hasRet?'<span class="badge b-rd" style="font-size:9px;margin-right:2px;">↩ مرتجع</span>':''}${isDeferred&&remain>0?'<span class="badge b-rd" style="font-size:9px;">آجل</span>':''}</td><td>${e(p.supplier)}</td><td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(multi?p.items.map(i=>i.name+' ×'+i.qty).join(' | '):p.product||'')}">${prodCell}</td><td>${p.qty}</td><td>${buyCell}</td><td>${sellCell}</td><td><strong>${fmtN(tot)} ج</strong></td><td style="color:#2e7d32;">${fmtN(paid)} ج</td><td style="color:${remain>0?'#c62828':'#2e7d32'};font-weight:bold;">${remain>0?fmtN(remain)+' ج':'✓'}</td><td>${e(p.date)}</td><td>${typeBadge(p.type)}</td><td><span class="badge ${isDeferred?'b-rd':p.payment==='فيزا'?'b-bl':p.payment==='كاش'?'b-gn':'b-gy'}">${e(p.payment||'كاش')}</span>${p.pendingName?'<br><span style="font-size:10px;color:#888;">'+e(p.pendingName)+'</span>':''}</td><td style="display:flex;gap:2px;">${isDeferred&&remain>0?`<button class="btn btn-sm btn-g" onclick="openPaymentModal('purch','${p.id}',${tot},'${sup}')" title="تسجيل دفعة آجل">💳</button>`:''}<button class="btn btn-sm" onclick="viewItem('purch','${p.id}')">👁 معاينة</button><button class="btn btn-sm" onclick="printPurch('${p.id}')" title="طباعة الفاتورة">🖨️ طباعة</button>${CURRENT_USER&&CURRENT_USER.role==='admin'?`<button class="btn btn-sm" onclick="openEditPurch('${p.id}')" title="تعديل (مدير)">✏️ تعديل</button>`:''}
 </td></tr>`;
-  }).join('')+showAllBannerRow('purch-tbl',cap,`renderPurch(${JSON.stringify(f)});`);
+  },99,'لا توجد مشتريات');
 }
 function renderCustody(){
   TABLE_LAST_FILTER['custody-tbl']='all';
   const thead=document.querySelector('#custody-tbl')?.closest('table')?.querySelector('thead tr');
   if(thead)thead.innerHTML='<th data-sort-field="id" data-label="رقم العهدة" onclick="toggleColSort(\'custody-tbl\',\'id\',renderCustody)" style="cursor:pointer;">رقم العهدة</th><th>المسؤول</th><th>البنود</th><th data-sort-field="total" data-label="القيمة" onclick="toggleColSort(\'custody-tbl\',\'total\',renderCustody)" style="cursor:pointer;">القيمة</th><th data-sort-field="date" data-label="تاريخ الاستلام" onclick="toggleColSort(\'custody-tbl\',\'date\',renderCustody)" style="cursor:pointer;">تاريخ الاستلام</th><th>الحالة</th><th></th>';
-  const custRows=applyTableSort('custody-tbl',DB.custody.filter(c=>isMyBranch(c)).map(c=>({...c,total:c.value||0})));
-  const cap=applyDisplayCap('custody-tbl',custRows);
-  $('custody-tbl').innerHTML=cap.visible.map(c=>`<tr><td><strong>${e(c.id)}</strong></td><td>${e(c.person)}</td><td><span class="badge b-bl">${e(c.custodyType||c.type||'—')}</span></td><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e(c.items)}</td><td>${fmtN(c.value||0)} ج</td><td>${e(c.date)}</td><td>${sBadge(c.status)}</td><td style="display:flex;gap:3px;"><button class="btn btn-sm" onclick="viewItem('custody','${c.id}')">👁 معاينة</button>${c.isCash&&!c.settled?`<button class="btn btn-sm btn-g" onclick="openSettleCashCustody('${c.id}')">✔ تسوية</button>`:''}</td></tr>`).join('')+showAllBannerRow('custody-tbl',cap,'renderCustody();');
+  let custRows=applyTableSort('custody-tbl',DB.custody.filter(c=>isMyBranch(c)).map(c=>({...c,total:c.value||0})));
+  custRows=applyVTableSearch('custody-tbl',custRows);
+  renderVirtualTable('custody-tbl',custRows,c=>`<tr><td><strong>${e(c.id)}</strong></td><td>${e(c.person)}</td><td><span class="badge b-bl">${e(c.custodyType||c.type||'—')}</span></td><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e(c.items)}</td><td>${fmtN(c.value||0)} ج</td><td>${e(c.date)}</td><td>${sBadge(c.status)}</td><td style="display:flex;gap:3px;"><button class="btn btn-sm" onclick="viewItem('custody','${c.id}')">👁 معاينة</button>${c.isCash&&!c.settled?`<button class="btn btn-sm btn-g" onclick="openSettleCashCustody('${c.id}')">✔ تسوية</button>`:''}</td></tr>`,99,'لا توجد عهد');
 }
 
 // ============================================================
@@ -14420,7 +14598,16 @@ const _TABLE_RENDER_FN={
 // أول 150 من غير أي تنبيه — باگ حقيقي اكتُشف من مستخدم حقيقي في شاشة المخزون). دلوقتي
 // أول ما تكتب حرف حقيقي للبحث، بنجبر "عرض الكل" لنفس الجدول ده تلقائيًا الأول (لو
 // معروضش بالفعل)، وبعدين نطبّق فلترة النص — يعني البحث بقى شامل كل البيانات دايمًا.
+// الجداول اللي بقت بتستخدم التمرير الافتراضي (renderVirtualTable) — البحث فيها
+// بقى فلترة على مستوى البيانات (VTABLE_SEARCH_Q + إعادة رسم) مش إخفاء DOM، لأن
+// أغلب الصفوف أصلاً مش موجودة في الـDOM في نفس اللحظة عشان الجدول يفضل خفيف
+const VTABLE_IDS=new Set(['sales-tbl','rcpt-tbl','wo-tbl','maintinv-tbl','purch-tbl','custody-tbl','exp-tbl','returns-tbl','deferred-tbl','cust-tbl']);
 function srch(id,q){
+  if(VTABLE_IDS.has(id)){
+    VTABLE_SEARCH_Q[id]=q||'';
+    if(_TABLE_RENDER_FN[id])_TABLE_RENDER_FN[id]();
+    return;
+  }
   let t=$(id);if(!t)return;
   const q2=q.trim().toLowerCase();
   if(q2&&!TABLE_SHOW_ALL[id]&&_TABLE_RENDER_FN[id]){
@@ -15032,8 +15219,8 @@ function renderWOs(f){
   TABLE_LAST_FILTER['wo-tbl']=f;
   const el=$('wo-tbl');if(!el)return;
   let rows=applyTableSort('wo-tbl',DB.workOrders.filter(w=>(f==='all'||w.status===f)&&isMyBranch(w)));
-  const cap=applyDisplayCap('wo-tbl',rows);
-  el.innerHTML=cap.visible.map(w=>`<tr><td><strong>${e(w.id)}</strong></td><td><span class="link-badge">📄 ${e(w.rcptId)}</span></td><td>${e(w.customer)}</td><td>${e(w.device||'')} ${e(w.brand||'')}</td><td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e(w.works||'—')}</td><td>${w.exit==='warranty'?'<span style="color:#6a1b9a;font-weight:bold;">مجاني</span>':fmtN(w.total||((w.cost||0)+(w.labor||0)))+' ج'}</td><td>${exitBadge(w.exit)}</td><td>${e(w.date)}</td><td>${woBadge(w.status)}</td><td style="display:flex;gap:3px;flex-wrap:wrap;"><button class="btn btn-sm" onclick="printWODoc(DB.workOrders.find(x=>x.id==='${w.id}'))">🖨️ طباعة</button><button class="btn btn-sm" onclick="openEditWO('${w.id}')">✏️ تعديل</button><button class="btn btn-sm btn-r" onclick="cancelWO('${w.id}')" title="إلغاء أمر الشغل بالكامل — يرجّع قطع الغيار للمخزون ويفتح إذن الاستلام تاني">🗑 إلغاء</button><button class="btn btn-sm" onclick="waWO('${w.id}')" title="واتساب: الجهاز جاهز للاستلام" style="color:#25D366;">📱</button>${w.status!=='done'?`<button class="btn btn-sm btn-r" onclick="openMaintInvFromWO('${w.id}')" style="font-size:10px;">🧾 فاتورة</button>`:''}${w.status!=='done'&&w.exit==='warranty'?`<button class="btn btn-sm btn-pu" onclick="closeWOWarranty('${w.id}')" style="font-size:10px;">🛡 تسليم</button>`:''}</td></tr>`).join('')+showAllBannerRow('wo-tbl',cap,`renderWOs(${JSON.stringify(f)});`);
+  rows=applyVTableSearch('wo-tbl',rows);
+  renderVirtualTable('wo-tbl',rows,w=>`<tr><td><strong>${e(w.id)}</strong></td><td><span class="link-badge">📄 ${e(w.rcptId)}</span></td><td>${e(w.customer)}</td><td>${e(w.device||'')} ${e(w.brand||'')}</td><td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e(w.works||'—')}</td><td>${w.exit==='warranty'?'<span style="color:#6a1b9a;font-weight:bold;">مجاني</span>':fmtN(w.total||((w.cost||0)+(w.labor||0)))+' ج'}</td><td>${exitBadge(w.exit)}</td><td>${e(w.date)}</td><td>${woBadge(w.status)}</td><td style="display:flex;gap:3px;flex-wrap:wrap;"><button class="btn btn-sm" onclick="printWODoc(DB.workOrders.find(x=>x.id==='${w.id}'))">🖨️ طباعة</button><button class="btn btn-sm" onclick="openEditWO('${w.id}')">✏️ تعديل</button><button class="btn btn-sm btn-r" onclick="cancelWO('${w.id}')" title="إلغاء أمر الشغل بالكامل — يرجّع قطع الغيار للمخزون ويفتح إذن الاستلام تاني">🗑 إلغاء</button><button class="btn btn-sm" onclick="waWO('${w.id}')" title="واتساب: الجهاز جاهز للاستلام" style="color:#25D366;">📱</button>${w.status!=='done'?`<button class="btn btn-sm btn-r" onclick="openMaintInvFromWO('${w.id}')" style="font-size:10px;">🧾 فاتورة</button>`:''}${w.status!=='done'&&w.exit==='warranty'?`<button class="btn btn-sm btn-pu" onclick="closeWOWarranty('${w.id}')" style="font-size:10px;">🛡 تسليم</button>`:''}</td></tr>`,99,'لا توجد أوامر شغل');
 }
 
 // ============================================================
@@ -17316,8 +17503,10 @@ function renderDeferred(){
 
   const today=todayStr;
   const el=$('deferred-tbl');if(!el)return;
-  const cap=applyDisplayCap('deferred-tbl',rows);
-  el.innerHTML=rows.length?cap.visible.map(r=>{
+  // ملحوظة: البحث بيتطبّق بس على المعروض، مش على إجمالي الآجل فوق (badge) — ده
+  // نفس السلوك القديم بالظبط (كان بحث DOM بيخفي صفوف بس، مايأثرش على الإجمالي)
+  const visRows=applyVTableSearch('deferred-tbl',rows);
+  renderVirtualTable('deferred-tbl',visRows,r=>{
     const overdue=r.due&&r.due<today;
     const dueSoon=r.due&&r.due>=today&&r.due<=(new Date(Date.now()+7*864e5)).toISOString().split('T')[0];
     const dueBadge=overdue
@@ -17339,8 +17528,7 @@ function renderDeferred(){
         <button class="btn btn-sm btn-t" onclick="printDeferredRow('${r.type}','${r.id}',${r.isTax?'true':'false'})" title="طباعة الفاتورة مباشرة">🖨️</button>
       </td>
     </tr>`;
-  }).join(''):'<tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px;">🎉 لا توجد فواتير آجلة غير مسددة</td></tr>';
-  if(rows.length)el.innerHTML+=showAllBannerRow('deferred-tbl',cap,'renderDeferred();');
+  },9,'🎉 لا توجد فواتير آجلة غير مسددة');
 }
 // طباعة مباشرة لأي فاتورة آجلة من شاشة "الآجل" نفسها، من غير المرور بشاشة "معاينة"
 // الأول — بتوجّه لدالة الطباعة الصح حسب نوع الفاتورة وهل هي ضريبية ولا لأ
@@ -18425,6 +18613,13 @@ function fsWriteAll(payload){
   ['_deleted','_counters','_users','_resetAt','_noSample','_updatedAt','_logGenesisHash'].forEach(k=>{if(payload[k]!==undefined)meta[k]=payload[k];});
   const jobs=[FS_COL.doc('_meta').set(meta)];
   const fat=[];
+  // فحص "قرب من حد السعة" بيعمل JSON.stringify لكل الـ٣١ جدول (تكلفة كبيرة، وتكرار
+  // لنفس الشغل اللي Firestore SDK نفسه هيعمله أصلاً وهو بيرفع) — التحذير ده مفيد،
+  // بس مش محتاج يتحسب في كل حفظة واحدة؛ نفس دقة التحذير (فرق أيام/ساعات) بالظبط
+  // لو اتحسب مرة كل ١٠ دقايق بس، فبنوفر الحساب ده في الغالبية العظمى من الحفظات
+  const _now=Date.now();
+  const _doSizeCheck=!window._fatCheckAt||_now-window._fatCheckAt>600000;
+  if(_doSizeCheck)window._fatCheckAt=_now;
   DB_KEYS.forEach(k=>{
     let arr=payload[k]||[];
     // syncConflicts سجل تشخيصي بس (مش بيانات عمل أساسية زي المبيعات/العملاء)،
@@ -18444,7 +18639,9 @@ function fsWriteAll(payload){
       arr=trimmed;
     }
     const shard={d:arr,_updatedAt:payload._updatedAt||Date.now()};
-    try{const len=JSON.stringify(shard).length;if(len>780000)fat.push(k+' ('+Math.round(len/10485.76)+'%)');}catch(e){}
+    if(_doSizeCheck){
+      try{const len=JSON.stringify(shard).length;if(len>780000)fat.push(k+' ('+Math.round(len/10485.76)+'%)');}catch(e){}
+    }
     jobs.push(FS_COL.doc(k).set(shard));
   });
   if(fat.length){
@@ -18491,24 +18688,41 @@ function saveToFirebase(localData,overwrite){
       .catch(err=>fbStatusErr(fbDiagnose(err)));
   }
   // جلب آخر نسخة من السحاب ودمجها مع البيانات المحلية قبل الرفع
-  (window._fbReady||Promise.resolve()).then(()=>fsReadAll()).then(doc=>{
+  // مهم: لازم نعمل return هنا للـpromise chain كله — من غيرها saveToFirebase()
+  // كانت بترجع undefined فورًا في المسار العادي ده (أغلب الحفظات)، يعني أي كود
+  // بيستنى نتيجتها (زي حراسة "مزامنة شغالة دلوقتي" في scheduleFirebaseSync فوق،
+  // أو أي اختبار آلي) كان بيفتكر إن المزامنة خلصت لحظيًا، فعليًا وهي لسه شغالة
+  // في الخلفية — فباب التداخل بين دورتين مزامنة متتاليتين كان لسه مفتوح
+  return (window._fbReady||Promise.resolve()).then(()=>fsReadAll()).then(doc=>{
     const remoteData=doc.exists?doc.data():{};
     // 0) لو فيه مسح شامل أحدث على السحابة، نتبنى النسخة السحابية ونسقط البيانات المحلية القديمة
     applyRemoteReset(localData,remoteData);
     // 1) دمج المحذوفات أولاً حتى لا يعود أي عنصر محذوف
     const mergedDeleted=mergeDeleted(localData._deleted,remoteData._deleted);
     // 2) دمج البيانات: لو فيه updatedAt على الجهتين — الأحدث يفوز، وإلا المحلي يفوز عند تطابق الـ id، والعناصر السحابية غير المحذوفة تُضاف
+    // ملحوظة أداء مهمة (السبب الجذري الحقيقي وراء "البرنامج بيتقّل مع الوقت"،
+    // موصوف من المستخدم كإحساس عام بثقل الجهاز أثناء التعديل/الحفظ السريع، مش بس
+    // في جدول المخزن): كان هنا remoteArr.find(...) جوه forEach على localArr —
+    // يعني بحث خطي (O(remote.length)) لكل عنصر محلي، يعني التكلفة الكلية لكل
+    // جدول كانت O(local.length × remote.length). في جدول زي "sales" بعد شهور من
+    // الاستخدام (آلاف الفواتير)، ده بيبقى ملايين المقارنات — على المعالج الرئيسي،
+    // في كل حفظة واحدة لأي سجل في أي شاشة، مش بس المبيعات. كل ما البيانات التاريخية
+    // تكبر (مش بس عدد الأصناف الحالي)، كل حفظة كانت بتتقل أكتر وأكتر — بالظبط
+    // السبب اللي بيخلي "10 آلاف صنف" (أو آلاف فواتير قديمة) كابوس أداء حقيقي.
+    // الحل: خريطة (Map) واحدة للعناصر السحابية بالـid، بحث فيها O(1) بدل O(n) —
+    // نفس النتيجة بالظبط، بس التكلفة الكلية بقت O(local.length + remote.length)
+    // مهما كبر حجم البيانات.
     const mergedData={};
     DB_KEYS.forEach(key=>{
       const delSet=new Set(mergedDeleted[key]||[]);
       const localArr=(localData[key]||[]).filter(it=>!(it&&it.id&&delSet.has(it.id)));
       const remoteArr=remoteData[key]||[];
-      const localById=new Map(localArr.filter(it=>it&&it.id).map(it=>[it.id,it]));
+      const remoteById=new Map(remoteArr.filter(it=>it&&it.id).map(it=>[it.id,it]));
       const combined=[];
       const seenIds=new Set();
       localArr.forEach(localItem=>{
         if(!localItem||!localItem.id){combined.push(localItem);return;}
-        const remoteItem=remoteArr.find(ri=>ri&&ri.id===localItem.id);
+        const remoteItem=remoteById.get(localItem.id);
         if(remoteItem&&typeof remoteItem.updatedAt==='number'&&typeof localItem.updatedAt==='number'){
           combined.push(remoteItem.updatedAt>localItem.updatedAt?remoteItem:localItem);
         }else{
