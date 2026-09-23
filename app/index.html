@@ -9571,6 +9571,18 @@ function getGithubImageCfg(){
 }
 function loadGithubImageCfg(){
   const cfg=getGithubImageCfg();
+  // جهاز جديد من غير إعداد محلي لسه — نجيبه من السحابة أول مرة لو موجود، بنفس
+  // منطق loadOnlineStoreSettings() بالظبط. المستند ده (_gh_image_cfg) مش من
+  // ضمن استثناءات القراءة العامة في firestore.rules، يعني بيفضل محمي بنفس
+  // قاعدة sz_data العامة (المدير المسجّل دخول بس، زي أي بيانات تانية حساسة).
+  if(!cfg&&FS_COL){
+    (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_gh_image_cfg').get()).then(doc=>{
+      if(doc&&doc.exists){
+        try{localStorage.setItem('sz_gh_image_cfg',JSON.stringify(doc.data()));}catch(_n){}
+        if($('stab-online')&&$('stab-online').classList.contains('active'))loadGithubImageCfg();
+      }
+    }).catch(e=>{try{logger.warn('loadGithubImageCfg failed:',e&&e.message);}catch(_n){}});
+  }
   if($('gh-owner'))$('gh-owner').value=(cfg&&cfg.owner)||'';
   if($('gh-repo'))$('gh-repo').value=(cfg&&cfg.repo)||'';
   if($('gh-branch'))$('gh-branch').value=(cfg&&cfg.branch)||'main';
@@ -9583,11 +9595,16 @@ function saveGithubImageCfg(){
   const repo=$('gh-repo')?$('gh-repo').value.trim():'';
   const branch=($('gh-branch')?$('gh-branch').value.trim():'')||'main';
   const token=$('gh-token')?$('gh-token').value.trim():'';
-  const cfg={owner,repo,branch,token};
+  const cfg={owner,repo,branch,token,updatedAt:Date.now()};
   localStorage.setItem('sz_gh_image_cfg',JSON.stringify(cfg));
   const st=$('gh-cfg-status');
   if(st)st.textContent=(owner&&repo&&token)?'✓ متصل':'محفوظ (لسه ناقص بيانات)';
   toast('✓ تم حفظ إعدادات استضافة الصور');
+  // بترفع على نفس مستند sz_data المحمي (مش أي مستند عام) — عشان تفتح البرنامج على
+  // أي جهاز/فرع تاني وتلاقيها متظبطة لوحدها، من غير ما تحتاج تكتبها تاني كل مرة
+  try{
+    if(FS_COL)(window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_gh_image_cfg').set(cfg)).catch(e=>{try{logger.warn('saveGithubImageCfg push failed:',e&&e.message);}catch(_n){}});
+  }catch(e){}
 }
 // تصغير/ضغط الصورة على جهاز المستخدم قبل الرفع (Canvas) — بيقلل حجم الملف كتير
 // (أسرع رفع، ومساحة أقل في المستودع)، وبيحوّلها JPEG موحّد بغض النظر عن الصيغة الأصلية
