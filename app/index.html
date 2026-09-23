@@ -19149,6 +19149,11 @@ function saveOnlineStoreSettings(){
   try{
     if(FS_COL)(window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_online_store_settings').set(cfg)).catch(e=>{try{logger.warn('saveOnlineStoreSettings push failed:',e&&e.message);}catch(_n){}});
   }catch(e){}
+  // زرار "حفظ" هنا هو اللي بيتستخدم عمليًا كـ"مزامنة يدوية فورية" لو حد لاحظ صنف
+  // غايب عن الموقع — فبنستخدم الفرصة نرفع كتالوج المنتجات كمان (بالإجبار، من غير
+  // التقيد بمقارنة التوقيع) مش بس إعدادات الشحن، عشان الضغطة دي تضمن فعليًا إن
+  // الموقع يتزامن مع آخر حالة للمنتجات، مش بس إعدادات الشحن والتفعيل
+  try{if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged(true);}catch(_eForce){}
 }
 // ===== محتوى صفحتي الشروط والأحكام وسياسة الخصوصية في موقع المتجر — نص عام
 // استرشادي مكتوب من الصفر بناءً على سياسات المتجر الفعلية (الدفع كاش/انستا،
@@ -19250,7 +19255,7 @@ function saveSiteContent(){
 // فيه تغيير (مقارنة "توقيع" JSON بالنسخة اللي اتبعتت قبل كدا) عشان منزودش كتابات
 // فايرستور من غير داعي كل 30 ثانية.
 let _lastPushedCatalogSig='';
-function pushOnlineCatalogIfChanged(){
+function pushOnlineCatalogIfChanged(force){
   try{
     if(!FS_COL)return;
     const items=(DB.products||[]).filter(p=>p&&p.onlineVisible).map(p=>({
@@ -19279,7 +19284,10 @@ function pushOnlineCatalogIfChanged(){
       saeedGovs:(cfg.saeedGovs&&cfg.saeedGovs.length)?cfg.saeedGovs:DEFAULT_SAEED_GOVS,
     };
     const sig=JSON.stringify({items,enabled:!!cfg.enabled,shippingPublic});
-    if(sig===_lastPushedCatalogSig)return; // مفيش تغيير فعلي عن آخر مرة اتبعتت
+    // force=true (زرار "حفظ إعدادات المتجر الأونلاين" مثلاً) بيتجاوز مقارنة التوقيع
+    // ويبعت نسخة طازة دايمًا، حتى لو التوقيع طابق آخر نسخة متسجلة كـ"اتبعتت بنجاح" —
+    // ضمان إضافي بسيط لأي حالة نادرة اتسجلت فيها نجاح بالغلط أو حصل تعارض محلي
+    if(!force&&sig===_lastPushedCatalogSig)return; // مفيش تغيير فعلي عن آخر مرة اتبعتت
     const payload={enabled:!!cfg.enabled,products:items,shipping:shippingPublic,updatedAt:Date.now()};
     (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_online_catalog').set(payload)).then(()=>{_lastPushedCatalogSig=sig;}).catch(e=>{try{logger.warn('pushOnlineCatalogIfChanged failed:',e&&e.message);}catch(_n){}});
   }catch(e){}
@@ -19931,6 +19939,16 @@ function processFirebaseDoc(doc,silent){
           if(ls)ls.textContent='⚠ مساحة المتصفح المحلي امتلأت (البيانات محفوظة بأمان في IndexedDB والسحابة)';
         }
       }
+      // إصلاح: تحديثات المنتجات (كمية/سعر/ظهور أونلاين) الواصلة هنا من جهاز أو فرع
+      // تاني (مش تعديل حصل على الجهاز ده) كانت بتتحفظ محليًا بس، من غير ما حد يبعتها
+      // لكتالوج الموقع — لأن pushOnlineCatalogIfChanged() كانت بتتنادى بس بعد تعديل
+      // يدوي مباشر (حفظ/حذف منتج) على هذا الجهاز تحديدًا. النتيجة: صنف اتغيّر من فرع
+      // تاني كان ممكن يفضل غايب أو بكمية/سعر قديم في الموقع لحد ما حد يعمل أي تعديل
+      // يدوي على الجهاز ده أو يستنى المزامنة الدورية (وهي كمان كانت بتوقف لو الشاشة
+      // مش ظاهرة — راجع الإصلاح التاني تحت). الدالة نفسها فيها فحص "توقيع" داخلي
+      // بيقارن آخر نسخة اتبعتت فعلاً، فمنادتها هنا كل مرة تحديث يوصل مش مكلفة — بترفع
+      // فايربيز فقط لو فيه فرق حقيقي.
+      try{if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();}catch(_eCat){}
       if(!silent)fbStatusOk('☁ تم التحميل وجاهز');
       if(doc.fromMain){setTimeout(()=>{try{saveToFirebase(DB);}catch(e){}},900);} // ترحيل للتخزين الموزع
       if(el){el.style.color='#81c784';el.textContent='● Firebase';}
@@ -20233,8 +20251,17 @@ setInterval(()=>{
 // pushOwnerDashboardSnapshot() نفسها فيها حد أقصى داخلي (٨ ثواني) فمفيش خطر كتابة زيادة =======
 setInterval(()=>{
   try{
-    if(document.hidden)return;
-    if(typeof CURRENT_USER==='undefined'||!CURRENT_USER)return;
+    if(typeof CURRENT_USER==='undefined'||!CURRENT_USER)return; // لسه ما سجّلتش دخول
+    // إصلاح: تحديث كتالوج المتجر الأونلاين كان تحت شرط document.hidden زي باقي المهام
+    // تحت — يعني لو البرنامج شغال بس النافذة مش هي الظاهرة دلوقتي (اليوزر مصغّرها أو
+    // فاتح برنامج تاني فوقها، حاجة عادية جدًا في الاستخدام الحقيقي)، خط الدفاع الدوري
+    // ده كان بيوقف تمامًا. النتيجة: لو تعديل صنف حصل ووقتها الرفع فشل لأي سبب عابر
+    // (نت مقطوع لحظتها مثلاً)، والبرنامج فضل شغال بس مش النافذة النشطة، الصنف كان
+    // ممكن يفضل غايب عن الموقع لحد ما حد يرجع يفتح النافذة ويعمل تعديل تاني. الرفع
+    // نفسه رخيص (بيتجاهل نفسه لو مفيش فرق فعلي عن آخر نسخة اتبعتت)، فمفيش داعي يتقيد
+    // بـdocument.hidden زي باقي القراءات الأتقل تحت.
+    if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();
+    if(document.hidden)return; // متضيّعش قراءات/كتابات تانية وانت مش شايف الصفحة أصلاً
     if(typeof pushOwnerDashboardSnapshot==='function')pushOwnerDashboardSnapshot();
     // نفس الدورة: نشوف لو المستخدم غيّر بيانات المحل/الضريبة من الموبايل عشان نطبّقها هنا
     if(typeof pullMobileEditableSettingsIfNewer==='function')pullMobileEditableSettingsIfNewer();
@@ -20244,9 +20271,6 @@ setInterval(()=>{
     if(typeof pullIncomingOnlineOrders==='function')pullIncomingOnlineOrders();
     // نفس الدورة كمان: رسائل "تواصل معنا" جديدة جاية من موقع المتجر
     if(typeof pullIncomingSiteMessages==='function')pullIncomingSiteMessages();
-    // نفس الدورة كمان: تحديث كتالوج المتجر الأونلاين لو تغيّرت كمية أو سعر أي
-    // منتج ظاهر في المتجر (مثلاً بعد بيع في المعرض العادي حرك المخزون)
-    if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();
   }catch(e){}
 },30000);
 </script>
