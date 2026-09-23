@@ -803,7 +803,7 @@ tr:hover td{background:#fafafa;}
     <button class="stab" onclick="switchStab('stab-partners',this);renderPartnersCapital()">🤝 الشركاء ورأس المال</button>
     <button class="stab" onclick="switchStab('stab-tax',this)">🧾 الضريبة</button>
     <button class="stab" onclick="switchStab('stab-counters',this)">🔢 العدادات</button>
-    <button class="stab" onclick="switchStab('stab-online',this);loadOnlineStoreSettings();loadSiteContentSettings()">🛒 المتجر الأونلاين</button>
+    <button class="stab" onclick="switchStab('stab-online',this);loadOnlineStoreSettings();loadSiteContentSettings();loadGithubImageCfg()">🛒 المتجر الأونلاين</button>
     <button class="stab" onclick="switchStab('stab-audit',this);renderAuditLog();renderSnapshots()">📜 السجل والنسخ</button>
     <button class="stab" onclick="switchStab('stab-advanced',this);renderSyncConflictLog();">🛠 متقدم</button>
 </div>
@@ -954,6 +954,31 @@ tr:hover td{background:#fafafa;}
       <input type="checkbox" id="ost-enabled" style="width:17px;height:17px;cursor:pointer;"/>
       <span>تفعيل المتجر الأونلاين <span style="color:#888;font-size:11px;font-weight:normal;">(لو متلغي، الموقع يوري "المتجر مقفول مؤقتًا" حتى لو منتجات مفعّلة)</span></span>
     </label>
+
+    <!-- استضافة صور المنتجات مجانًا عن طريق GitHub + jsdelivr، بدل "تخزين سحابي"
+         (Firebase Storage) اللي بقى محتاج خطة دفع (Blaze) وربط بطاقة بنكية حتى لو
+         الاستخدام الفعلي هيفضل صفر جنيه — الطريقة دي مجانية بالكامل ومن غير أي بطاقة =====-->
+    <div style="background:#fff8e1;border:1px solid #ffd54f;border-radius:6px;padding:12px;margin-bottom:14px;">
+      <div style="font-weight:bold;font-size:13px;color:#8d6200;margin-bottom:6px;">🖼️ استضافة صور المنتجات (مجانًا عن طريق GitHub)</div>
+      <div style="font-size:11.5px;color:#666;margin-bottom:10px;">
+        عشان زرار "رفع صورة" في شاشة تعديل الصنف يشتغل من غير أي تكلفة أو بطاقة بنكية،
+        محتاج حساب GitHub مجاني (لو مفيش عندك) + مستودع (repository) واحد فاضي تحطه هنا
+        مرة واحدة بس:
+        <br/>١. اعمل حساب على github.com (لو مفيش عندك أصلاً) وأنشئ مستودع (repository)
+        جديد فاضي، عام (Public) — مثلاً باسم <code>act-product-images</code>.
+        <br/>٢. من github.com/settings/tokens اعمل Personal Access Token (Fine-grained)
+        بصلاحية Contents: Read and write على المستودع ده بس، وانسخه هنا تحت.
+      </div>
+      <div class="fgrid">
+        <div class="fg"><label>اسم المستخدم/المنظمة على GitHub</label><input id="gh-owner" placeholder="مثلاً: actstore" type="text" style="direction:ltr;text-align:left;"/></div>
+        <div class="fg"><label>اسم المستودع (repository)</label><input id="gh-repo" placeholder="مثلاً: act-product-images" type="text" style="direction:ltr;text-align:left;"/></div>
+        <div class="fg"><label>الفرع (branch)</label><input id="gh-branch" placeholder="main" type="text" style="direction:ltr;text-align:left;"/></div>
+        <div class="fg"><label>Personal Access Token</label><input id="gh-token" placeholder="ghp_..." type="password" style="direction:ltr;text-align:left;" autocomplete="off"/></div>
+      </div>
+      <div style="font-size:10.5px;color:#999;margin:2px 0 8px;">البيانات دي متخزنة على الجهاز ده بس، ومش بتتبعت لموقع المتجر أو لأي حد تاني أبدًا.</div>
+      <button class="btn btn-sm" onclick="saveGithubImageCfg()">💾 حفظ إعدادات استضافة الصور</button>
+      <span id="gh-cfg-status" style="font-size:12px;margin-right:8px;"></span>
+    </div>
 
     <div style="font-weight:bold;font-size:13px;color:#1a3a5c;margin-bottom:8px;">🚚 أسعار الشحن</div>
     <div style="font-size:11.5px;color:#666;margin-bottom:10px;">فيه فئتين: العادية (منتج صغير/متوسط لمعظم المحافظات)، والأعلى (منتج كبير، أو الشحن لمحافظات الصعيد المحددة تحت — أي شرط منهم كافي).</div>
@@ -1802,7 +1827,7 @@ tr:hover td{background:#fafafa;}
   <div class="fg full" style="margin-top:10px;">
     <label>🖼️ صورة المنتج (اختياري — هتظهر في الموقع بدل الحرف الافتراضي)</label>
     <input type="file" id="pr-image-file" accept="image/*" onchange="handleProdImageSelect(event)"/>
-    <div style="font-size:11px;color:#888;margin:4px 0 2px;">محتاج "تخزين سحابي" (Storage) مفعّل في Firebase عشان الرفع من هنا يشتغل. لو مش متفعّل عندك، استخدم الطريقة التانية تحت دي بدلاً منه (من غير أي إعداد إضافي):</div>
+    <div style="font-size:11px;color:#888;margin:4px 0 2px;">الرفع من هنا بيستخدم استضافة GitHub المجانية لو ظبطتها في تاب "المتجر الأونلاين" فوق. لو لسه مش مضبوطة، ممكن تستخدم الطريقة التانية تحت دي بدلاً منها (لصق رابط صورة جاهز):</div>
     <div style="display:flex;gap:6px;align-items:center;margin-top:6px;">
       <input type="text" id="pr-image-url-input" placeholder="أو الصق رابط صورة من الإنترنت (مثلاً من imgbb.com)" style="flex:1;"/>
       <button type="button" class="btn btn-sm" onclick="applyProdImageUrl()">استخدم الرابط</button>
@@ -9539,7 +9564,98 @@ function openProdModal(editId){
   }
   openM('m-prod');
 }
-// ===== صورة المنتج: رفع لـ Firebase Storage، ومعاينة =====
+// ===== إعدادات استضافة صور المنتجات على GitHub (بديل مجاني لـ Firebase Storage،
+// اللي بقى محتاج خطة دفع Blaze وربط بطاقة بنكية حتى لو الاستخدام هيفضل صفر جنيه) =====
+function getGithubImageCfg(){
+  try{ const raw=localStorage.getItem('sz_gh_image_cfg'); return raw?JSON.parse(raw):null; }catch(e){ return null; }
+}
+function loadGithubImageCfg(){
+  const cfg=getGithubImageCfg();
+  if($('gh-owner'))$('gh-owner').value=(cfg&&cfg.owner)||'';
+  if($('gh-repo'))$('gh-repo').value=(cfg&&cfg.repo)||'';
+  if($('gh-branch'))$('gh-branch').value=(cfg&&cfg.branch)||'main';
+  if($('gh-token'))$('gh-token').value=(cfg&&cfg.token)||'';
+  const st=$('gh-cfg-status');
+  if(st)st.textContent=(cfg&&cfg.owner&&cfg.repo&&cfg.token)?'✓ متصل':'غير مضبوط لسه';
+}
+function saveGithubImageCfg(){
+  const owner=$('gh-owner')?$('gh-owner').value.trim():'';
+  const repo=$('gh-repo')?$('gh-repo').value.trim():'';
+  const branch=($('gh-branch')?$('gh-branch').value.trim():'')||'main';
+  const token=$('gh-token')?$('gh-token').value.trim():'';
+  const cfg={owner,repo,branch,token};
+  localStorage.setItem('sz_gh_image_cfg',JSON.stringify(cfg));
+  const st=$('gh-cfg-status');
+  if(st)st.textContent=(owner&&repo&&token)?'✓ متصل':'محفوظ (لسه ناقص بيانات)';
+  toast('✓ تم حفظ إعدادات استضافة الصور');
+}
+// تصغير/ضغط الصورة على جهاز المستخدم قبل الرفع (Canvas) — بيقلل حجم الملف كتير
+// (أسرع رفع، ومساحة أقل في المستودع)، وبيحوّلها JPEG موحّد بغض النظر عن الصيغة الأصلية
+function resizeImageForUpload(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    const objUrl=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(objUrl);
+      const MAXW=1400;
+      const scale=img.width>MAXW?MAXW/img.width:1;
+      const w=Math.round(img.width*scale),h=Math.round(img.height*scale);
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      const ctx=canvas.getContext('2d');
+      ctx.fillStyle='#ffffff';ctx.fillRect(0,0,w,h); // خلفية بيضاء بدل أي شفافية (JPEG مالوش شفافية)
+      ctx.drawImage(img,0,0,w,h);
+      canvas.toBlob(blob=>{
+        if(!blob){reject(new Error('فشل تجهيز الصورة'));return;}
+        resolve(blob);
+      },'image/jpeg',0.85);
+    };
+    img.onerror=()=>{URL.revokeObjectURL(objUrl);reject(new Error('الملف مش صورة صالحة'));};
+    img.src=objUrl;
+  });
+}
+function blobToBase64(blob){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const res=String(reader.result||'');
+      const idx=res.indexOf(',');
+      resolve(idx>-1?res.slice(idx+1):res);
+    };
+    reader.onerror=()=>reject(new Error('فشل قراءة الصورة'));
+    reader.readAsDataURL(blob);
+  });
+}
+// رفع صورة على مستودع GitHub الخاص بالمستخدم عن طريق GitHub Contents API، ورجوع رابط
+// jsdelivr سريع وموثوق (CDN مجاني بيقرأ مباشرة من نفس المستودع، من غير أي إعداد إضافي)
+async function uploadImageToGitHub(file,statusEl){
+  const cfg=getGithubImageCfg();
+  if(!cfg||!cfg.owner||!cfg.repo||!cfg.token)throw new Error('إعدادات استضافة الصور على GitHub لسه مش متظبطة (من "المتجر الأونلاين" فوق)');
+  if(statusEl)statusEl.textContent='⏳ بيتم تجهيز الصورة...';
+  const blob=await resizeImageForUpload(file);
+  if(statusEl)statusEl.textContent='⏳ بيتم رفع الصورة...';
+  const base64=await blobToBase64(blob);
+  const path='product-images/'+Date.now()+'_'+Math.random().toString(36).slice(2,8)+'.jpg';
+  const branch=cfg.branch||'main';
+  const resp=await fetch('https://api.github.com/repos/'+encodeURIComponent(cfg.owner)+'/'+encodeURIComponent(cfg.repo)+'/contents/'+path,{
+    method:'PUT',
+    headers:{
+      'Authorization':'token '+cfg.token,
+      'Accept':'application/vnd.github+json',
+      'Content-Type':'application/json',
+    },
+    body:JSON.stringify({message:'رفع صورة منتج',content:base64,branch:branch}),
+  });
+  if(!resp.ok){
+    let msg='فشل الرفع (كود '+resp.status+')';
+    if(resp.status===401)msg='الـ Token غلط أو منتهي — راجعه في "المتجر الأونلاين"';
+    else if(resp.status===404)msg='المستودع أو المستخدم مش موجود، أو الـ Token مالوش صلاحية عليه';
+    try{const j=await resp.json();if(j&&j.message)msg+=' — '+j.message;}catch(_e){}
+    throw new Error(msg);
+  }
+  return 'https://cdn.jsdelivr.net/gh/'+encodeURIComponent(cfg.owner)+'/'+encodeURIComponent(cfg.repo)+'@'+encodeURIComponent(branch)+'/'+path;
+}
+// ===== صورة المنتج: رفع لـ GitHub (أو Firebase Storage لو مفيش إعداد GitHub)، ومعاينة =====
 function renderProdImagePreview(url){
   if($('pr-image-url'))$('pr-image-url').value=url||'';
   if($('pr-image-file'))$('pr-image-file').value='';
@@ -9561,10 +9677,23 @@ function applyProdImageUrl(){
 function handleProdImageSelect(ev){
   const file=ev&&ev.target&&ev.target.files&&ev.target.files[0];
   if(!file)return;
-  if(!window.fsStorage){toast('التخزين السحابي مش متاح دلوقتي (تأكد إنك متصل بالإنترنت)','warn');return;}
   if(!/^image\//.test(file.type)){toast('اختار ملف صورة بس (jpg/png/webp...)','warn');return;}
-  if(file.size>5*1024*1024){toast('حجم الصورة كبير أوي (الحد الأقصى 5 ميجا)','warn');return;}
+  if(file.size>8*1024*1024){toast('حجم الصورة كبير أوي (الحد الأقصى 8 ميجا)','warn');return;}
   const statusEl=$('pr-image-status');
+  const ghCfg=getGithubImageCfg();
+  if(ghCfg&&ghCfg.owner&&ghCfg.repo&&ghCfg.token){
+    // الطريقة المجانية (GitHub + jsdelivr) — الافتراضية لما تكون متظبطة
+    uploadImageToGitHub(file,statusEl).then(url=>{
+      renderProdImagePreview(url);
+      toast('✓ اترفعت الصورة');
+    }).catch(e=>{
+      if(statusEl)statusEl.textContent='';
+      toast('فشل رفع الصورة: '+((e&&e.message)||'خطأ غير معروف'),'warn');
+    });
+    return;
+  }
+  // احتياطي: لو مفيش إعداد GitHub، جرّب Firebase Storage (يحتاج خطة Blaze مفعّلة)
+  if(!window.fsStorage){toast('استضافة الصور مش متظبطة لسه — اضبط بيانات GitHub في "المتجر الأونلاين"، أو الصق رابط صورة جاهز تحت','warn');return;}
   if(statusEl)statusEl.textContent='⏳ بيتم رفع الصورة...';
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
   const path='product-images/'+Date.now()+'_'+Math.random().toString(36).slice(2,8)+'.'+ext;
