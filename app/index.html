@@ -1834,13 +1834,13 @@ tr:hover td{background:#fafafa;}
     </div>
     <input type="hidden" id="pr-image-url" value=""/>
     <div id="pr-image-preview" style="margin-top:8px;display:flex;align-items:center;gap:10px;"></div>
-    <div id="pr-image-status" style="font-size:12px;color:#1a6fb0;margin-top:4px;"></div>
+    <div id="pr-image-status" style="font-size:13px;font-weight:bold;color:#c2740c;margin-top:4px;"></div>
   </div>
 </div>
 <div class="fg full"><label>ملاحظات</label><input id="pr-notes" placeholder="..." type="text"/></div>
 </div>
 </div>
-<div class="mf"><button class="btn" onclick="closeM('m-prod')">إلغاء</button><button class="btn btn-p" onclick="saveProd()">✔ حفظ</button></div>
+<div class="mf"><button class="btn" onclick="closeM('m-prod')">إلغاء</button><button class="btn btn-p" id="pr-save-btn" onclick="saveProd()">✔ حفظ</button></div>
 </div></div>
 <!-- Category Management Modal -->
 <div class="mo" id="m-cat"><div class="md" style="width:500px;">
@@ -9527,6 +9527,7 @@ function viewReturn(id){
 function canEditProducts(){return !!(CURRENT_USER&&(CURRENT_USER.role==='admin'||(CURRENT_USER.perms&&CURRENT_USER.perms.editProducts)));}
 function openProdModal(editId){
   if(!canEditProducts()){toast('عرض بس — مفيش صلاحية تعديل المنتجات ⚠️','warn');return;}
+  _prImgToken++;_setProdImgBusy(false); // فتح شاشة منتج (جديد أو تاني) بيلغي أي رفع صورة قديم لسه شغال من شاشة سابقة
   initProdCatSelect();
   // تعبئة autocomplete الماركات
   const brands=[...new Set(DB.products.map(p=>p.brand).filter(Boolean))];
@@ -9605,6 +9606,21 @@ function saveGithubImageCfg(){
   try{
     if(FS_COL)(window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_gh_image_cfg').set(cfg)).catch(e=>{try{logger.warn('saveGithubImageCfg push failed:',e&&e.message);}catch(_n){}});
   }catch(e){}
+}
+// _prImgToken: بيتزوّد كل ما تتفتح شاشة "منتج" (إضافة أو تعديل) — بنستخدمه عشان
+// لو حد سايب صورة بترفع وقفل الشاشة (أو فتح منتج تاني) قبل ما الرفع يخلص، نتيجة
+// الرفع القديمة متتحطش غلط على المنتج الجديد اللي فاتح دلوقتي.
+// _prImgUploading: true من لحظة بدء رفع صورة لحد ما تخلص (نجحت أو فشلت) — بيمنع
+// دوس "حفظ" في النص، وده اللي كان بيسبب اختفاء الصورة (كان بيحفظ المنتج قبل ما
+// الرفع يخلص ويجيب الرابط، فيحفظ من غير صورة خالص).
+let _prImgToken=0;
+let _prImgUploading=false;
+function _setProdImgBusy(busy){
+  _prImgUploading=busy;
+  const btn=$('pr-save-btn');
+  if(btn){btn.disabled=busy;btn.style.opacity=busy?'0.55':'';btn.style.cursor=busy?'not-allowed':'';btn.textContent=busy?'⏳ بيرفع الصورة... استنى':'✔ حفظ';}
+  const fi=$('pr-image-file');
+  if(fi)fi.disabled=busy;
 }
 // تصغير/ضغط الصورة على جهاز المستخدم قبل الرفع (Canvas) — بيقلل حجم الملف كتير
 // (أسرع رفع، ومساحة أقل في المستودع)، وبيحوّلها JPEG موحّد بغض النظر عن الصيغة الأصلية
@@ -9697,28 +9713,36 @@ function handleProdImageSelect(ev){
   if(!/^image\//.test(file.type)){toast('اختار ملف صورة بس (jpg/png/webp...)','warn');return;}
   if(file.size>8*1024*1024){toast('حجم الصورة كبير أوي (الحد الأقصى 8 ميجا)','warn');return;}
   const statusEl=$('pr-image-status');
+  const myToken=_prImgToken; // نسجّل مين المنتج المفتوح دلوقتي، عشان نتأكد إن النتيجة لسه بتاعته لما الرفع يخلص
+  _setProdImgBusy(true);
   const ghCfg=getGithubImageCfg();
   if(ghCfg&&ghCfg.owner&&ghCfg.repo&&ghCfg.token){
     // الطريقة المجانية (GitHub + jsdelivr) — الافتراضية لما تكون متظبطة
     uploadImageToGitHub(file,statusEl).then(url=>{
+      _setProdImgBusy(false);
+      if(myToken!==_prImgToken){toast('اترفعت الصورة بس الشاشة اتغيرت في النص — ارفعها تاني','warn');return;}
       renderProdImagePreview(url);
       toast('✓ اترفعت الصورة');
     }).catch(e=>{
+      _setProdImgBusy(false);
       if(statusEl)statusEl.textContent='';
       toast('فشل رفع الصورة: '+((e&&e.message)||'خطأ غير معروف'),'warn');
     });
     return;
   }
   // احتياطي: لو مفيش إعداد GitHub، جرّب Firebase Storage (يحتاج خطة Blaze مفعّلة)
-  if(!window.fsStorage){toast('استضافة الصور مش متظبطة لسه — اضبط بيانات GitHub في "المتجر الأونلاين"، أو الصق رابط صورة جاهز تحت','warn');return;}
+  if(!window.fsStorage){_setProdImgBusy(false);toast('استضافة الصور مش متظبطة لسه — اضبط بيانات GitHub في "المتجر الأونلاين"، أو الصق رابط صورة جاهز تحت','warn');return;}
   if(statusEl)statusEl.textContent='⏳ بيتم رفع الصورة...';
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
   const path='product-images/'+Date.now()+'_'+Math.random().toString(36).slice(2,8)+'.'+ext;
   const ref=window.fsStorage.ref().child(path);
   (window._fbReady||Promise.resolve()).then(()=>ref.put(file)).then(snap=>snap.ref.getDownloadURL()).then(url=>{
+    _setProdImgBusy(false);
+    if(myToken!==_prImgToken){toast('اترفعت الصورة بس الشاشة اتغيرت في النص — ارفعها تاني','warn');return;}
     renderProdImagePreview(url);
     toast('✓ اترفعت الصورة');
   }).catch(e=>{
+    _setProdImgBusy(false);
     if(statusEl)statusEl.textContent='';
     toast('فشل رفع الصورة: '+((e&&e.message)||'خطأ غير معروف'),'warn');
   });
@@ -14693,6 +14717,7 @@ function renderProds(){renderProdsFiltered('all');if(typeof renderProdCatChips==
 function deleteProd(id){if(!canEditProducts()){toast('عرض بس — مفيش صلاحية تعديل المنتجات ⚠️','warn');return;}showDangerConfirm('حذف المنتج؟',()=>{markDeleted('products',id);DB.products=DB.products.filter(p=>p.id!==id);saveDB();renderProds();toast('تم الحذف','warn');if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();});}
 function editProd(id){
   if(!canEditProducts()){toast('عرض بس — مفيش صلاحية تعديل المنتجات ⚠️','warn');return;}
+  _prImgToken++;_setProdImgBusy(false); // فتح شاشة منتج (جديد أو تاني) بيلغي أي رفع صورة قديم لسه شغال من شاشة سابقة
   initProdCatSelect();const brands=[...new Set(DB.products.map(p=>p.brand).filter(Boolean))];const dl=$('brand-list');if(dl)dl.innerHTML=brands.map(b=>`<option value="${e(b)}">`).join('');
   $('pr-edit-id').value=id||'';
   if(id){const p=DB.products.find(x=>x.id===id);if(!p)return;$('prod-modal-title').textContent='✏️ تعديل منتج';if($('pr-section'))$('pr-section').value=p.section||'devices';$('pr-nm').value=p.name;if($('pr-egs'))$('pr-egs').value=p.egs||'';$('pr-cat').value=p.cat||'';updateSubCats();if(p.subcat)$('pr-subcat').value=p.subcat;$('pr-brand').value=p.brand||'';$('pr-buy').value=p.buy||0;$('pr-sell').value=p.sell||0;$('pr-qty').value=getProdQty(p);$('pr-alrt').value=p.alert||5;$('pr-notes').value=p.notes||'';if($('pr-online-price'))$('pr-online-price').value=(p.onlinePrice!=null)?p.onlinePrice:'';if($('pr-ship-size'))$('pr-ship-size').value=p.shipSize||'small';if($('pr-online-visible'))$('pr-online-visible').checked=!!p.onlineVisible;renderProdImagePreview(p.imageUrl||'');}
@@ -14701,6 +14726,7 @@ function editProd(id){
 }
 function saveProd(){
   if(!canEditProducts()){toast('عرض بس — مفيش صلاحية تعديل المنتجات ⚠️','warn');return;}
+  if(_prImgUploading){toast('⏳ لسه بترفع صورة المنتج... استنى لحد ما تظهر المعاينة قبل الحفظ','warn');return;}
   const nm=$('pr-nm').value.trim();if(!nm){toast('أدخل اسم المنتج','warn');return;}
   const editId=$('pr-edit-id').value,sec=$('pr-section')?$('pr-section').value:'devices',subcat=$('pr-subcat').value;
   const _onlinePriceRaw=$('pr-online-price')?$('pr-online-price').value.trim():'';
