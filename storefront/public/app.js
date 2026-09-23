@@ -338,7 +338,7 @@ function applyBranding(){
     $('footer-phone').hidden = false;
     $('footer-phone').innerHTML = '📞 <span dir="ltr" class="mono-num">' + escapeHtml(window.STORE_PHONE) + '</span>';
   }
-  const allPhones = [displayPhone, window.STORE_PHONE_LANDLINE, window.STORE_PHONE_2].filter(Boolean).join(' - ');
+  const allPhones = [displayPhone, window.STORE_PHONE_2, window.STORE_PHONE_LANDLINE].filter(Boolean).join(' - ');
   if(allPhones){
     const hp = $('header-phone');
     if(hp){ hp.hidden = false; hp.textContent = allPhones; }

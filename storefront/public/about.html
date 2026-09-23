@@ -91,7 +91,7 @@
   var phoneEl = document.getElementById('about-phone');
   if(phoneEl){
     var basePhone = window.STORE_PHONE || (window.STORE_WHATSAPP ? window.STORE_WHATSAPP.replace(/^20/, '0') : '');
-    var allPhones = [basePhone, window.STORE_PHONE_LANDLINE, window.STORE_PHONE_2].filter(Boolean).join(' - ');
+    var allPhones = [basePhone, window.STORE_PHONE_2, window.STORE_PHONE_LANDLINE].filter(Boolean).join(' - ');
     phoneEl.textContent = allPhones;
   }
 })();
