@@ -61,19 +61,8 @@
         <div class="about-card-value" id="about-address">125 تعاونيات سموحة — بعد مديرية الأمن</div>
       </div>
       <div class="about-card">
-        <div class="about-card-label">تليفون وواتساب</div>
-        <div class="about-phone-row">
-          <span class="about-phone-tag">واتساب</span>
-          <span class="mono-num" id="about-phone" dir="ltr"></span>
-        </div>
-        <div class="about-phone-row">
-          <span class="about-phone-tag">أرضي</span>
-          <span class="mono-num" dir="ltr">03-4040559</span>
-        </div>
-        <div class="about-phone-row">
-          <span class="about-phone-tag">موبايل</span>
-          <span class="mono-num" dir="ltr">01206944479</span>
-        </div>
+        <div class="about-card-label">أرقام التواصل</div>
+        <div class="about-card-value mono-num" id="about-phone" dir="ltr" style="color:var(--paper-raised);"></div>
       </div>
       <div class="about-card">
         <div class="about-card-label">مواعيد العمل</div>
@@ -101,8 +90,9 @@
   var bn = document.getElementById('brand-name'); if(bn) bn.textContent = name;
   var phoneEl = document.getElementById('about-phone');
   if(phoneEl){
-    var phone = window.STORE_PHONE || (window.STORE_WHATSAPP ? window.STORE_WHATSAPP.replace(/^20/, '0') : '');
-    phoneEl.textContent = phone;
+    var basePhone = window.STORE_PHONE || (window.STORE_WHATSAPP ? window.STORE_WHATSAPP.replace(/^20/, '0') : '');
+    var allPhones = [basePhone, window.STORE_PHONE_LANDLINE, window.STORE_PHONE_2].filter(Boolean).join(' - ');
+    phoneEl.textContent = allPhones;
   }
 })();
 </script>
