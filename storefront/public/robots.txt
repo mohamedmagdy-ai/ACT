@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://safeya-zoghloul.web.app/sitemap.xml
