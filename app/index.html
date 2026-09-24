@@ -314,6 +314,13 @@ tr:hover td{background:#fafafa;}
 </span>
 <span style="font-size:12px;color:rgba(255,255,255,0.85);" id="topbar-user-badge">👤 Admin</span>
 <select id="branch-switcher" onchange="switchBranch(this.value)" style="display:none;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:5px;padding:4px 8px;font-size:11px;font-family:Arial;"></select>
+<!-- تنبيهات أعلى الشاشة (جنب واتساب) لطلبات الصيانة/الطلبات الأونلاين/رسائل الموقع —
+     ظاهرة على طول من غير ما تدخل تفتح القايمة الجانبية، وبتتحدّث على كل الأجهزة مع
+     أي تحديث سحابي (راجع processFirebaseDoc) بعد ما onlineOrders/onlineMessages/
+     onlineMaintRequests بقوا فعليًا جوه DB_KEYS اللي بتتزامن بين الأجهزة -->
+<button class="topbar-modtab-btn" onclick="showTab('maintreq');" style="position:relative;background:rgba(200,149,47,0.15);border:1px solid #C8952F;color:#E8C87D;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:Arial;">🧰 صيانة الموقع<span id="topbar-maintreq-badge" style="display:none;background:#c62828;color:white;border-radius:10px;padding:0 6px;font-size:10px;margin-right:4px;"></span></button>
+<button class="topbar-modtab-btn" onclick="showTab('onlineorders');" style="position:relative;background:rgba(200,149,47,0.15);border:1px solid #C8952F;color:#E8C87D;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:Arial;">📦 طلبات أونلاين<span id="topbar-onlineorders-badge" style="display:none;background:#c62828;color:white;border-radius:10px;padding:0 6px;font-size:10px;margin-right:4px;"></span></button>
+<button class="topbar-modtab-btn" onclick="showTab('sitemsgs');" style="position:relative;background:rgba(200,149,47,0.15);border:1px solid #C8952F;color:#E8C87D;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:Arial;">📨 رسائل الموقع<span id="topbar-sitemsgs-badge" style="display:none;background:#c62828;color:white;border-radius:10px;padding:0 6px;font-size:10px;margin-right:4px;"></span></button>
 <button onclick="openM('m-pending-wa');renderPendingWhatsappList();" style="position:relative;background:rgba(37,211,102,0.15);border:1px solid #25D366;color:#25D366;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:Arial;">📱 واتساب<span id="pending-wa-badge" style="display:none;background:#c62828;color:white;border-radius:10px;padding:0 6px;font-size:10px;margin-right:4px;"></span></button>
 <button onclick="doLogout()" style="background:none;border:1px solid rgba(255,100,100,.4);color:rgba(255,180,180,.9);border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:Arial;">🚪 خروج</button>
 </div>
@@ -3292,7 +3299,14 @@ function applyCounter() {
 const DB_KEY = 'sz_db_v1';
 // نقلتها هنا (كانت في آخر الملف) لأنها بتُستخدم فورًا وقت بدء التشغيل (المزامنة مع
 // IndexedDB) قبل ما توصل الصفحة لتعريفها القديم — كانت بتسبب "DB_KEYS is not defined"
-const DB_KEYS=['customers','products','sales','maintenance','purchases','custody','expenses','receipts','workOrders','maintInvoices','returns','taxInvoices','employees','payments','insuranceLimits','insurancePayments','fixedAssets','openingBalances','withdrawals','logs','disassemblies','partnerCapital','branches','serviceCenters','transfers','technicianCommissions','partnerCapitalInjections','pendingWhatsapp','syncConflicts','loyaltyPoints','partnerInitialCapital'];
+// onlineOrders/onlineMessages/onlineMaintRequests اتضافوا هنا (كانوا ناقصين): من غيرهم،
+// أي تعديل على طلب/رسالة/طلب صيانة (تجاهل، تحويل لإذن استلام...) كان بيفضل حبيس الجهاز
+// اللي اتعمل عليه بس، وميوصلش لأي جهاز/فرع تاني خالص — لأن دمج البيانات بين الأجهزة
+// (جوه processFirebaseDoc تحت) بيمر بس على الجداول المذكورة في القايمة دي. النتيجة
+// الحقيقية اللي بلّغ عنها مستخدم: فتح طلب صيانة من جهاز المحل وتجاهله، ومن جهاز تاني
+// (البيت) الطلب ده كان لسه ظاهر (أو العكس) — كل جهاز شايف بس اللي هو نفسه "لقطه" أول
+// مرة من قايمة الطلبات الواردة المشتركة، مش الصورة الكاملة المتفق عليها بين كل الأجهزة.
+const DB_KEYS=['customers','products','sales','maintenance','purchases','custody','expenses','receipts','workOrders','maintInvoices','returns','taxInvoices','employees','payments','insuranceLimits','insurancePayments','fixedAssets','openingBalances','withdrawals','logs','disassemblies','partnerCapital','branches','serviceCenters','transfers','technicianCommissions','partnerCapitalInjections','pendingWhatsapp','syncConflicts','loyaltyPoints','partnerInitialCapital','onlineOrders','onlineMessages','onlineMaintRequests'];
 const SAMPLE_DATA = {
   customers:[],
   serviceCenters:[],
@@ -11777,6 +11791,9 @@ async function _doLoginInner(){
   try{ applyModuleRestrictions(); }catch(_mrCall){} // إخفاء أي موديول مقفول بترخيص هذه النسخة (لو النظام مفعّل)
   try{ setTimeout(checkDailyLowStockAlert,2000); }catch(_dlaCall){}
   try{ renderPendingWhatsappBadge(); }catch(_pwbCall){}
+  try{ updateOnlineOrdersBadge(); }catch(_oobCall){}
+  try{ updateSiteMsgsBadge(); }catch(_smbCall){}
+  try{ updateMaintReqBadge(); }catch(_mrbCall){}
   // ===== 🔓 ردود الفعل البصرية الفورية (قبل أي شيء ثقيل) على الفور بدون انتظار — يزيل إحساس التجميد =====
   try{ $('login-screen').classList.add('hidden'); }catch(_a){}
   try{ $('topbar-user-badge').textContent='👤 '+found.name; }catch(_b){}
@@ -18584,7 +18601,7 @@ function _isModuleDisabled(modName){
 function applyModuleRestrictions(){
   try{
     const disabled=_disabledTabIds();
-    document.querySelectorAll('.ntab[onclick]').forEach(btn=>{
+    document.querySelectorAll('.ntab[onclick], .topbar-modtab-btn[onclick]').forEach(btn=>{
       const m=btn.getAttribute('onclick').match(/showTab\('([a-zA-Z]+)'/);
       if(!m)return;
       const isDisabled=disabled.includes(m[1]);
@@ -19959,11 +19976,17 @@ function pullIncomingOnlineOrders(){
     }).catch(e=>{try{logger.warn('pullIncomingOnlineOrders failed:',e&&e.message);}catch(_n){}});
   }catch(e){}
 }
+// عداد واحد ممكن يتعرض في أكتر من مكان مرة واحدة (شارة القايمة الجانبية + شارة أعلى
+// الشاشة جنب زرار واتساب، عشان تبقى ظاهرة على طول من غير ما تدخل تفتح القايمة الجانبية)
+function _setBadgePair(ids,n){
+  ids.forEach(id=>{
+    const b=$(id);if(!b)return;
+    if(n>0){b.textContent=String(n);b.style.display='';}else{b.style.display='none';}
+  });
+}
 function updateOnlineOrdersBadge(){
   const n=(DB.onlineOrders||[]).filter(o=>o.status==='pending').length;
-  const b=$('onlineorders-badge');
-  if(!b)return;
-  if(n>0){b.textContent=String(n);b.style.display='';}else{b.style.display='none';}
+  _setBadgePair(['onlineorders-badge','topbar-onlineorders-badge'],n);
 }
 let _onlineOrdersFilter='pending';
 function fltOnlineOrders(f,el){
@@ -20081,9 +20104,7 @@ function pullIncomingSiteMessages(){
 }
 function updateSiteMsgsBadge(){
   const n=(DB.onlineMessages||[]).filter(m=>m.status==='new').length;
-  const b=$('sitemsgs-badge');
-  if(!b)return;
-  if(n>0){b.textContent=String(n);b.style.display='';}else{b.style.display='none';}
+  _setBadgePair(['sitemsgs-badge','topbar-sitemsgs-badge'],n);
 }
 let _siteMsgsFilter='new';
 function fltSiteMsgs(f,el){
@@ -20163,9 +20184,7 @@ function pullIncomingMaintRequests(){
 }
 function updateMaintReqBadge(){
   const n=(DB.onlineMaintRequests||[]).filter(r=>r.status==='pending').length;
-  const b=$('maintreq-badge');
-  if(!b)return;
-  if(n>0){b.textContent=String(n);b.style.display='';}else{b.style.display='none';}
+  _setBadgePair(['maintreq-badge','topbar-maintreq-badge'],n);
 }
 let _maintReqFilter='pending';
 let _pendingMaintReqConvertId=null;
@@ -20501,6 +20520,13 @@ function processFirebaseDoc(doc,silent){
         // (renderPendingWhatsappList بتحسب من DB.pendingWhatsapp الطازة كل مرة تتفتح،
         // فبتورّي الصح، بعكس العداد الجامد). الحل: نحدّث العداد هنا كمان مع كل تحديث سحابي.
         try{renderPendingWhatsappBadge();}catch(_pwbSync){}
+        // نفس فكرة إصلاح عداد الواتساب فوق بالظبط، لكن لطلبات الصيانة/الطلبات
+        // الأونلاين/رسائل الموقع — دلوقتي الجداول دي بقت جوه DB_KEYS (راجع تعريفها
+        // فوق) فبتتدمج صح بين الأجهزة، وهنا بنحدّث شارات أعلى الشاشة والقايمة
+        // الجانبية فورًا مع كل تحديث سحابي، مش بس أول ما تدخل الشاشة بنفسك
+        try{updateOnlineOrdersBadge();}catch(_oobSync){}
+        try{updateSiteMsgsBadge();}catch(_smbSync){}
+        try{updateMaintReqBadge();}catch(_mrbSync){}
         try{
           renderDash();
           const activeSection=document.querySelector('.section.active');
