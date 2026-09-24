@@ -3306,7 +3306,17 @@ const DB_KEY = 'sz_db_v1';
 // الحقيقية اللي بلّغ عنها مستخدم: فتح طلب صيانة من جهاز المحل وتجاهله، ومن جهاز تاني
 // (البيت) الطلب ده كان لسه ظاهر (أو العكس) — كل جهاز شايف بس اللي هو نفسه "لقطه" أول
 // مرة من قايمة الطلبات الواردة المشتركة، مش الصورة الكاملة المتفق عليها بين كل الأجهزة.
-const DB_KEYS=['customers','products','sales','maintenance','purchases','custody','expenses','receipts','workOrders','maintInvoices','returns','taxInvoices','employees','payments','insuranceLimits','insurancePayments','fixedAssets','openingBalances','withdrawals','logs','disassemblies','partnerCapital','branches','serviceCenters','transfers','technicianCommissions','partnerCapitalInjections','pendingWhatsapp','syncConflicts','loyaltyPoints','partnerInitialCapital','onlineOrders','onlineMessages','onlineMaintRequests'];
+//
+// banks/bankTx اتضافوا هنا كمان (نفس بالظبط المشكلة): fsWriteAll تحت بترفع كل جدول
+// مذكور هنا في مستند Firestore مستقل بتاعه — أي جدول مش موجود في القايمة دي مبيتاخدش
+// نسخة سحابية خالص، يعني بيفضل حبيس التخزين المحلي (localStorage/IndexedDB) بتاع
+// الجهاز اللي اتسجل عليه بس، ومش بيوصل لأي جهاز تاني أبدًا مهما اتعمل "حفظ" كام مرة.
+// ده السبب الحقيقي وراء بلاغ مستخدم: بنك اتسجل من جهاز البيت، وجهاز المحل معندوش أي
+// أثر ليه خالص — البنك فعليًا "اتحفظ" على جهاز البيت بس، ومحتاج مزامنة سحابية حقيقية
+// عشان يوصل لأي جهاز تاني، وده اللي مكنش بيحصل. بعد الإصلاح، أول مزامنة ناجحة من كل
+// جهاز هتدمج كل البنوك/الحركات البنكية اللي اتسجلت من أي جهاز خلال الفترة اللي فاتت
+// مع بعض تلقائيًا (دمج بالـid، مفيش أي بيانات بتتفقد).
+const DB_KEYS=['customers','products','sales','maintenance','purchases','custody','expenses','receipts','workOrders','maintInvoices','returns','taxInvoices','employees','payments','insuranceLimits','insurancePayments','fixedAssets','openingBalances','withdrawals','logs','disassemblies','partnerCapital','branches','serviceCenters','transfers','technicianCommissions','partnerCapitalInjections','pendingWhatsapp','syncConflicts','loyaltyPoints','partnerInitialCapital','onlineOrders','onlineMessages','onlineMaintRequests','banks','bankTx'];
 const SAMPLE_DATA = {
   customers:[],
   serviceCenters:[],
