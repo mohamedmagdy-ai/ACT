@@ -126,6 +126,21 @@
 
   .footer-note{font-size:11px;color:var(--muted);text-align:center;padding:6px 10px 0;line-height:1.7;}
 
+  /* ===== كروت طلبات الموقع (رسائل/طلبات أونلاين/طلبات صيانة) — رد سريع على العميل ===== */
+  .req-card{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--surface-2);}
+  .req-card:last-child{margin-bottom:0;}
+  .req-top{display:flex;justify-content:space-between;align-items:start;gap:8px;}
+  .req-name{font-size:13.5px;font-weight:800;}
+  .req-phone{font-size:11.5px;color:var(--muted);margin-top:1px;direction:ltr;text-align:right;}
+  .req-time{font-size:10.5px;color:var(--muted);white-space:nowrap;flex:none;}
+  .req-body{font-size:12.5px;color:var(--ink);margin-top:8px;line-height:1.7;background:var(--surface);border-radius:8px;padding:8px 10px;}
+  .req-actions{display:flex;gap:8px;margin-top:10px;}
+  .btn-wa{flex:1;text-align:center;text-decoration:none;padding:10px;border-radius:10px;background:#1f8f5c;color:#fff;font-weight:800;font-size:12.5px;font-family:inherit;}
+  .btn-wa:active{opacity:.85;}
+  .btn-req-mini{flex:none;padding:10px 14px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--muted);font-weight:700;font-size:12px;font-family:inherit;cursor:pointer;}
+  .btn-req-mini:active{opacity:.7;}
+  .req-done-msg{font-size:11.5px;color:var(--good);background:var(--good-bg);border-radius:8px;padding:7px 10px;margin-top:8px;line-height:1.6;}
+
   /* ===== setup screen ===== */
   .setup-wrap{max-width:440px;margin:0 auto;padding-block:28px 40px;display:flex;flex-direction:column;gap:16px;}
   .setup-hero{text-align:center;padding-block:10px 4px;}
@@ -297,6 +312,21 @@
       <button type="button" class="menu-tile" data-target="screen-whatsapp">
         <div class="menu-tile-top"><span class="menu-icon">📱</span><span class="badge warn num" id="mt-wa-badge">0</span></div>
         <div class="menu-label">واتساب معلّق</div>
+      </button>
+
+      <button type="button" class="menu-tile" data-target="screen-sitemsgs" id="sitemsgs-tile">
+        <div class="menu-tile-top"><span class="menu-icon">📨</span><span class="badge warn num" id="mt-sitemsgs-badge">0</span></div>
+        <div class="menu-label">رسائل العملاء</div>
+      </button>
+
+      <button type="button" class="menu-tile" data-target="screen-onlineorders" id="onlineorders-tile">
+        <div class="menu-tile-top"><span class="menu-icon">📦</span><span class="badge warn num" id="mt-onlineorders-badge">0</span></div>
+        <div class="menu-label">طلبات أونلاين</div>
+      </button>
+
+      <button type="button" class="menu-tile" data-target="screen-maintreq" id="maintreq-tile">
+        <div class="menu-tile-top"><span class="menu-icon">🧰</span><span class="badge warn num" id="mt-maintreq-badge">0</span></div>
+        <div class="menu-label">طلبات صيانة الموقع</div>
       </button>
 
       <button type="button" class="menu-tile" data-target="screen-months" id="months-tile">
@@ -556,6 +586,44 @@
         <div class="section-title">الرسائل المعلّقة <span class="badge warn num" id="wa-badge">0</span></div>
         <div id="wa-box"></div>
       </div>
+    </main>
+  </div>
+
+  <!-- ===== طلبات الموقع (رسائل عملاء / طلبات أونلاين / طلبات صيانة) — طلب المستخدم:
+  "أساعد الناس في ضغط الشغل، أرد على العملاء من الموبايل على الأقل، عشان العميل مايستناش
+  كتير لحد ما حد يفتح البرنامج". الرد نفسه بلينك واتساب مباشر (مفيش كتابة/تخزين هنا خالص)،
+  والإجراء المتاح (تجاهل/أرشفة/إلغاء) بيتبعت كطلب للكمبيوتر (نفس آلية باقي شاشات الموبايل
+  القابلة للتعديل)، وبياخد لحد ٣٠ ثانية يتنفّذ فعليًا لما الكمبيوتر يكون شغال ومتصل — التحويل
+  الكامل لإذن استلام/فاتورة لسه من الكمبيوتر بس، لأنه محتاج مراجعة أدق (توفر القطع، الأسعار). ===== -->
+  <div id="screen-sitemsgs" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back>→</button><div class="detail-title">📨 رسائل العملاء</div></div>
+    <main>
+      <div class="card">
+        <div class="section-title">رسائل جديدة <span class="badge warn num" id="sitemsgs-badge">0</span></div>
+        <div id="sitemsgs-box"></div>
+      </div>
+    </main>
+  </div>
+
+  <div id="screen-onlineorders" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back>→</button><div class="detail-title">📦 طلبات أونلاين</div></div>
+    <main>
+      <div class="card">
+        <div class="section-title">قيد المراجعة <span class="badge warn num" id="onlineorders-badge">0</span></div>
+        <div id="onlineorders-box"></div>
+      </div>
+      <div class="footer-note">التأكيد الكامل وتحويل الطلب لفاتورة لسه محتاج الكمبيوتر (مراجعة توفر الأصناف والسعر بالظبط) — من هنا تقدر ترد على العميل أو تلغي الطلب لو مش هينفّذ.</div>
+    </main>
+  </div>
+
+  <div id="screen-maintreq" class="detail-screen" hidden>
+    <div class="detail-header"><button type="button" class="back-btn" data-back>→</button><div class="detail-title">🧰 طلبات صيانة الموقع</div></div>
+    <main>
+      <div class="card">
+        <div class="section-title">قيد المراجعة <span class="badge warn num" id="maintreq-badge">0</span></div>
+        <div id="maintreq-box"></div>
+      </div>
+      <div class="footer-note">تحويل الطلب لإذن استلام رسمي لسه من الكمبيوتر بس — من هنا تقدر ترد على العميل أو تتجاهل الطلب لو اتصرف فيه تليفونيًا.</div>
     </main>
   </div>
 
@@ -1111,6 +1179,9 @@
     $('mt-finance-total').textContent=fmtN(expM.total||0);
     $('mt-hr-count').textContent=String(hr.employeesCount||0);
     $('mt-wa-badge').textContent=String(waCount||0);
+    $('mt-sitemsgs-badge').textContent=String(d.siteMessagesNewCount||0);
+    $('mt-onlineorders-badge').textContent=String(d.onlineOrdersPendingCount||0);
+    $('mt-maintreq-badge').textContent=String(d.maintRequestsPendingCount||0);
 
     // ===== القيم المصغّرة على زراير الشاشات الفرعية (الصيانة/المخزون/المصروفات) =====
     $('mt2-maintinv-count').textContent=String(maintInvRows.length||0);
@@ -1391,6 +1462,116 @@
       cb(data);
     }).catch(function(){ cb(null); });
   }
+
+  // ===== طلبات الموقع (رسائل عملاء / طلبات أونلاين / طلبات صيانة) — طلب المستخدم:
+  // "على الأقل ارد على العملاء عشان العميل ماينتظرش كثير على البرنامج". القراءة من نفس
+  // مستند _mobile_admin (حقول siteMessagesNew/onlineOrdersPending/maintRequestsPending
+  // اللي pushMobileAdminSnapshot في app/index.html بيبنيها)، والرد نفسه بلينك واتساب
+  // مباشر (wa.me) من غير أي تخزين أو كتابة إضافية، والإجراء (أرشفة/إلغاء/تجاهل) بيتبعت
+  // كطلب لنفس قايمة الكتابة (_mobile_admin_write) اللي الكمبيوتر بيعالجها كل ٣٠ ثانية
+  // بالظبط زي باقي طلبات الموبايل التانية (حسابات/فروع/شركاء/عدادات).
+  function normPhoneMobile(s){
+    var str=String(s||'');
+    str=str.replace(/[٠-٩]/g,function(d){return String(d.charCodeAt(0)-0x0660);});
+    str=str.replace(/[۰-۹]/g,function(d){return String(d.charCodeAt(0)-0x06F0);});
+    return str.replace(/\D/g,'');
+  }
+  function waLinkUrl(phone,text){
+    var p=normPhoneMobile(phone);
+    if(!p)return '';
+    if(p.charAt(0)==='0')p='2'+p;
+    else if(p.charAt(0)!=='2')p='2'+p;
+    return 'https://wa.me/'+p+'?text='+encodeURIComponent(text||'');
+  }
+  function openExternalLink(url){
+    if(!url)return;
+    try{ window.open(url,'_system'); }catch(e){ location.href=url; }
+  }
+  function timeAgoAr(ts){
+    if(!ts)return '';
+    var mins=Math.round((Date.now()-ts)/60000);
+    if(mins<1)return 'دلوقتي';
+    if(mins<60)return 'من '+mins+' دقيقة';
+    var hrs=Math.round(mins/60);
+    if(hrs<24)return 'من '+hrs+' ساعة';
+    return 'من '+Math.round(hrs/24)+' يوم';
+  }
+  var REQ_TYPES={
+    sitemsgs:{
+      boxId:'sitemsgs-box', badgeId:'sitemsgs-badge', field:'siteMsgArchive', actionLabel:'📁 أرشفة',
+      emptyMsg:'✅ مفيش رسائل جديدة',
+      name:function(x){return x.name||'عميل';}, phone:function(x){return x.phone||'';},
+      body:function(x){return x.message||'';},
+      waText:function(x){return 'أهلاً '+(x.name||'')+'، بخصوص رسالتك على الموقع: ';}
+    },
+    onlineorders:{
+      boxId:'onlineorders-box', badgeId:'onlineorders-badge', field:'onlineOrderCancel', actionLabel:'✖ إلغاء الطلب',
+      emptyMsg:'✅ مفيش طلبات أونلاين معلّقة',
+      name:function(x){return x.customerName||'عميل';}, phone:function(x){return x.customerPhone||'';},
+      body:function(x){return (x.itemsStr||'')+(x.grandTotal?' — الإجمالي: '+fmtN(x.grandTotal)+' ج':'');},
+      waText:function(x){return 'أهلاً '+(x.customerName||'')+'، بخصوص طلبك أونلاين رقم '+(x.id||'')+': ';}
+    },
+    maintreq:{
+      boxId:'maintreq-box', badgeId:'maintreq-badge', field:'maintReqDismiss', actionLabel:'🗑 تجاهل',
+      emptyMsg:'✅ مفيش طلبات صيانة معلّقة',
+      name:function(x){return x.customerName||'عميل';}, phone:function(x){return x.customerPhone||'';},
+      body:function(x){return [x.device,x.brand,x.model].filter(Boolean).join(' ')+(x.issue?' — '+x.issue:'');},
+      waText:function(x){return 'أهلاً '+(x.customerName||'')+'، بخصوص طلب الصيانة اللي بعتّه: ';}
+    }
+  };
+  function renderReqBox(typeKey, items){
+    var cfg=REQ_TYPES[typeKey];
+    var box=$(cfg.boxId);
+    $(cfg.badgeId).textContent=String(items.length||0);
+    if(!items.length){ box.innerHTML='<div class="empty">'+cfg.emptyMsg+'</div>'; return; }
+    box.innerHTML=items.map(function(x){
+      var phone=cfg.phone(x);
+      var wa=phone?waLinkUrl(phone,cfg.waText(x)):'';
+      return '<div class="req-card">'+
+        '<div class="req-top"><div><div class="req-name">'+esc(cfg.name(x))+'</div>'+(phone?'<div class="req-phone">'+esc(phone)+'</div>':'')+'</div><div class="req-time">'+esc(timeAgoAr(x.createdAt))+'</div></div>'+
+        '<div class="req-body">'+esc(cfg.body(x))+'</div>'+
+        '<div class="req-actions">'+
+          (wa?'<button type="button" class="btn-wa" data-wa-url="'+esc(wa)+'">💬 رد واتساب</button>':'')+
+          '<button type="button" class="btn-req-mini" data-req-type="'+typeKey+'" data-req-action-id="'+esc(x.id)+'">'+cfg.actionLabel+'</button>'+
+        '</div>'+
+        '<div class="req-done-msg" hidden></div>'+
+      '</div>';
+    }).join('');
+  }
+  function loadSiteMsgsScreen(){ loadMobileAdminSnapshot(function(data){ renderReqBox('sitemsgs',(data&&data.siteMessagesNew)||[]); }); }
+  function loadOnlineOrdersScreen(){ loadMobileAdminSnapshot(function(data){ renderReqBox('onlineorders',(data&&data.onlineOrdersPending)||[]); }); }
+  function loadMaintReqScreen(){ loadMobileAdminSnapshot(function(data){ renderReqBox('maintreq',(data&&data.maintRequestsPending)||[]); }); }
+  $('sitemsgs-tile').addEventListener('click', loadSiteMsgsScreen);
+  $('onlineorders-tile').addEventListener('click', loadOnlineOrdersScreen);
+  $('maintreq-tile').addEventListener('click', loadMaintReqScreen);
+  // كارت واحد بيشتغل لأي نوع طلب (تفويض حدث واحد على كل حاوية) — زرار واتساب بيفتح
+  // wa.me برسالة جاهزة على طول (مفيش كتابة/تخزين هنا خالص)، وزرار الإجراء بيبعت طلب
+  // للكمبيوتر ويعلّم الكارت "تم" فورًا محليًا (تفاؤليًا) عشان المستخدم يحس إن حاجة حصلت.
+  ['sitemsgs-box','onlineorders-box','maintreq-box'].forEach(function(boxId){
+    $(boxId).addEventListener('click', function(ev){
+      var waBtn=ev.target.closest?ev.target.closest('.btn-wa'):null;
+      if(waBtn){ openExternalLink(waBtn.getAttribute('data-wa-url')); return; }
+      var actBtn=ev.target.closest?ev.target.closest('.btn-req-mini'):null;
+      if(!actBtn)return;
+      var typeKey=actBtn.getAttribute('data-req-type');
+      var id=actBtn.getAttribute('data-req-action-id');
+      var cfg=REQ_TYPES[typeKey];
+      if(!cfg||!id)return;
+      actBtn.disabled=true;
+      mobileAdminRequest(cfg.field, id).then(function(){
+        var card=actBtn.closest('.req-card');
+        if(!card)return;
+        card.querySelector('.req-actions').hidden=true;
+        var doneMsg=card.querySelector('.req-done-msg');
+        if(doneMsg){ doneMsg.hidden=false; doneMsg.textContent='✓ اتبعت للكمبيوتر — هتتنفّذ خلال ٣٠ ثانية لما يكون شغال ومتصل بالنت'; }
+      }).catch(function(){
+        actBtn.disabled=false;
+        var card=actBtn.closest('.req-card');
+        var doneMsg=card&&card.querySelector('.req-done-msg');
+        if(doneMsg){ doneMsg.hidden=false; doneMsg.style.color='var(--bad)'; doneMsg.style.background='var(--bad-bg)'; doneMsg.textContent='⚠️ تعذّر الإرسال — تأكد من الاتصال بالإنترنت وحاول تاني'; }
+      });
+    });
+  });
 
   // ===== تشفير كلمة المرور (PBKDF2 عن طريق WebCrypto) — نفس بالظبط خوارزمية
   // برنامج الكمبيوتر (hashPass في app/index.html): ١٠٠٠٠ دورة، هاش ٣٢ بايت،
@@ -1837,7 +2018,7 @@
   // تنزّل وتثبّت الجديدة بدوسة واحدة، من غير ما تحتاج تدخل GitHub خالص.
   // لازم كل تحديث جديد يرفّع رقم APP_VERSION هنا (ونفس الرقم في
   // mobile-android/www/version.txt) عشان الفحص يشتغل صح.
-  var APP_VERSION = '1.3.20';
+  var APP_VERSION = '1.3.21';
   var UPDATES_REPO = 'mohamedmagdy-ai/act-mobile-updates';
   function _verParts(v){
     return String(v||'0').replace(/^v/i,'').split('.').map(function(n){ return parseInt(n,10)||0; });

@@ -278,7 +278,8 @@ function normDigits(s) {
   const NAV_SCREENS = [
     'screen-treasury', 'screen-report', 'screen-receivables', 'screen-payables',
     'screen-sales', 'screen-maintenance', 'screen-inventory', 'screen-servicecenters',
-    'screen-finance', 'screen-hr', 'screen-whatsapp', 'screen-months', 'screen-settings-menu',
+    'screen-finance', 'screen-hr', 'screen-whatsapp', 'screen-sitemsgs', 'screen-onlineorders',
+    'screen-maintreq', 'screen-months', 'screen-settings-menu',
   ];
   const t4a = await page.evaluate(() => ({
     homeVisible: !document.getElementById('home-view').hidden,
@@ -287,7 +288,7 @@ function normDigits(s) {
   }));
   r.ok('الشاشة الرئيسية ظاهرة أول ما تدخل الداشبورد', t4a.homeVisible);
   r.ok('كل شاشات التفاصيل مخفية في البداية', t4a.allDetailScreensHidden);
-  r.eq('فيه ١٣ زرار قسم في الشاشة الرئيسية (حسابات الدخول/الفروع/الشركاء/العدادات/سجل التدقيق/بيانات المحل بقوا كلهم تحت زرار "الإعدادات" واحد بدل ما ياخدوا زرار لوحدهم)', t4a.tileCount, 13);
+  r.eq('فيه ١٦ زرار قسم في الشاشة الرئيسية (حسابات الدخول/الفروع/الشركاء/العدادات/سجل التدقيق/بيانات المحل بقوا كلهم تحت زرار "الإعدادات" واحد، وإضافة ٣ زراير طلبات الموقع: رسائل/أونلاين/صيانة)', t4a.tileCount, 16);
 
   for (const screenId of NAV_SCREENS) {
     const nav = await page.evaluate((id) => {
@@ -665,6 +666,127 @@ function normDigits(s) {
   });
   r.ok('زرار فحص السلامة بيوري نتيجة إيجابية للسجل السليم المتزامن', t4u.includes('مفيش أي تلاعب'));
   await page.evaluate(() => { db = null; document.getElementById('home-view').hidden = false; document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; }); });
+
+  // ===== ٤.ى) طلبات الموقع (رسائل عملاء/طلبات أونلاين/طلبات صيانة) — طلب المستخدم
+  // "على الأقل ارد على العملاء عشان العميل ماينتظرش كثير على البرنامج". بنتأكد إن:
+  // (أ) أرقام الشاشة الرئيسية بتترسم من d.siteMessagesNewCount/onlineOrdersPendingCount/
+  // maintRequestsPendingCount، (ب) الدوس على أي زرار من التلاتة بيحمّل تفاصيل الطلبات
+  // من _mobile_admin ويرسمها في كروت، (ج) زرار "رد واتساب" بيبني لينك wa.me صحيح
+  // ويفتحه (بدون أي كتابة/تخزين)، (د) زرار الإجراء (أرشفة/إلغاء/تجاهل) بيبعت طلب واحد
+  // لمستند _mobile_admin_write بنفس اسم الحقل اللي app/index.html بيستنى منه بالظبط.
+  const t4v = await page.evaluate(() => {
+    render({ shopName: 'محل', todaySales: {}, siteMessagesNewCount: 2, onlineOrdersPendingCount: 1, maintRequestsPendingCount: 3 });
+    return {
+      sitemsgs: document.getElementById('mt-sitemsgs-badge').textContent,
+      onlineorders: document.getElementById('mt-onlineorders-badge').textContent,
+      maintreq: document.getElementById('mt-maintreq-badge').textContent,
+    };
+  });
+  r.eq('شارة "رسائل العملاء" في الشاشة الرئيسية بترسم من siteMessagesNewCount', t4v.sitemsgs, '2');
+  r.eq('شارة "طلبات أونلاين" في الشاشة الرئيسية بترسم من onlineOrdersPendingCount', t4v.onlineorders, '1');
+  r.eq('شارة "طلبات صيانة الموقع" في الشاشة الرئيسية بترسم من maintRequestsPendingCount', t4v.maintreq, '3');
+
+  // رسائل العملاء: كارت واحد فيه اسم/تليفون/نص الرسالة + لينك واتساب صحيح
+  const t4w = await page.evaluate(() => {
+    const adminSnap = { siteMessagesNew: [{ id: 'MSG-1', name: 'عميل واحد', phone: '01012345678', message: 'عندي سؤال عن المنتج', createdAt: Date.now() - 60000 }] };
+    db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
+    let openedUrl = null;
+    window.open = (u) => { openedUrl = u; };
+    document.getElementById('sitemsgs-tile').click();
+    return new Promise((resolve) => setTimeout(() => {
+      const screenVisible = !document.getElementById('screen-sitemsgs').hidden;
+      const badge = document.getElementById('sitemsgs-badge').textContent;
+      const box = document.getElementById('sitemsgs-box');
+      const cardHtml = box.innerHTML;
+      box.querySelector('.btn-wa').click();
+      resolve({ screenVisible, badge, cardHtml, openedUrl });
+    }, 150));
+  });
+  r.ok('الدوس على زرار "رسائل العملاء" بيفتح شاشتها', t4w.screenVisible);
+  r.eq('شارة الشاشة الداخلية بترسم عدد الرسائل المحمّلة', t4w.badge, '1');
+  r.ok('كارت الرسالة فيه اسم العميل وتليفونه ونص رسالته', t4w.cardHtml.includes('عميل واحد') && t4w.cardHtml.includes('01012345678') && t4w.cardHtml.includes('عندي سؤال عن المنتج'));
+  r.eq('زرار "رد واتساب" بيفتح لينك wa.me على رقم العميل بصيغة دولية صحيحة (201...)', t4w.openedUrl && t4w.openedUrl.split('?')[0], 'https://wa.me/201012345678');
+  r.ok('اسم الرابط بيستخدم بروتوكول wa.me (مش whatsapp:// المخصص لسطح المكتب بس)', t4w.openedUrl && t4w.openedUrl.indexOf('https://wa.me/') === 0);
+
+  const t4x = await page.evaluate(() => {
+    const writes = [];
+    db = { collection: () => ({ doc: () => ({ set: (data, opts) => { writes.push({ data, opts }); return Promise.resolve(); } }) }) };
+    const actBtn = document.getElementById('sitemsgs-box').querySelector('.btn-req-mini');
+    actBtn.click();
+    return new Promise((resolve) => setTimeout(() => resolve({
+      writes,
+      actionsHidden: actBtn.closest('.req-card').querySelector('.req-actions').hidden,
+      doneMsg: actBtn.closest('.req-card').querySelector('.req-done-msg').textContent,
+      btnDisabled: actBtn.disabled,
+    }), 150));
+  });
+  r.eq('زرار "أرشفة" بيبعت كتابة واحدة بس لمستند طلبات الموبايل', t4x.writes.length, 1);
+  r.ok('الكتابة فيها merge:true', t4x.writes[0].opts && t4x.writes[0].opts.merge === true);
+  r.ok('اسم الحقل siteMsgArchive (نفس اللي app/index.html بيستنّاه بالظبط)', 'siteMsgArchive' in t4x.writes[0].data);
+  r.ok('الكارت بيتعلّم "تم" فورًا (تفاؤليًا) من غير ما ينتظر رد الكمبيوتر', t4x.actionsHidden === true && t4x.doneMsg.includes('اتبعت'));
+  await page.evaluate(() => { db = null; document.getElementById('home-view').hidden = false; document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; }); });
+
+  // طلبات أونلاين: كارت فيه الأصناف والإجمالي + زرار "إلغاء الطلب" بيبعت onlineOrderCancel
+  const t4y = await page.evaluate(() => {
+    const adminSnap = { onlineOrdersPending: [{ id: 'ORD-9', customerName: 'عميل اونلاين', customerPhone: '01111111111', itemsStr: 'خلاط ×1، فوود بروسيسور ×2', grandTotal: 1500, createdAt: Date.now() }] };
+    db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
+    document.getElementById('onlineorders-tile').click();
+    return new Promise((resolve) => setTimeout(() => resolve({
+      cardHtml: document.getElementById('onlineorders-box').innerHTML,
+      actionLabel: document.getElementById('onlineorders-box').querySelector('.btn-req-mini').textContent,
+    }), 150));
+  });
+  r.ok('كارت الطلب الأونلاين فيه أسماء الأصناف والإجمالي', t4y.cardHtml.includes('خلاط') && t4y.cardHtml.includes('فوود بروسيسور') && t4y.cardHtml.includes('الإجمالي'));
+  r.ok('زرار الإجراء هنا اسمه "إلغاء الطلب"', t4y.actionLabel.includes('إلغاء'));
+  const t4z = await page.evaluate(() => {
+    const writes = [];
+    db = { collection: () => ({ doc: () => ({ set: (data, opts) => { writes.push({ data, opts }); return Promise.resolve(); } }) }) };
+    document.getElementById('onlineorders-box').querySelector('.btn-req-mini').click();
+    return new Promise((resolve) => setTimeout(() => resolve(writes), 150));
+  });
+  r.ok('اسم الحقل onlineOrderCancel (نفس اللي app/index.html بيستنّاه بالظبط)', t4z.length === 1 && 'onlineOrderCancel' in t4z[0].data);
+  await page.evaluate(() => { db = null; document.getElementById('home-view').hidden = false; document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; }); });
+
+  // طلبات صيانة الموقع: كارت فيه الجهاز/الماركة/العطل + زرار "تجاهل" بيبعت maintReqDismiss
+  const t4aa = await page.evaluate(() => {
+    const adminSnap = { maintRequestsPending: [{ id: 'MREQ-9', customerName: 'عميل صيانة', customerPhone: '01222222222', device: 'خلاط', brand: 'كينوود', model: '', issue: 'مش شغال خالص', createdAt: Date.now() }] };
+    db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
+    document.getElementById('maintreq-tile').click();
+    return new Promise((resolve) => setTimeout(() => resolve({
+      cardHtml: document.getElementById('maintreq-box').innerHTML,
+      actionLabel: document.getElementById('maintreq-box').querySelector('.btn-req-mini').textContent,
+    }), 150));
+  });
+  r.ok('كارت طلب الصيانة فيه الجهاز والماركة ونص العطل', t4aa.cardHtml.includes('خلاط') && t4aa.cardHtml.includes('كينوود') && t4aa.cardHtml.includes('مش شغال خالص'));
+  r.ok('زرار الإجراء هنا اسمه "تجاهل"', t4aa.actionLabel.includes('تجاهل'));
+  const t4ab = await page.evaluate(() => {
+    const writes = [];
+    db = { collection: () => ({ doc: () => ({ set: (data, opts) => { writes.push({ data, opts }); return Promise.resolve(); } }) }) };
+    document.getElementById('maintreq-box').querySelector('.btn-req-mini').click();
+    return new Promise((resolve) => setTimeout(() => resolve(writes), 150));
+  });
+  r.ok('اسم الحقل maintReqDismiss (نفس اللي app/index.html بيستنّاه بالظبط)', t4ab.length === 1 && 'maintReqDismiss' in t4ab[0].data);
+  await page.evaluate(() => { db = null; document.getElementById('home-view').hidden = false; document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; }); });
+
+  // حالة "مفيش طلبات" (فاضي) لازم تعرض رسالة واضحة، مش كارت فاضي أو خطأ
+  const t4ac = await page.evaluate(() => {
+    const adminSnap = { siteMessagesNew: [], onlineOrdersPending: [], maintRequestsPending: [] };
+    db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
+    document.getElementById('sitemsgs-tile').click();
+    return new Promise((resolve) => setTimeout(() => resolve(document.getElementById('sitemsgs-box').innerHTML), 150));
+  });
+  r.ok('مفيش رسائل جديدة = رسالة "مفيش رسائل جديدة" بدل كارت فاضي', t4ac.includes('مفيش رسائل جديدة'));
+
+  // اسم عميل/رسالة فيها HTML خبيث لازم تتعرض كنص عادي (escaped) — مش كعنصر HTML فعلي
+  const t4ad = await page.evaluate(() => {
+    const adminSnap = { siteMessagesNew: [{ id: 'MSG-x', name: '<img src=x onerror=alert(1)>', phone: '', message: '<script>alert(2)</script>', createdAt: Date.now() }] };
+    db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: true, data: () => adminSnap }) }) }) };
+    document.getElementById('sitemsgs-tile').click();
+    return new Promise((resolve) => setTimeout(() => resolve(document.getElementById('sitemsgs-box').innerHTML), 150));
+  });
+  r.ok('اسم عميل خبيث بيتعرض escaped', !t4ad.includes('<img') && t4ad.includes('&lt;img'));
+  r.ok('نص رسالة خبيث بيتعرض escaped', !t4ad.includes('<script>alert(2)') && t4ad.includes('&lt;script&gt;'));
+  await page.evaluate(() => { db = null; document.getElementById('home-view').hidden = false; document.querySelectorAll('.detail-screen').forEach((s) => { s.hidden = true; }); delete window.open; });
 
   // ===== ٥) لا يوجد صنف تحت الحد = رسالة "المخزون تمام" بدل جدول فاضي (وكذلك حالة عدم وجود مصروفات/مسحوبات/إجازات معلّقة) =====
   const t5 = await page.evaluate(() => {

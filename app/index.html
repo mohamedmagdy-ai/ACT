@@ -19241,6 +19241,13 @@ function buildOwnerDashboardSnapshot(){
       deferredTotal:rnd(debtToMe),
       deferredCount:deferredSalesCount+deferredMaintCount,
       pendingWhatsappCount:pendingWa,
+      // أرقام بس هنا (مش التفاصيل) — عشان يبانوا فورًا على شاشة الموبايل الرئيسية (المستند
+      // ده بيتحدّث لايڤ) من غير ما تحتاج تدخل الشاشة التفصيلية. التفاصيل (اسم/تليفون/نص
+      // الطلب) في مستند _mobile_admin المنفصل (راجع pushMobileAdminSnapshot) — بيتحمّل
+      // بس لما تدخل فعليًا، عشان المستند اللايڤ ده يفضل خفيف وسريع.
+      onlineOrdersPendingCount:(DB.onlineOrders||[]).filter(o=>o.status==='pending').length,
+      siteMessagesNewCount:(DB.onlineMessages||[]).filter(m=>m.status==='new').length,
+      maintRequestsPendingCount:(DB.onlineMaintRequests||[]).filter(r=>r.status==='pending').length,
       receivables:{total:rnd(debtToMe),count:receivablesItems.length,items:receivablesItems.slice(0,SAFETY_CAP).map(x=>({id:x.id,party:x.party,remain:rnd(x.remain)}))},
       payables:{total:rnd(debtOnMe),count:payablesItems.length,items:payablesItems.slice(0,SAFETY_CAP).map(x=>({id:x.id,party:x.party,remain:rnd(x.remain)}))},
       monthReport:{
@@ -19799,6 +19806,26 @@ function pushMobileAdminSnapshot(){
         injections:(DB.partnerCapitalInjections||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,100)
       };
     }catch(_ePartners){}
+    // طلبات الموقع (صيانة/أونلاين/رسائل) المعلّقة بس — عشان صاحب المحل يقدر "على الأقل
+    // يرد على العميل" من الموبايل من غير ما ينتظر يفتح الكمبيوتر (طلب المستخدم صراحة).
+    // بيانات مختصرة بس (اسم/تليفون/تفاصيل قصيرة)، وحد أقصى ٤٠ لكل نوع عشان المستند
+    // يفضل خفيف. الرد نفسه بيحصل بلينك واتساب مباشر من الموبايل (مفيش كتابة/تخزين
+    // إضافي)، والإجراءات المتاحة من الموبايل (تجاهل/أرشفة/إلغاء) هي بس اللي مالهاش
+    // أي أثر جانبي خطير (مخزون/فواتير) — التحويل الفعلي لإذن استلام أو فاتورة لسه
+    // من الكمبيوتر بس، لأنه محتاج مراجعة أدق (توفر قطع الغيار، الأسعار...).
+    let onlineOrdersPending=[],siteMessagesNew=[],maintRequestsPending=[];
+    try{
+      onlineOrdersPending=sortByNewest((DB.onlineOrders||[]).filter(o=>o.status==='pending')).slice(0,40)
+        .map(o=>({id:o.id,customerName:o.customerName||'',customerPhone:o.customerPhone||'',itemsStr:(o.items||[]).map(it=>(it.name||'')+' ×'+(it.qty||1)).join('، '),grandTotal:o.grandTotal||0,createdAt:o.createdAt||0}));
+    }catch(_eOo){}
+    try{
+      siteMessagesNew=sortByNewest((DB.onlineMessages||[]).filter(m=>m.status==='new')).slice(0,40)
+        .map(m=>({id:m.id,name:m.name||'',phone:m.phone||'',message:m.message||'',createdAt:m.createdAt||0}));
+    }catch(_eSm){}
+    try{
+      maintRequestsPending=sortByNewest((DB.onlineMaintRequests||[]).filter(r=>r.status==='pending')).slice(0,40)
+        .map(r=>({id:r.id,customerName:r.customerName||'',customerPhone:r.customerPhone||'',device:r.device||'',brand:r.brand||'',model:r.model||'',issue:r.issue||'',createdAt:r.createdAt||0}));
+    }catch(_eMr){}
     const payload={
       updatedAt:Date.now(),
       branches:(DB.branches||[]).map(b=>({id:b.id,name:b.name,isDefault:!!b.isDefault})),
@@ -19806,6 +19833,7 @@ function pushMobileAdminSnapshot(){
       counters:(typeof loadCounters==='function')?loadCounters():{},
       partners:partnersBlock,
       logs:(DB.logs||[]).slice(0,200),
+      onlineOrdersPending,siteMessagesNew,maintRequestsPending,
     };
     let cleanPayload=payload;
     try{cleanPayload=JSON.parse(JSON.stringify(payload));}catch(_eJ){}
@@ -19818,7 +19846,7 @@ function pullAndApplyMobileAdminRequests(){
     (window._fbReady||Promise.resolve()).then(()=>FS_COL.doc('_mobile_admin_write').get()).then(doc=>{
       if(!doc||!doc.exists)return;
       const d=doc.data()||{};
-      const toRemove={newUsers:[],newBranches:[],partnerInjections:[],initialCapitalSets:[],counterUpdates:[]};
+      const toRemove={newUsers:[],newBranches:[],partnerInjections:[],initialCapitalSets:[],counterUpdates:[],onlineOrderCancel:[],siteMsgArchive:[],maintReqDismiss:[]};
       let any=false,dbChanged=false;
       (d.newUsers||[]).forEach(nu=>{
         try{
@@ -19879,6 +19907,29 @@ function pullAndApplyMobileAdminRequests(){
         }catch(_e6){}
         any=true;
       }
+      // ===== ردود سريعة من الموبايل على طلبات الموقع: تجاهل طلب صيانة / أرشفة رسالة /
+      // إلغاء طلب أونلاين — نفس بالظبط الدوال اللي زرارات الشاشة العادية بتنادّيها
+      // (نفس الشرط: لازم يكون لسه "قيد المراجعة"/"جديدة"، وإلا بيتجاهل بصمت — يمنع
+      // ازدواجية لو اتنين حاولوا يتصرفوا في نفس الطلب في نفس الوقت من جهازين مختلفين).
+      // الدوال دي بتعمل saveDB() ورندر بنفسها، فمش محتاجين dbChanged=true هنا تاني.
+      (d.onlineOrderCancel||[]).forEach(id=>{
+        try{ if(typeof cancelOnlineOrderSilent==='function')cancelOnlineOrderSilent(id); }catch(_eOc){}
+        toRemove.onlineOrderCancel.push(id);any=true;
+      });
+      (d.siteMsgArchive||[]).forEach(id=>{
+        try{
+          const m=(DB.onlineMessages||[]).find(x=>x.id===id);
+          if(m&&m.status==='new'&&typeof archiveSiteMsg==='function')archiveSiteMsg(id);
+        }catch(_eSa){}
+        toRemove.siteMsgArchive.push(id);any=true;
+      });
+      (d.maintReqDismiss||[]).forEach(id=>{
+        try{
+          const r=(DB.onlineMaintRequests||[]).find(x=>x.id===id);
+          if(r&&r.status==='pending'&&typeof dismissMaintReq==='function')dismissMaintReq(id);
+        }catch(_eMd){}
+        toRemove.maintReqDismiss.push(id);any=true;
+      });
       if(!any)return;
       if(dbChanged){try{saveDB();}catch(_e7){}}
       try{if(typeof pushOwnerDashboardSnapshot==='function')pushOwnerDashboardSnapshot();}catch(_e8){}
@@ -20026,10 +20077,19 @@ function renderOnlineOrders(){
     </div></div>`;
   }).join('');
 }
+// الإلغاء الفعلي منفصل عن نافذة التأكيد — عشان يتنادى برضه من طلب إلغاء جاي من
+// الموبايل (المستخدم دوس "إلغاء" هناك بنفسه فعلاً، فمفيش داعي لتأكيد تاني هنا)
+function cancelOnlineOrderSilent(id){
+  const o=(DB.onlineOrders||[]).find(x=>x.id===id);if(!o||o.status!=='pending')return false;
+  o.status='cancelled';saveDB();
+  try{renderOnlineOrders();}catch(_e){}
+  return true;
+}
 function cancelOnlineOrder(id){
   const o=(DB.onlineOrders||[]).find(x=>x.id===id);if(!o||o.status!=='pending')return;
   showDangerConfirm('إلغاء الطلب '+id+'؟',()=>{
-    o.status='cancelled';saveDB();renderOnlineOrders();toast('تم إلغاء الطلب','warn');
+    cancelOnlineOrderSilent(id);
+    toast('تم إلغاء الطلب','warn');
   });
 }
 function confirmOnlineOrder(id){
