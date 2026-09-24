@@ -79,6 +79,28 @@ function loadCatalog(){
   });
 }
 
+// ===== صورة إعلانية (عروض/خصومات) أعلى الصفحة — اختيارية، من مستند
+// _online_site_content نفسه اللي صفحتي الشروط/الخصوصية بيقروه (قراءة عامة) =====
+function loadPromoBanner(){
+  if(!db) return;
+  db.collection('sz_data').doc('_online_site_content').get().then((doc) => {
+    const data = (doc && doc.exists) ? (doc.data() || {}) : {};
+    renderPromoBanner(data.bannerImage || '');
+  }).catch((e) => {
+    console.error('loadPromoBanner failed', e);
+  });
+}
+function renderPromoBanner(url){
+  const el = $('promo-banner');
+  if(!el) return;
+  if(url){
+    $('promo-banner-img').src = url;
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+  }
+}
+
 // ===== عرض المنتجات =====
 function currentFilteredProducts(){
   if(!state.catalog || !state.catalog.products) return [];
@@ -97,9 +119,19 @@ function renderProducts(){
   if(!list.length){ grid.innerHTML=''; return; }
   grid.innerHTML = list.map(productCardHtml).join('');
 }
+function priceBlockHtml(p){
+  const hasDiscount = p.originalPrice != null && p.originalPrice > p.price;
+  if(!hasDiscount) return `<span class="product-price">${fmtMoney(p.price)}</span>`;
+  return `<span class="price-block">
+      <span class="price-old">${fmtMoney(p.originalPrice)}</span>
+      <span class="price-new">${fmtMoney(p.price)}</span>
+    </span>`;
+}
 function productCardHtml(p){
   const inStock = (p.qty || 0) > 0;
   const inCart = state.cart[p.id] || 0;
+  const hasDiscount = p.originalPrice != null && p.originalPrice > p.price;
+  const discountPct = hasDiscount ? Math.round(100 - (p.price / p.originalPrice) * 100) : 0;
   const thumbInner = p.image
     ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" loading="lazy" onerror="this.remove()">`
     : `<span class="thumb-ph">PRODUCT 1:1</span>`;
@@ -110,13 +142,14 @@ function productCardHtml(p){
         ${p.brand ? `<span class="strip-brand" dir="ltr">${escapeHtml(p.brand)}</span>` : ''}
       </div>
       <div class="product-thumb ${p.image ? 'has-image' : ''}">
+        ${hasDiscount && discountPct > 0 ? `<span class="discount-badge">خصم ${discountPct}%</span>` : ''}
         ${thumbInner}
       </div>
       <div class="product-info">
         <div class="product-name">${escapeHtml(p.name)}</div>
         <div class="product-code" dir="ltr">${escapeHtml(p.id)}</div>
         <div class="product-bottom">
-          <span class="product-price">${fmtMoney(p.price)}</span>
+          ${priceBlockHtml(p)}
           ${cartControlHtml(p, inStock, inCart)}
         </div>
       </div>
@@ -400,5 +433,5 @@ document.addEventListener('DOMContentLoaded', () => {
   applyBranding();
   wireEvents();
   updateCartBadge();
-  if(initFirebase()) loadCatalog();
+  if(initFirebase()){ loadCatalog(); loadPromoBanner(); }
 });
