@@ -9592,7 +9592,7 @@ function openProdModal(editId){
     if(p.subcat)$('pr-subcat').value=p.subcat;
     $('pr-brand').value=p.brand||''; $('pr-buy').value=p.buy;
     $('pr-sell').value=p.sell; $('pr-qty').value=p.qty;
-    $('pr-alrt').value=p.alert; $('pr-notes').value=p.notes||'';
+    $('pr-alrt').value=(p.alert!=null?p.alert:1); $('pr-notes').value=p.notes||'';
     if($('pr-section'))$('pr-section').value=p.section||'devices';
     if($('pr-margin'))$('pr-margin').value='';
     if($('pr-price-suggestion'))$('pr-price-suggestion').style.display='none';
@@ -9609,7 +9609,7 @@ function openProdModal(editId){
   } else {
     $('prod-modal-title').textContent='🔌 إضافة منتج جديد';
     $('pr-nm').value=''; $('pr-brand').value=''; $('pr-buy').value='';
-    $('pr-sell').value=''; $('pr-qty').value=''; $('pr-alrt').value=5; $('pr-notes').value='';
+    $('pr-sell').value=''; $('pr-qty').value=''; $('pr-alrt').value=1; $('pr-notes').value='';
     if($('pr-margin'))$('pr-margin').value='';
     if($('pr-price-suggestion'))$('pr-price-suggestion').style.display='none';
     if($('pr-online-price'))$('pr-online-price').value='';
@@ -9870,6 +9870,25 @@ if(!DB.returns) DB.returns=[];
 if(!DB.onlineOrders) DB.onlineOrders=[];
 if(!DB.onlineMessages) DB.onlineMessages=[];
 if(!DB.onlineMaintRequests) DB.onlineMaintRequests=[];
+// تحديث مرة واحدة بس: حد تنبيه النواقص الافتراضي اتغيّر من 5 لـ1 (طلب صاحب المحل) —
+// بنعدّل بس الأصناف اللي لسه على القيمة الافتراضية القديمة (5)، من غير ما نلمس أي
+// صنف اتغيّر حده يدويًا لرقم تاني، ومن غير ما نلمس الأصناف المكتوم تنبيهها عمدًا (0).
+// ملحوظة: زي باقي حراس التهيئة فوق (returns/onlineOrders/...)، التعديل هنا بيفضل
+// في الذاكرة وبيتحفظ فعليًا مع أول saveDB() طبيعي بعدها (أي إجراء عادي في البرنامج) —
+// عمدًا مفيش نداء saveDB() فوري هنا، عشان منسجّلش "تعديل محلي لسه طازة" وقت بدء
+// التشغيل، وده كان بيمنع (لمدة ٢٠ ثانية) أي تحديث سحابي حقيقي وصل في نفس اللحظة
+// من إنه يتطبّق (راجع _recentLocalEdit في processFirebaseDoc).
+function runAlertDefaultMigrationTo1(){
+  if(DB._alertDefaultMigratedTo1)return 0;
+  let _nMig=0;
+  try{
+    (DB.products||[]).forEach(p=>{ if((p.alert||0)===5){ p.alert=1; _nMig++; } });
+    DB._alertDefaultMigratedTo1=true;
+    if(_nMig>0){ try{addLog('تحديث تلقائي: حد تنبيه النواقص الافتراضي اتغيّر من 5 إلى 1 في '+_nMig+' صنف');}catch(_eLog){} }
+  }catch(_eMigAlrt){}
+  return _nMig;
+}
+runAlertDefaultMigrationTo1();
 
 // Auto-backup daily
 (function(){
@@ -14820,6 +14839,17 @@ function editProd(id){
   else{$('prod-modal-title').textContent='🔌 إضافة منتج';if($('pr-section'))$('pr-section').value='devices';if($('pr-egs'))$('pr-egs').value='';['pr-nm','pr-brand','pr-buy','pr-sell','pr-qty','pr-notes'].forEach(id=>$(id)&&($(id).value=''));$('pr-alrt')&&($('pr-alrt').value=5);if($('pr-online-price'))$('pr-online-price').value='';if($('pr-discount-price'))$('pr-discount-price').value='';if($('pr-ship-size'))$('pr-ship-size').value='small';if($('pr-online-visible'))$('pr-online-visible').checked=false;if($('pr-description'))$('pr-description').value='';if($('pr-warranty-text'))$('pr-warranty-text').value='';if($('pr-parts-available'))$('pr-parts-available').checked=true;_prImagesDraft=[];renderProdImagesPreview();updateSubCats();}
   openM('m-prod');
 }
+// قيمة "حد التنبيه" من الفورم — بالغلط كانت بتتحسب بـ parseFloat(...)||5، وده كان
+// بيدّوس أي قيمة "صفر" مكتوبة فعلاً (يعني تنبيه متوقف عمدًا عن طريق زرار 🔔/🔕) ويرجّعها
+// 5 تلقائيًا لأن 0 قيمة falsy في JS — فكل مرة تحفظ تعديل في صنف مكتوم التنبيه، كان
+// بيرجع يتفعّل لوحده من غير ما تطلب كده. دلوقتي: فاضي فعلاً = 5 (افتراضي)، أي رقم
+// صحيح شامل 0 = بيتحفظ زي ما هو.
+function _prAlrtVal(){
+  const raw=$('pr-alrt')?$('pr-alrt').value.trim():'';
+  if(raw==='')return 1;
+  const v=parseFloat(raw);
+  return isNaN(v)?1:v;
+}
 function saveProd(){
   if(!canEditProducts()){toast('عرض بس — مفيش صلاحية تعديل المنتجات ⚠️','warn');return;}
   if(_prImgUploading){toast('⏳ لسه بترفع صورة المنتج... استنى لحد ما تظهر المعاينة قبل الحفظ','warn');return;}
@@ -14845,14 +14875,14 @@ function saveProd(){
     if(_discountPrice<=0||_discountPrice>=_effBase){toast('السعر بعد الخصم لازم يكون أقل من السعر الحالي للمنتج (الأونلاين أو سعر البيع)','warn');return;}
   }
   if(editId){const p=DB.products.find(x=>x.id===editId);if(p){const _oldBuy=p.buy,_oldSell=p.sell;p.name=nm;if($('pr-egs'))p.egs=$('pr-egs').value.trim();p.cat=$('pr-cat').value;p.subcat=subcat||'';p.section=sec;p.brand=$('pr-brand').value;p.buy=(CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy;
-  if(_oldBuy!==p.buy||_oldSell!==(parseFloat($('pr-sell').value)||0))addLog('تعديل أسعار "'+nm+'": شراء '+_oldBuy+'→'+((CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy)+' | بيع '+_oldSell+'→'+(parseFloat($('pr-sell').value)||0));p.sell=parseFloat($('pr-sell').value)||0;setProdQty(p,parseFloat($('pr-qty').value)||0);p.alert=parseFloat($('pr-alrt').value)||5;p.notes=$('pr-notes').value;p.onlinePrice=_onlinePrice;p.discountPrice=_discountPrice;p.shipSize=_shipSize;p.onlineVisible=_onlineVisible;p.imageUrl=_imageUrl;p.images=_images;p.description=_description;p.warrantyText=_warrantyText;p.partsAvailable=_partsAvailable;}saveDB();closeM('m-prod');renderProds();toast('✓ تم تحديث المنتج');if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();}
+  if(_oldBuy!==p.buy||_oldSell!==(parseFloat($('pr-sell').value)||0))addLog('تعديل أسعار "'+nm+'": شراء '+_oldBuy+'→'+((CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy)+' | بيع '+_oldSell+'→'+(parseFloat($('pr-sell').value)||0));p.sell=parseFloat($('pr-sell').value)||0;setProdQty(p,parseFloat($('pr-qty').value)||0);p.alert=_prAlrtVal();p.notes=$('pr-notes').value;p.onlinePrice=_onlinePrice;p.discountPrice=_discountPrice;p.shipSize=_shipSize;p.onlineVisible=_onlineVisible;p.imageUrl=_imageUrl;p.images=_images;p.description=_description;p.warrantyText=_warrantyText;p.partsAvailable=_partsAvailable;}saveDB();closeM('m-prod');renderProds();toast('✓ تم تحديث المنتج');if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();}
   else{
     // توليد ID فريد بصيغة PRD-D (أجهزة) أو PRD-P (قطع غيار) لمنع التضارب مع الأصناف الموجودة
     const prefix=sec==='parts'?'PRD-P':'PRD-D';
     const newId=nextFreeId(prefix,'products',3);
     if($('prod-search'))$('prod-search').value='';
     const _newQty=parseFloat($('pr-qty').value)||0;
-    const _newProd={id:newId,name:nm,egs:($('pr-egs')?$('pr-egs').value.trim():''),cat:$('pr-cat').value,subcat:subcat||'',section:sec,brand:$('pr-brand').value,buy:parseFloat($('pr-buy').value)||0,sell:parseFloat($('pr-sell').value)||0,qty:_newQty,qtyByBranch:{[activeBranchKey()]:_newQty},alert:parseFloat($('pr-alrt').value)||5,notes:$('pr-notes').value,onlinePrice:_onlinePrice,discountPrice:_discountPrice,shipSize:_shipSize,onlineVisible:_onlineVisible,imageUrl:_imageUrl,images:_images,description:_description,warrantyText:_warrantyText,partsAvailable:_partsAvailable};
+    const _newProd={id:newId,name:nm,egs:($('pr-egs')?$('pr-egs').value.trim():''),cat:$('pr-cat').value,subcat:subcat||'',section:sec,brand:$('pr-brand').value,buy:parseFloat($('pr-buy').value)||0,sell:parseFloat($('pr-sell').value)||0,qty:_newQty,qtyByBranch:{[activeBranchKey()]:_newQty},alert:_prAlrtVal(),notes:$('pr-notes').value,onlinePrice:_onlinePrice,discountPrice:_discountPrice,shipSize:_shipSize,onlineVisible:_onlineVisible,imageUrl:_imageUrl,images:_images,description:_description,warrantyText:_warrantyText,partsAvailable:_partsAvailable};
     DB.products.unshift(_newProd);
     saveDB();closeM('m-prod');renderProds();toast('✓ تم إضافة المنتج');
     if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();
