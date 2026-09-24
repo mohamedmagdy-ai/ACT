@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title id="page-title">تفاصيل المنتج — ACT المتحدة للتجارة والصيانة</title>
+<meta name="description" id="page-description" content="تفاصيل المنتج، الصور، الضمان، وتوفر قطع الغيار — ACT المتحدة للتجارة والصيانة، صفية زغلول الإسكندرية.">
+<link rel="canonical" id="page-canonical" href="https://safeya-zoghloul.web.app/product.html">
+<meta name="robots" content="index, follow">
+
+<meta property="og:type" content="product">
+<meta property="og:site_name" content="ACT — المتحدة للتجارة والصيانة">
+<meta property="og:title" id="og-title" content="ACT — المتحدة للتجارة والصيانة">
+<meta property="og:description" id="og-description" content="أجهزة أصلية بضمان، مركز صيانة معتمد، وقطع غيار حقيقية.">
+<meta property="og:url" id="og-url" content="https://safeya-zoghloul.web.app/product.html">
+<meta property="og:image" id="og-image" content="https://safeya-zoghloul.web.app/og-image.png">
+<meta property="og:locale" content="ar_EG">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json" id="product-jsonld"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=El+Messiri:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== هيدر (زي باقي الصفحات) ===== -->
+<header class="site-header" id="site-header">
+  <div class="header-inner">
+    <a class="brand" href="index.html" style="text-decoration:none;color:inherit;">
+      <span class="brand-mark" id="brand-mark">
+        <svg viewBox="0 0 200 200" width="40" height="40" aria-hidden="true">
+          <circle cx="100" cy="100" r="84" fill="none" stroke="#C8952F" stroke-width="2.5"></circle>
+          <text x="100" y="98" text-anchor="middle" font-family="'El Messiri',serif" font-weight="700" font-size="52" letter-spacing="3" fill="#E8C87D">ACT</text>
+          <rect x="85" y="111" width="30" height="2" fill="#C8952F"></rect>
+          <text x="100" y="136" text-anchor="middle" font-family="'El Messiri',serif" font-weight="500" font-size="15" fill="#B9C4D1">تجارة وصيانة</text>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <span class="brand-legal">المتحدة للتجارة والصيانة</span>
+        <span class="brand-name" id="brand-name">المتجر الأونلاين</span>
+      </div>
+    </a>
+    <nav class="main-nav" id="main-nav">
+      <a href="index.html" class="main-nav-link">الأجهزة</a>
+      <a href="index.html" class="main-nav-link">قطع الغيار</a>
+      <a href="index.html#maint-block" class="main-nav-link">الصيانة</a>
+      <a href="about.html" class="main-nav-link">مين إحنا</a>
+    </nav>
+    <div class="header-actions">
+      <a href="cart.html" class="cart-btn" id="cart-btn" style="text-decoration:none;">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+        <span>السلة</span>
+        <span class="cart-count" id="cart-count" hidden>0</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<nav class="breadcrumb" id="breadcrumb">
+  <a href="index.html">المتجر</a>
+  <span class="sep">/</span>
+  <span class="current" id="bc-current">بنحمّل...</span>
+</nav>
+
+<div class="pd-loading" id="pd-loading">
+  <div class="spinner"></div>
+  <p>بنحمّل بيانات المنتج...</p>
+</div>
+
+<div class="pd-not-found" id="pd-not-found" hidden>
+  <p>المنتج ده مش متاح دلوقتي أو اتشال من الموقع.</p>
+  <p><a href="index.html">→ رجوع لكل المنتجات</a></p>
+</div>
+
+<div class="product-detail" id="product-detail" hidden>
+  <div class="pd-gallery">
+    <div class="pd-gallery-main" id="pd-gallery-main"></div>
+    <div class="pd-gallery-thumbs" id="pd-gallery-thumbs" hidden></div>
+  </div>
+  <div class="pd-info">
+    <span class="pd-stock" id="pd-stock"></span>
+    <h1 class="pd-name" id="pd-name"></h1>
+    <div class="pd-code mono-num" id="pd-code" dir="ltr"></div>
+    <div class="pd-price-block" id="pd-price-block"></div>
+    <div class="pd-badges" id="pd-badges"></div>
+    <div class="pd-actions" id="pd-actions"></div>
+    <a class="pd-wa-link" id="pd-wa-link" href="#" target="_blank" rel="noopener" hidden>
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.004 2.003c-5.514 0-9.997 4.483-9.997 9.997 0 1.762.462 3.478 1.34 4.985L2 22l5.146-1.35a9.96 9.96 0 0 0 4.858 1.237h.004c5.514 0 9.997-4.483 9.997-9.997 0-2.67-1.04-5.182-2.929-7.071a9.935 9.935 0 0 0-7.072-2.929zm0 18.174h-.003a8.16 8.16 0 0 1-4.158-1.14l-.298-.177-3.054.801.815-2.978-.194-.306a8.15 8.15 0 0 1-1.253-4.377c0-4.513 3.672-8.184 8.188-8.184a8.13 8.13 0 0 1 5.79 2.398 8.13 8.13 0 0 1 2.396 5.792c0 4.514-3.673 8.185-8.191 8.185z"/></svg>
+      <span>اسأل عن المنتج ده على واتساب</span>
+    </a>
+    <div class="pd-desc" id="pd-desc" hidden>
+      <div class="pd-section-title">الوصف والمواصفات</div>
+      <div class="pd-desc-body" id="pd-desc-body"></div>
+    </div>
+  </div>
+</div>
+
+<div class="pd-added-toast" id="pd-added-toast">✓ اتضاف للسلة</div>
+
+<footer class="site-footer" id="site-footer">
+  <p class="footer-links"><a href="index.html">المتجر</a> · <a href="about.html">مين إحنا</a> · <a href="terms.html">الشروط والأحكام</a> · <a href="privacy.html">سياسة الخصوصية</a></p>
+</footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<script src="config.js"></script>
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  var CART_KEY = 'act_store_cart_v1';
+  function fmtMoney(n){ return Math.round(n||0).toLocaleString('ar-EG') + ' ج.م'; }
+  function loadCart(){ try{ var raw = localStorage.getItem(CART_KEY); return raw ? JSON.parse(raw) : {}; }catch(e){ return {}; } }
+  function saveCart(cart){ try{ localStorage.setItem(CART_KEY, JSON.stringify(cart)); }catch(e){} }
+  function updateCartBadge(){
+    var cart = loadCart();
+    var count = 0;
+    for(var k in cart){ if(cart.hasOwnProperty(k)) count += (cart[k]||0); }
+    var badge = $('cart-count');
+    if(!badge) return;
+    if(count > 0){ badge.textContent = count; badge.hidden = false; } else { badge.hidden = true; }
+  }
+
+  var product = null;
+  var galleryImages = [];
+  var activeImg = 0;
+  var toastTimer = null;
+
+  function applyBrandBasics(){
+    var name = window.STORE_NAME || 'المتجر الأونلاين';
+    var bn = $('brand-name'); if(bn) bn.textContent = name;
+  }
+
+  function getId(){ return new URLSearchParams(location.search).get('id') || ''; }
+
+  function initFirebase(){
+    var cfg = window.FIREBASE_CONFIG || {};
+    if(!cfg.apiKey || String(cfg.apiKey).indexOf('PASTE_') === 0) return null;
+    try{ firebase.initializeApp(cfg); return firebase.firestore(); }
+    catch(e){ console.error('firebase init failed', e); return null; }
+  }
+
+  function showNotFound(){
+    $('pd-loading').hidden = true;
+    $('pd-not-found').hidden = false;
+    $('bc-current').textContent = 'المنتج غير متاح';
+  }
+
+  function discountPct(){
+    var hasDiscount = product.originalPrice != null && product.originalPrice > product.price;
+    return hasDiscount ? Math.round(100 - (product.price / product.originalPrice) * 100) : 0;
+  }
+  function priceBlockHtml(){
+    var hasDiscount = product.originalPrice != null && product.originalPrice > product.price;
+    if(!hasDiscount) return '<span class="product-price">' + fmtMoney(product.price) + '</span>';
+    return '<span class="price-old">' + fmtMoney(product.originalPrice) + '</span><span class="price-new">' + fmtMoney(product.price) + '</span>';
+  }
+  function badgesHtml(){
+    var out = '';
+    if(product.warrantyText){
+      out += '<span class="pd-badge good">🛡️ ضمان: ' + esc(product.warrantyText) + '</span>';
+    }
+    if(product.partsAvailable !== false){
+      out += '<span class="pd-badge good">🔧 قطع الغيار متوفرة عندنا</span>';
+    } else {
+      out += '<span class="pd-badge muted">🔧 تواصل معانا لتوفر قطع الغيار للموديل ده</span>';
+    }
+    if(product.brand){
+      out += '<span class="pd-badge" dir="ltr">' + esc(product.brand) + '</span>';
+    }
+    return out;
+  }
+  function renderGalleryMain(){
+    var main = $('pd-gallery-main');
+    var url = galleryImages[activeImg];
+    var pct = discountPct();
+    main.innerHTML = (pct > 0 ? '<span class="pd-discount-badge">خصم ' + pct + '%</span>' : '') +
+      (url ? '<img src="' + esc(url) + '" alt="' + esc(product.name) + '" onerror="this.remove()">' : '<span class="thumb-ph">PRODUCT 1:1</span>');
+  }
+  function renderGalleryThumbs(){
+    var wrap = $('pd-gallery-thumbs');
+    if(galleryImages.length < 2){ wrap.innerHTML = ''; wrap.hidden = true; return; }
+    wrap.hidden = false;
+    wrap.innerHTML = galleryImages.map(function(url, i){
+      return '<button type="button" class="pd-thumb ' + (i === activeImg ? 'active' : '') + '" data-i="' + i + '"><img src="' + esc(url) + '" alt="" onerror="this.closest(\'.pd-thumb\').remove()"></button>';
+    }).join('');
+    Array.prototype.forEach.call(wrap.querySelectorAll('.pd-thumb'), function(btn){
+      btn.addEventListener('click', function(){
+        activeImg = parseInt(btn.getAttribute('data-i'), 10) || 0;
+        renderGalleryMain();
+        Array.prototype.forEach.call(wrap.querySelectorAll('.pd-thumb'), function(b){ b.classList.toggle('active', b === btn); });
+      });
+    });
+  }
+  function actionsHtml(inStock, inCart){
+    if(!inStock) return '<button type="button" class="ask-btn" id="pd-ask-btn">اسأل عن توفره</button>';
+    if(!inCart) return '<button type="button" class="add-btn" id="pd-add-btn">أضف للسلة</button>';
+    return '<div class="qty-stepper">' +
+        '<button type="button" id="pd-qty-plus">+</button>' +
+        '<span id="pd-qty-val">' + inCart + '</span>' +
+        '<button type="button" id="pd-qty-minus">−</button>' +
+      '</div>';
+  }
+  function cartAdd(){
+    var cart = loadCart();
+    var have = cart[product.id] || 0;
+    if(have >= (product.qty || 0)) return;
+    cart[product.id] = have + 1;
+    saveCart(cart);
+    updateCartBadge();
+    renderActions();
+    showAddedToast();
+  }
+  function cartRemove(){
+    var cart = loadCart();
+    var have = cart[product.id] || 0;
+    if(have <= 1) delete cart[product.id]; else cart[product.id] = have - 1;
+    saveCart(cart);
+    updateCartBadge();
+    renderActions();
+  }
+  function openWaAsk(){
+    var wa = window.STORE_WHATSAPP;
+    if(!wa) return;
+    var msg = encodeURIComponent('عايز أسأل عن: ' + product.name + ' (' + product.id + ')');
+    window.open('https://wa.me/' + wa + '?text=' + msg, '_blank');
+  }
+  function wireActions(){
+    var addBtn = $('pd-add-btn'); if(addBtn) addBtn.addEventListener('click', cartAdd);
+    var plus = $('pd-qty-plus'); if(plus) plus.addEventListener('click', cartAdd);
+    var minus = $('pd-qty-minus'); if(minus) minus.addEventListener('click', cartRemove);
+    var askBtn = $('pd-ask-btn'); if(askBtn) askBtn.addEventListener('click', openWaAsk);
+  }
+  function renderActions(){
+    var cart = loadCart();
+    var inStock = (product.qty || 0) > 0;
+    var inCart = cart[product.id] || 0;
+    $('pd-actions').innerHTML = actionsHtml(inStock, inCart);
+    wireActions();
+  }
+  function showAddedToast(){
+    var t = $('pd-added-toast');
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 1700);
+  }
+
+  function setSeo(){
+    var name = product.name || 'منتج';
+    var brandPart = product.brand ? (' — ' + product.brand) : '';
+    var title = name + brandPart + ' | ACT المتحدة للتجارة والصيانة';
+    document.title = title;
+    var titleEl = $('page-title'); if(titleEl) titleEl.textContent = title;
+
+    var descBits = [];
+    if(product.brand) descBits.push('ماركة ' + product.brand);
+    if(product.warrantyText) descBits.push('ضمان ' + product.warrantyText);
+    descBits.push(product.partsAvailable !== false ? 'قطع غيار متوفرة' : 'تواصل لتوفر قطع الغيار');
+    var desc = name + ' — ' + descBits.join('، ') + '. اشترِ أونلاين من ACT المتحدة للتجارة والصيانة، صفية زغلول الإسكندرية.';
+    var descEl = $('page-description'); if(descEl) descEl.setAttribute('content', desc);
+
+    var url = 'https://safeya-zoghloul.web.app/product.html?id=' + encodeURIComponent(product.id);
+    var canon = $('page-canonical'); if(canon) canon.setAttribute('href', url);
+    var ogT = $('og-title'); if(ogT) ogT.setAttribute('content', title);
+    var ogD = $('og-description'); if(ogD) ogD.setAttribute('content', desc);
+    var ogU = $('og-url'); if(ogU) ogU.setAttribute('content', url);
+    if(galleryImages[0]){ var ogI = $('og-image'); if(ogI) ogI.setAttribute('content', galleryImages[0]); }
+
+    var jsonldEl = $('product-jsonld');
+    if(jsonldEl){
+      var data = {
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        'name': name,
+        'sku': product.id,
+        'url': url
+      };
+      if(product.brand) data.brand = { '@type': 'Brand', 'name': product.brand };
+      if(galleryImages.length) data.image = galleryImages;
+      if(product.description) data.description = product.description;
+      data.offers = {
+        '@type': 'Offer',
+        'priceCurrency': 'EGP',
+        'price': product.price,
+        'availability': (product.qty || 0) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        'url': url
+      };
+      jsonldEl.textContent = JSON.stringify(data);
+    }
+  }
+
+  function render(){
+    $('pd-loading').hidden = true;
+    $('product-detail').hidden = false;
+    $('bc-current').textContent = product.name;
+
+    galleryImages = (product.images && product.images.length) ? product.images : (product.image ? [product.image] : []);
+    activeImg = 0;
+    renderGalleryMain();
+    renderGalleryThumbs();
+
+    var inStock = (product.qty || 0) > 0;
+    var stockEl = $('pd-stock');
+    stockEl.textContent = inStock ? 'متوفر' : 'غير متوفر حاليًا';
+    stockEl.classList.toggle('out', !inStock);
+
+    $('pd-name').textContent = product.name;
+    $('pd-code').textContent = product.id;
+    $('pd-price-block').innerHTML = priceBlockHtml();
+    $('pd-badges').innerHTML = badgesHtml();
+    renderActions();
+
+    var waLink = $('pd-wa-link');
+    if(window.STORE_WHATSAPP){
+      waLink.hidden = false;
+      waLink.href = 'https://wa.me/' + window.STORE_WHATSAPP + '?text=' + encodeURIComponent('عايز أسأل عن: ' + product.name + ' (' + product.id + ')');
+    } else {
+      waLink.hidden = true;
+    }
+
+    if(product.description){
+      $('pd-desc').hidden = false;
+      $('pd-desc-body').textContent = product.description;
+    }
+
+    setSeo();
+    updateCartBadge();
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    applyBrandBasics();
+    updateCartBadge();
+    var id = getId();
+    if(!id){ showNotFound(); return; }
+    var db = initFirebase();
+    if(!db){ showNotFound(); return; }
+    db.collection('sz_data').doc('_online_catalog').get().then(function(doc){
+      if(!doc.exists){ showNotFound(); return; }
+      var data = doc.data() || {};
+      if(data.enabled === false){ showNotFound(); return; }
+      var found = (data.products || []).filter(function(p){ return p && p.id === id; })[0];
+      if(!found){ showNotFound(); return; }
+      product = found;
+      render();
+    }).catch(function(e){
+      console.error('product load failed', e);
+      showNotFound();
+    });
+  });
+})();
+</script>
+</body>
+</html>

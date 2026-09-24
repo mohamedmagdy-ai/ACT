@@ -6,10 +6,6 @@
 // ويحسب السعر النهائي، مش الموقع ده (الموقع بيوري تقدير بس).
 // ============================================================
 
-// نفس ترتيب المحافظات اللي في البرنامج بالظبط (مهم يفضل مطابق عشان مقارنة
-// "الصعيد" تشتغل صح لو حد غيّر القايمة من البرنامج)
-const EGYPT_GOVERNORATES = ['القاهرة','الجيزة','القليوبية','الإسكندرية','البحيرة','مطروح','كفر الشيخ','الدقهلية','دمياط','الشرقية','بورسعيد','الإسماعيلية','السويس','شمال سيناء','جنوب سيناء','الغربية','المنوفية','بني سويف','الفيوم','المنيا','أسيوط','سوهاج','قنا','الأقصر','أسوان','البحر الأحمر','الوادي الجديد'];
-
 const state = {
   catalog: null,         // {products, shipping, enabled}
   section: 'devices',
@@ -71,7 +67,6 @@ function loadCatalog(){
     const data = doc.data() || {};
     if(data.enabled === false){ showOffline(); return; }
     state.catalog = data;
-    populateGovernorates();
     renderProducts();
   }).catch((e) => {
     console.error('loadCatalog failed', e);
@@ -135,19 +130,24 @@ function productCardHtml(p){
   const thumbInner = p.image
     ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" loading="lazy" onerror="this.remove()">`
     : `<span class="thumb-ph">PRODUCT 1:1</span>`;
+  const href = 'product.html?id=' + encodeURIComponent(p.id);
   return `
     <div class="product-card" data-id="${escapeHtml(p.id)}">
       <div class="stock-strip ${inStock ? '' : 'out'}">
         <span>${inStock ? 'متوفر' : 'غير متوفر'}</span>
         ${p.brand ? `<span class="strip-brand" dir="ltr">${escapeHtml(p.brand)}</span>` : ''}
       </div>
-      <div class="product-thumb ${p.image ? 'has-image' : ''}">
-        ${hasDiscount && discountPct > 0 ? `<span class="discount-badge">خصم ${discountPct}%</span>` : ''}
-        ${thumbInner}
-      </div>
+      <a class="product-thumb-link" href="${escapeHtml(href)}" aria-label="${escapeHtml(p.name)}">
+        <div class="product-thumb ${p.image ? 'has-image' : ''}">
+          ${hasDiscount && discountPct > 0 ? `<span class="discount-badge">خصم ${discountPct}%</span>` : ''}
+          ${thumbInner}
+        </div>
+      </a>
       <div class="product-info">
-        <div class="product-name">${escapeHtml(p.name)}</div>
-        <div class="product-code" dir="ltr">${escapeHtml(p.id)}</div>
+        <a class="product-name-link" href="${escapeHtml(href)}">
+          <div class="product-name">${escapeHtml(p.name)}</div>
+          <div class="product-code" dir="ltr">${escapeHtml(p.id)}</div>
+        </a>
         <div class="product-bottom">
           ${priceBlockHtml(p)}
           ${cartControlHtml(p, inStock, inCart)}
@@ -175,143 +175,31 @@ function cartAdd(id){
   const have = state.cart[id] || 0;
   if(have >= (p.qty || 0)) return; // منعًا لطلب أكتر من المتاح
   state.cart[id] = have + 1;
-  saveCart(); renderProducts(); renderCart();
+  saveCart(); renderProducts(); updateCartBadge();
 }
 function cartRemove(id){
   const have = state.cart[id] || 0;
   if(have <= 1) delete state.cart[id];
   else state.cart[id] = have - 1;
-  saveCart(); renderProducts(); renderCart();
+  saveCart(); renderProducts(); updateCartBadge();
 }
 function cartLines(){
   return Object.keys(state.cart)
     .map((id) => ({ p: findProduct(id), qty: state.cart[id] }))
     .filter((l) => l.p && l.qty > 0);
 }
-function cartHasLargeItem(lines){
-  return lines.some((l) => l.p.shipSize === 'large');
-}
-function estimateShipping(lines, governorate){
-  const shipping = (state.catalog && state.catalog.shipping) || { std:{customer:60}, high:{customer:75}, saeedGovs:[] };
-  const isSaeed = governorate && shipping.saeedGovs && shipping.saeedGovs.indexOf(governorate) > -1;
-  const tier = (cartHasLargeItem(lines) || isSaeed) ? 'high' : 'std';
-  const shipCustomer = tier === 'high' ? (shipping.high.customer || 0) : (shipping.std.customer || 0);
-  return { tier, shipCustomer };
-}
-function cartTotals(governorate){
-  const lines = cartLines();
-  const itemsTotal = lines.reduce((sum, l) => sum + l.p.price * l.qty, 0);
-  const { shipCustomer } = estimateShipping(lines, governorate || $('f-gov').value);
-  return { lines, itemsTotal, shipCustomer, grandTotal: itemsTotal + (lines.length ? shipCustomer : 0) };
-}
 function updateCartBadge(){
   const count = Object.values(state.cart).reduce((a, b) => a + b, 0);
   const badge = $('cart-count');
+  if(!badge) return;
   if(count > 0){ badge.textContent = count; badge.hidden = false; }
   else badge.hidden = true;
 }
-function renderCart(){
-  updateCartBadge();
-  const { lines, itemsTotal, shipCustomer, grandTotal } = cartTotals();
-  $('cart-empty').hidden = lines.length !== 0;
-  $('cart-summary').hidden = lines.length === 0;
-  $('cart-items').innerHTML = lines.map((l) => `
-    <div class="cart-line">
-      <div class="cart-line-thumb">${l.p.image ? `<img src="${escapeHtml(l.p.image)}" alt="" onerror="this.remove()">` : escapeHtml((l.p.name||'؟').charAt(0).toUpperCase())}</div>
-      <div class="cart-line-info">
-        <div class="cart-line-name">${escapeHtml(l.p.name)}</div>
-        <div class="cart-line-price">${l.qty} × ${fmtMoney(l.p.price)}</div>
-      </div>
-      <button class="cart-line-remove" onclick="cartRemove('${l.p.id}')">إزالة</button>
-    </div>`).join('');
-  $('sum-items').textContent = fmtMoney(itemsTotal);
-  $('sum-ship').textContent = fmtMoney(shipCustomer);
-  $('sum-total').textContent = fmtMoney(grandTotal);
-}
-
-// ===== المحافظات =====
-function populateGovernorates(){
-  const sel = $('f-gov');
-  if(sel.options.length) return; // اتعملت خلاص
-  sel.innerHTML = '<option value="" disabled selected>اختر المحافظة</option>' +
-    EGYPT_GOVERNORATES.map((g) => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
-}
-
-// ===== الدرج/النوافذ =====
-function openCart(){
-  $('cart-overlay').hidden = false;
-  $('cart-drawer').classList.add('open');
-  $('cart-drawer').setAttribute('aria-hidden', 'false');
-}
-function closeCart(){
-  $('cart-drawer').classList.remove('open');
-  $('cart-drawer').setAttribute('aria-hidden', 'true');
-  setTimeout(() => { $('cart-overlay').hidden = true; }, 200);
-}
-function openCheckout(){
-  if(!cartLines().length) return;
-  closeCart();
-  renderCheckoutSummary();
-  $('checkout-overlay').hidden = false;
-  $('checkout-modal').classList.add('open');
-  $('checkout-modal').setAttribute('aria-hidden', 'false');
-}
-function closeCheckout(){
-  $('checkout-modal').classList.remove('open');
-  $('checkout-modal').setAttribute('aria-hidden', 'true');
-  setTimeout(() => { $('checkout-overlay').hidden = true; }, 180);
-}
-function renderCheckoutSummary(){
-  const { itemsTotal, shipCustomer, grandTotal } = cartTotals();
-  $('checkout-summary').innerHTML = `
-    <div class="sum-row"><span>الأصناف</span><strong>${fmtMoney(itemsTotal)}</strong></div>
-    <div class="sum-row"><span>الشحن (تقديري)</span><strong>${fmtMoney(shipCustomer)}</strong></div>
-    <div class="sum-row sum-total"><span>الإجمالي التقديري</span><strong>${fmtMoney(grandTotal)}</strong></div>`;
-}
-
-// ===== إرسال الطلب =====
-function submitOrder(ev){
-  ev.preventDefault();
-  const lines = cartLines();
-  if(!lines.length) return;
-  const btn = $('submit-order-btn');
-  btn.disabled = true; btn.textContent = 'جاري الإرسال...';
-
-  const order = {
-    customerName: $('f-name').value.trim(),
-    customerPhone: $('f-phone').value.trim(),
-    governorate: $('f-gov').value,
-    address: $('f-address').value.trim(),
-    notes: $('f-notes').value.trim(),
-    payMethod: document.querySelector('input[name="pay"]:checked').value,
-    items: lines.map((l) => ({ code: l.p.id, name: l.p.name, qty: l.qty })),
-    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-  };
-
-  db.collection('sz_data').doc('_online_orders_incoming').collection('items').add(order)
-    .then((ref) => {
-      state.cart = {};
-      saveCart(); renderProducts(); renderCart();
-      closeCheckout();
-      $('order-ref').innerHTML = 'رقم مرجعي: <span dir="ltr" class="mono-num">' + escapeHtml(ref.id.slice(-6).toUpperCase()) + '</span>';
-      $('checkout-form').reset();
-      $('success-overlay').hidden = false;
-      $('success-modal').classList.add('open');
-      $('success-modal').setAttribute('aria-hidden', 'false');
-    })
-    .catch((e) => {
-      console.error('submitOrder failed', e);
-      alert('حصل خطأ وإحنا بنبعت طلبك، حاول تاني أو تواصل معانا مباشرة.');
-    })
-    .finally(() => {
-      btn.disabled = false; btn.textContent = 'تأكيد الطلب';
-    });
-}
-function closeSuccess(){
-  $('success-modal').classList.remove('open');
-  $('success-modal').setAttribute('aria-hidden', 'true');
-  setTimeout(() => { $('success-overlay').hidden = true; }, 180);
-}
+// ملحوظة: السلة وإتمام الطلب بقى صفحة مستقلة (cart.html) بدل الدرج الجانبي +
+// نافذة منفصلة — منطق العربة الكامل (المحافظات، حساب الشحن، الملخص، إرسال
+// الطلب) موجود جوه cart.html نفسها، لأنها مبنية على نفس نمط الصفحات الثانوية
+// التانية (about.html/product.html) بسكريبت مستقل بيقرا نفس مفتاح السلة
+// المشترك (act_store_cart_v1)، مش عن طريق app.js هنا.
 
 // ===== نافذة "راسلنا" (قناة تواصل تانية بجانب واتساب) =====
 function openContact(){
@@ -360,11 +248,59 @@ function closeContactSuccess(){
   setTimeout(() => { $('contact-success-overlay').hidden = true; }, 180);
 }
 
+// ===== نافذة "اطلب صيانة" — بتبعت كل طلب كمستند مستقل جوه
+// sz_data/_online_maint_requests_incoming/items (نفس فكرة الطلبات/الرسائل الأونلاين
+// بالظبط)؛ البرنامج بيراجعها ويحوّلها لإذن استلام رسمي بيه رقم تتبع حقيقي =====
+function openMaintRequest(){
+  $('maint-overlay').hidden = false;
+  $('maint-modal').classList.add('open');
+  $('maint-modal').setAttribute('aria-hidden', 'false');
+}
+function closeMaintRequest(){
+  $('maint-modal').classList.remove('open');
+  $('maint-modal').setAttribute('aria-hidden', 'true');
+  setTimeout(() => { $('maint-overlay').hidden = true; }, 180);
+}
+function submitMaintRequest(ev){
+  ev.preventDefault();
+  const btn = $('submit-maint-btn');
+  btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+
+  const req = {
+    device: $('mr-device').value.trim(),
+    brand: $('mr-brand').value.trim(),
+    model: $('mr-model').value.trim(),
+    issue: $('mr-issue').value.trim(),
+    customerName: $('mr-name').value.trim(),
+    customerPhone: $('mr-phone').value.trim(),
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+
+  db.collection('sz_data').doc('_online_maint_requests_incoming').collection('items').add(req)
+    .then(() => {
+      closeMaintRequest();
+      $('maint-form').reset();
+      $('maint-success-overlay').hidden = false;
+      $('maint-success-modal').classList.add('open');
+      $('maint-success-modal').setAttribute('aria-hidden', 'false');
+    })
+    .catch((e) => {
+      console.error('submitMaintRequest failed', e);
+      alert('حصل خطأ وإحنا بنبعت طلبك، حاول تاني أو تواصل معانا مباشرة عبر واتساب.');
+    })
+    .finally(() => {
+      btn.disabled = false; btn.textContent = 'إرسال طلب الصيانة';
+    });
+}
+function closeMaintSuccess(){
+  $('maint-success-modal').classList.remove('open');
+  $('maint-success-modal').setAttribute('aria-hidden', 'true');
+  setTimeout(() => { $('maint-success-overlay').hidden = true; }, 180);
+}
+
 // ===== إعداد الصفحة =====
 function applyBranding(){
   const name = window.STORE_NAME || 'المتجر الأونلاين';
-  document.title = name;
-  $('page-title').textContent = name;
   $('brand-name').textContent = name;
   const displayPhone = window.STORE_PHONE || (window.STORE_WHATSAPP ? window.STORE_WHATSAPP.replace(/^20/, '0') : '');
   if(window.STORE_PHONE){
@@ -406,21 +342,16 @@ function wireEvents(){
     });
   });
   $('hero-browse-btn').addEventListener('click', () => { setSection('devices'); scrollToCatalog(); });
-  $('hero-maint-btn').addEventListener('click', openContact);
-  $('maint-block-btn').addEventListener('click', openContact);
+  $('hero-maint-btn').addEventListener('click', openMaintRequest);
+  $('maint-block-btn').addEventListener('click', openMaintRequest);
+  $('maint-close').addEventListener('click', closeMaintRequest);
+  $('maint-overlay').addEventListener('click', closeMaintRequest);
+  $('maint-form').addEventListener('submit', submitMaintRequest);
+  $('maint-success-close-btn').addEventListener('click', closeMaintSuccess);
   $('search-input').addEventListener('input', (e) => {
     state.search = e.target.value;
     renderProducts();
   });
-  $('cart-btn').addEventListener('click', openCart);
-  $('cart-close').addEventListener('click', closeCart);
-  $('cart-overlay').addEventListener('click', closeCart);
-  $('checkout-btn').addEventListener('click', openCheckout);
-  $('checkout-close').addEventListener('click', closeCheckout);
-  $('checkout-overlay').addEventListener('click', closeCheckout);
-  $('f-gov').addEventListener('change', renderCheckoutSummary);
-  $('checkout-form').addEventListener('submit', submitOrder);
-  $('success-close-btn').addEventListener('click', closeSuccess);
   $('contact-open-btn').addEventListener('click', openContact);
   $('contact-close').addEventListener('click', closeContact);
   $('contact-overlay').addEventListener('click', closeContact);

@@ -94,7 +94,6 @@
 (function(){
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   var name = window.STORE_NAME || 'المتجر الأونلاين';
-  document.title = 'مين إحنا — ' + name;
   var bn = document.getElementById('brand-name'); if(bn) bn.textContent = name;
   var phoneEl = document.getElementById('about-phone');
   if(phoneEl){

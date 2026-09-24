@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title id="page-title">تتبع إذن الاستلام — ACT المتحدة للتجارة والصيانة</title>
+<meta name="description" content="تابع حالة جهازك (إذن الاستلام) مباشرة أونلاين — ACT المتحدة للتجارة والصيانة، صفية زغلول الإسكندرية.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=El+Messiri:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  .trk-wrap{max-width:640px; margin:0 auto; padding:22px 16px 44px;}
+  .trk-card{
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:22px 20px; display:flex; flex-direction:column; gap:14px;
+  }
+  .trk-eyebrow{font-size:12px; color:var(--ink-soft); font-weight:600;}
+  .trk-no{font-family:var(--font-code); font-size:15px; font-weight:700; color:var(--copper-deep); letter-spacing:.03em;}
+  .trk-status-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .trk-pill{
+    display:inline-flex; align-items:center; gap:7px;
+    border-radius:999px; padding:8px 16px; font-size:13.5px; font-weight:700;
+  }
+  .trk-pill.st-open{background:var(--copper-tint); color:var(--copper-deep); border:1px solid rgba(200,149,47,.4);}
+  .trk-pill.st-progress{background:#EAF1F8; color:#1B5590; border:1px solid rgba(27,85,144,.3);}
+  .trk-pill.st-ready{background:var(--good-tint); color:var(--good); border:1px solid rgba(47,107,79,.35);}
+  .trk-pill.st-closed{background:var(--good-tint); color:var(--good); border:1px solid rgba(47,107,79,.35);}
+  .trk-pill.st-cancelled{background:var(--bad-tint); color:var(--bad); border:1px solid rgba(140,74,58,.35);}
+  .trk-pill.st-default{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
+  .trk-row{display:flex; justify-content:space-between; gap:14px; font-size:14px; padding:8px 0; border-top:1px solid var(--line);}
+  .trk-row:first-of-type{border-top:none;}
+  .trk-row .lbl{color:var(--ink-soft); flex:none;}
+  .trk-row .val{font-weight:600; text-align:left;}
+  .trk-issue{
+    background:var(--paper); border:1px solid var(--line); border-radius:var(--radius-sm);
+    padding:12px 14px; font-size:13.5px; line-height:1.7;
+  }
+  .trk-issue strong{display:block; margin-bottom:4px; color:var(--ink);}
+  .trk-final{
+    background:var(--good-tint); border:1px solid rgba(47,107,79,.35); border-radius:var(--radius-sm);
+    padding:12px 14px; text-align:center; font-size:13.5px; color:var(--good); font-weight:700;
+  }
+  .trk-final .sub{font-weight:500; color:var(--ink); margin-top:4px; font-size:13px;}
+  .trk-contact{
+    display:flex; gap:10px; flex-wrap:wrap; justify-content:center; padding-top:6px;
+  }
+  .trk-loading, .trk-error{text-align:center; padding:50px 16px; color:var(--ink-soft);}
+  .trk-error a{color:var(--copper-deep); font-weight:600;}
+  .trk-cache-note{font-size:11.5px; color:var(--ink-soft); text-align:center;}
+</style>
+</head>
+<body>
+
+<header class="site-header" id="site-header">
+  <div class="header-inner">
+    <a class="brand" href="index.html" style="text-decoration:none;color:inherit;">
+      <span class="brand-mark" id="brand-mark">
+        <svg viewBox="0 0 200 200" width="40" height="40" aria-hidden="true">
+          <circle cx="100" cy="100" r="84" fill="none" stroke="#C8952F" stroke-width="2.5"></circle>
+          <text x="100" y="98" text-anchor="middle" font-family="'El Messiri',serif" font-weight="700" font-size="52" letter-spacing="3" fill="#E8C87D">ACT</text>
+          <rect x="85" y="111" width="30" height="2" fill="#C8952F"></rect>
+          <text x="100" y="136" text-anchor="middle" font-family="'El Messiri',serif" font-weight="500" font-size="15" fill="#B9C4D1">تجارة وصيانة</text>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <span class="brand-legal">المتحدة للتجارة والصيانة</span>
+        <span class="brand-name" id="brand-name">المتجر الأونلاين</span>
+      </div>
+    </a>
+    <nav class="main-nav" id="main-nav">
+      <a href="index.html" class="main-nav-link">الأجهزة</a>
+      <a href="index.html" class="main-nav-link">قطع الغيار</a>
+      <a href="index.html#maint-block" class="main-nav-link">الصيانة</a>
+      <a href="about.html" class="main-nav-link">مين إحنا</a>
+    </nav>
+    <div class="header-actions">
+      <a href="index.html" class="cart-btn" style="text-decoration:none;">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+        <span>المتجر</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<div class="breadcrumb">
+  <a href="index.html">المتجر</a>
+  <span class="sep">/</span>
+  <span class="current">تتبع إذن الاستلام</span>
+</div>
+
+<div class="trk-wrap">
+  <div class="trk-loading" id="trk-loading">
+    <div class="spinner"></div>
+    <p>بنجيب حالة إذن الاستلام...</p>
+  </div>
+
+  <div class="trk-error" id="trk-error" hidden>
+    <p id="trk-error-msg">الرابط ده مش صحيح أو منتهي. تأكد من الرابط اللي وصلك، أو تواصل معانا.</p>
+    <p><a href="index.html">→ رجوع للمتجر</a></p>
+  </div>
+
+  <div id="trk-content" hidden>
+    <div class="trk-card">
+      <div class="trk-eyebrow">تتبع إذن الاستلام</div>
+      <div class="trk-status-row">
+        <span class="trk-no" id="trk-no" dir="ltr"></span>
+        <span class="trk-pill" id="trk-pill"></span>
+      </div>
+      <div>
+        <div class="trk-row"><span class="lbl">👤 العميل</span><span class="val" id="trk-customer"></span></div>
+        <div class="trk-row"><span class="lbl">📟 الجهاز</span><span class="val" id="trk-device"></span></div>
+        <div class="trk-row"><span class="lbl">📅 تاريخ الاستلام</span><span class="val" id="trk-receipt-date"></span></div>
+        <div class="trk-row"><span class="lbl">⏱️ التسليم المتوقع</span><span class="val" id="trk-expected-date"></span></div>
+      </div>
+      <div class="trk-issue" id="trk-issue-box" hidden>
+        <strong>⚠️ العطل المبلّغ</strong>
+        <span id="trk-issue-text"></span>
+      </div>
+      <div class="trk-final" id="trk-final" hidden></div>
+    </div>
+    <p class="trk-cache-note" id="trk-cache-note" hidden>هذه آخر نسخة محفوظة محليًا على جهازك — بنحاول نجيب أحدث حالة الآن.</p>
+    <div class="trk-contact">
+      <a class="ask-btn" id="trk-wa-btn" href="#" target="_blank" rel="noopener" hidden>💬 تواصل معنا على واتساب</a>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer" id="site-footer">
+  <p class="footer-links"><a href="index.html">المتجر</a> · <a href="about.html">مين إحنا</a> · <a href="terms.html">الشروط والأحكام</a> · <a href="privacy.html">سياسة الخصوصية</a></p>
+</footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<script src="config.js"></script>
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+  var STATUS_MAP = {
+    'open':        {cls:'st-open',      txt:'تم استلام الجهاز'},
+    'in_progress': {cls:'st-progress',  txt:'تحت الصيانة'},
+    'in progress': {cls:'st-progress',  txt:'تحت الصيانة'},
+    'progress':    {cls:'st-progress',  txt:'تحت الصيانة'},
+    'working':     {cls:'st-progress',  txt:'تحت الصيانة'},
+    'ready':       {cls:'st-ready',     txt:'جاهز — الفاتورة جاهزة'},
+    'done':        {cls:'st-ready',     txt:'جاهز للتسليم'},
+    'delivered':   {cls:'st-closed',    txt:'تم التسليم'},
+    'closed':      {cls:'st-closed',    txt:'مكتمل'},
+    'cancelled':   {cls:'st-cancelled', txt:'ملغي'},
+    'canceled':    {cls:'st-cancelled', txt:'ملغي'}
+  };
+  var CACHE_KEY = 'act_public_tracking_cache_v1';
+
+  function applyBrandBasics(){
+    var name = window.STORE_NAME || 'المتجر الأونلاين';
+    var bn = $('brand-name'); if(bn) bn.textContent = name;
+  }
+  function getToken(){ return new URLSearchParams(location.search).get('token') || ''; }
+
+  function readCache(token){
+    try{ var c = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); return c[token] || null; }catch(e){ return null; }
+  }
+  function writeCache(token, data){
+    try{
+      var c = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+      c[token] = data;
+      localStorage.setItem(CACHE_KEY, JSON.stringify(c));
+    }catch(e){}
+  }
+
+  function showError(msg){
+    $('trk-loading').hidden = true;
+    $('trk-content').hidden = true;
+    $('trk-error').hidden = false;
+    if(msg) $('trk-error-msg').textContent = msg;
+  }
+
+  function render(r, fromCache){
+    $('trk-loading').hidden = true;
+    $('trk-error').hidden = true;
+    $('trk-content').hidden = false;
+
+    var deviceInfo = [r.device, r.brand, r.model].filter(function(x){ return x && String(x).trim(); });
+    var st = String(r.status || 'open').trim().toLowerCase();
+    var pill = STATUS_MAP[st] || {cls:'st-default', txt: st || 'غير محدد'};
+
+    $('trk-no').textContent = r.rcptNo ? ('إذن استلام رقم ' + r.rcptNo) : 'إذن استلام';
+    var pillEl = $('trk-pill');
+    pillEl.className = 'trk-pill ' + pill.cls;
+    pillEl.textContent = pill.txt;
+
+    $('trk-customer').textContent = r.customer || '—';
+    $('trk-device').textContent = deviceInfo.length ? deviceInfo.join(' — ') : '—';
+    $('trk-receipt-date').textContent = r.receiptDate || '—';
+    $('trk-expected-date').textContent = r.expectedDeliveryDate || '—';
+
+    if(r.issue){
+      $('trk-issue-box').hidden = false;
+      $('trk-issue-text').textContent = r.issue;
+    } else {
+      $('trk-issue-box').hidden = true;
+    }
+
+    var finalBox = $('trk-final');
+    if(r.invoiceNo){
+      finalBox.hidden = false;
+      if(r.isWarranty){
+        finalBox.innerHTML = '✅ تم التسليم بضمان (مجانًا)';
+      } else {
+        finalBox.innerHTML = '✅ تم إصدار الفاتورة' +
+          '<div class="sub">رقم الفاتورة: ' + esc(String(r.invoiceNo)) + '</div>' +
+          '<div class="sub">المبلغ: ' + esc(String(r.totalCost || 0)) + ' ج.م' + (r.paymentMethod ? ' (' + esc(r.paymentMethod) + ')' : '') + '</div>';
+      }
+    } else {
+      finalBox.hidden = true;
+    }
+
+    $('trk-cache-note').hidden = !fromCache;
+
+    var waBtn = $('trk-wa-btn');
+    if(window.STORE_WHATSAPP){
+      waBtn.hidden = false;
+      var msg = 'استفسار عن حالة الجهاز' + (r.rcptNo ? (' — إذن استلام رقم ' + r.rcptNo) : '');
+      waBtn.href = 'https://wa.me/' + window.STORE_WHATSAPP + '?text=' + encodeURIComponent(msg);
+    }
+  }
+
+  function initFirebase(){
+    var cfg = window.FIREBASE_CONFIG || {};
+    if(!cfg.apiKey || String(cfg.apiKey).indexOf('PASTE_') === 0) return null;
+    try{ firebase.initializeApp(cfg); return firebase.firestore(); }
+    catch(e){ console.error('firebase init failed', e); return null; }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    applyBrandBasics();
+    var token = getToken();
+    if(!token){
+      showError('محتاج رابط تتبع صحيح من رسالة الواتساب أو إيصال الاستلام اللي وصلك.');
+      return;
+    }
+
+    var cached = readCache(token);
+    if(cached) render(cached, true);
+
+    var db = initFirebase();
+    if(!db){
+      if(!cached) showError('التتبع مش متاح دلوقتي، حاول تاني بعد شوية أو تواصل معانا.');
+      return;
+    }
+    db.collection('sz_public_tracking').doc(token).get().then(function(doc){
+      if(!doc.exists){
+        if(!cached) showError('الرابط ده مش صحيح أو منتهي. تأكد من الرابط اللي وصلك، أو تواصل معانا.');
+        return;
+      }
+      var data = doc.data() || {};
+      writeCache(token, data);
+      render(data, false);
+    }).catch(function(e){
+      console.error('tracking fetch failed', e);
+      if(!cached) showError('التتبع مش متاح دلوقتي، حاول تاني بعد شوية أو تواصل معانا.');
+    });
+  });
+})();
+</script>
+</body>
+</html>
