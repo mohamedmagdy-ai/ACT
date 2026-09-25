@@ -557,7 +557,10 @@ tr:hover td{background:#fafafa;}
   <button class="psec-tab" onclick="switchProdSection('parts',this)">🔩 قطع الغيار</button>
 </div>
 <div class="chips" id="prod-cat-chips" style="margin-bottom:8px;"><span class="chip active" onclick="fltProds('all',this)">الكل</span></div>
-<div style="margin-bottom:8px;"><button id="prod-online-filter-btn" class="btn btn-gold" onclick="toggleProdOnlineFilter()" title="عشان تقدر تراجع وتحدد المنتجات اللي هتظهر في المتجر الأونلاين من غير ما تدوّر على كل صنف — القايمة بتقصّر لما تعلّم على الصنف وتحفظ">🛒 عرض اللي لسه مش متعلّم للمتجر الأونلاين بس</button></div>
+<div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;">
+<button id="prod-online-filter-btn" class="btn btn-gold" onclick="toggleProdOnlineFilter()" title="عشان تقدر تراجع وتحدد المنتجات اللي هتظهر في المتجر الأونلاين من غير ما تدوّر على كل صنف — القايمة بتقصّر لما تعلّم على الصنف وتحفظ">🛒 عرض اللي لسه مش متعلّم للمتجر الأونلاين بس</button>
+<button id="prod-online-show-btn" class="btn btn-gold" onclick="toggleProdShowOnlineOnly()" title="يوريك بس الأصناف اللي متعلّم عليها إنها تظهر في المتجر الأونلاين حاليًا — يفيدك عشان تراجعها بسرعة (الصور/الوصف/السعر) من غير ما تدوّر عليها وسط باقي المخزن">🌐 عرض أصناف الموقع بس</button>
+</div>
 <div class="sb"><span>🔍</span><input id="prod-search" oninput="prodSearch(this.value)" placeholder="بحث..."/></div>
 <div class="card"><div class="cb" style="padding:0;"><div class="tbl-wrap"><table>
 <thead><tr><th>الكود</th><th data-sort-field="name" data-label="المنتج" onclick="toggleColSort('prod-tbl','name',()=>renderProdsFiltered(_prodLastFilter||'all'))" style="cursor:pointer;">المنتج</th><th>القسم</th><th>الفئة</th><th data-sort-field="buy" data-label="سعر الشراء" onclick="toggleColSort('prod-tbl','buy',()=>renderProdsFiltered(_prodLastFilter||'all'))" style="cursor:pointer;">سعر الشراء</th><th data-sort-field="sell" data-label="سعر البيع" onclick="toggleColSort('prod-tbl','sell',()=>renderProdsFiltered(_prodLastFilter||'all'))" style="cursor:pointer;">سعر البيع</th><th data-sort-field="qty" data-label="المخزون" onclick="toggleColSort('prod-tbl','qty',()=>renderProdsFiltered(_prodLastFilter||'all'))" style="cursor:pointer;">المخزون</th><th>الحالة</th><th></th></tr></thead>
@@ -9906,7 +9909,11 @@ function runAlertDefaultMigrationTo1(){
   if(DB._alertDefaultMigratedTo1)return 0;
   let _nMig=0;
   try{
-    (DB.products||[]).forEach(p=>{ if((p.alert||0)===5){ p.alert=1; _nMig++; } });
+    // بنسجّل alertUpdatedAt هنا كمان (مش بس p.alert) — عشان لو جهاز تاني لسه مامرقش
+    // بالترحيل ده ووصل منه تحديث سحابي فيه القيمة القديمة (5)، دمج processFirebaseDoc
+    // (اللي بقى بيقارن بطابع تنبيه كل صنف لوحده، مش بتوقيت المنتج ككل) يعرف إن
+    // القيمة الجديدة (1) هي الأحدث فعليًا ويحافظ عليها، مش يرجّعها 5 تاني بصمت
+    (DB.products||[]).forEach(p=>{ if((p.alert||0)===5){ p.alert=1; p.alertUpdatedAt=Date.now(); _nMig++; } });
     DB._alertDefaultMigratedTo1=true;
     if(_nMig>0){ try{addLog('تحديث تلقائي: حد تنبيه النواقص الافتراضي اتغيّر من 5 إلى 1 في '+_nMig+' صنف');}catch(_eLog){} }
   }catch(_eMigAlrt){}
@@ -14725,6 +14732,16 @@ let _prodLastFilter='all';
 let _prodOnlineFilterOn=false;
 function toggleProdOnlineFilter(){
   _prodOnlineFilterOn=!_prodOnlineFilterOn;
+  if(_prodOnlineFilterOn)_prodShowOnlineOnly=false; // الفلترين متناقضين، تفعيل واحد بيوقف التاني
+  renderProds();
+}
+// فلتر عكسي: "عرض أصناف الموقع بس" — يوري بس الأصناف اللي متعلّم عليها فعليًا إنها
+// تظهر في المتجر الأونلاين (onlineVisible=true)، عشان صاحب المحل يقدر يراجعها كلها
+// بسرعة (صور/وصف/سعر) من غير ما يدوّر عليها وسط باقي المخزن
+let _prodShowOnlineOnly=false;
+function toggleProdShowOnlineOnly(){
+  _prodShowOnlineOnly=!_prodShowOnlineOnly;
+  if(_prodShowOnlineOnly)_prodOnlineFilterOn=false;
   renderProds();
 }
 // تعليم/إلغاء تعليم "يظهر في المتجر الأونلاين" من الجدول مباشرةً، من غير ما تفتح
@@ -14843,6 +14860,7 @@ function renderProdsFiltered(f){
   if(_prodSection==='devices') rows=rows.filter(p=>p.section!=='parts');
   else if(_prodSection==='parts') rows=rows.filter(p=>p.section==='parts');
   if(_prodOnlineFilterOn) rows=rows.filter(p=>!p.onlineVisible);
+  if(_prodShowOnlineOnly) rows=rows.filter(p=>!!p.onlineVisible);
   const _sq=_prodSearchQ.trim().toLowerCase();
   if(_sq) rows=rows.filter(p=>_prodSearchHay(p).includes(_sq));
   rows=applyTableSort('prod-tbl',rows);
@@ -14854,6 +14872,12 @@ function renderProdsFiltered(f){
     const _remaining=DB.products.filter(x=>!x.onlineVisible).length;
     _fbtn.textContent=_prodOnlineFilterOn?('🛒 عرض الكل (رجوع) — باقي '+_remaining+' لسه مش متعلّم'):('🛒 عرض اللي لسه مش متعلّم للمتجر الأونلاين بس ('+_remaining+')');
     _fbtn.classList.toggle('btn-g',_prodOnlineFilterOn);
+  }
+  const _sbtn=$('prod-online-show-btn');
+  if(_sbtn){
+    const _onlineCount=DB.products.filter(x=>!!x.onlineVisible).length;
+    _sbtn.textContent=_prodShowOnlineOnly?('🌐 عرض الكل (رجوع)'):('🌐 عرض أصناف الموقع بس ('+_onlineCount+')');
+    _sbtn.classList.toggle('btn-g',_prodShowOnlineOnly);
   }
 }
 function renderProds(){renderProdsFiltered('all');if(typeof renderProdCatChips==='function')renderProdCatChips();if(typeof updateDiscountToggleBtn==='function')updateDiscountToggleBtn();}
@@ -14903,14 +14927,23 @@ function saveProd(){
     if(_discountPrice<=0||_discountPrice>=_effBase){toast('السعر بعد الخصم لازم يكون أقل من السعر الحالي للمنتج (الأونلاين أو سعر البيع)','warn');return;}
   }
   if(editId){const p=DB.products.find(x=>x.id===editId);if(p){const _oldBuy=p.buy,_oldSell=p.sell;p.name=nm;if($('pr-egs'))p.egs=$('pr-egs').value.trim();p.cat=$('pr-cat').value;p.subcat=subcat||'';p.section=sec;p.brand=$('pr-brand').value;p.buy=(CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy;
-  if(_oldBuy!==p.buy||_oldSell!==(parseFloat($('pr-sell').value)||0))addLog('تعديل أسعار "'+nm+'": شراء '+_oldBuy+'→'+((CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy)+' | بيع '+_oldSell+'→'+(parseFloat($('pr-sell').value)||0));p.sell=parseFloat($('pr-sell').value)||0;setProdQty(p,parseFloat($('pr-qty').value)||0);p.alert=_prAlrtVal();p.notes=$('pr-notes').value;p.onlinePrice=_onlinePrice;p.discountPrice=_discountPrice;p.shipSize=_shipSize;p.onlineVisible=_onlineVisible;p.imageUrl=_imageUrl;p.images=_images;p.description=_description;p.warrantyText=_warrantyText;p.partsAvailable=_partsAvailable;}saveDB();closeM('m-prod');renderProds();toast('✓ تم تحديث المنتج');if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();}
+  if(_oldBuy!==p.buy||_oldSell!==(parseFloat($('pr-sell').value)||0))addLog('تعديل أسعار "'+nm+'": شراء '+_oldBuy+'→'+((CURRENT_USER&&CURRENT_USER.role==='admin')?(parseFloat($('pr-buy').value)||0):p.buy)+' | بيع '+_oldSell+'→'+(parseFloat($('pr-sell').value)||0));p.sell=parseFloat($('pr-sell').value)||0;setProdQty(p,parseFloat($('pr-qty').value)||0);
+  // بنسجّل طابع زمني مستقل لحقل التنبيه وحقل الصور (مش بس توقيت المنتج ككل) — عشان
+  // لو جهاز تاني عدّل حاجة تانية في نفس المنتج بعد كده بلحظات لكن قبل ما التعديل ده
+  // يوصله، الدمج (processFirebaseDoc) يعرف يحافظ على أحدث تعديل فعلي لكل حقل لوحده
+  const _newAlert=_prAlrtVal();
+  if(_newAlert!==p.alert)p.alertUpdatedAt=Date.now();
+  p.alert=_newAlert;
+  if(JSON.stringify(_images)!==JSON.stringify(p.images||[]))p.imagesUpdatedAt=Date.now();
+  p.notes=$('pr-notes').value;p.onlinePrice=_onlinePrice;p.discountPrice=_discountPrice;p.shipSize=_shipSize;p.onlineVisible=_onlineVisible;p.imageUrl=_imageUrl;p.images=_images;p.description=_description;p.warrantyText=_warrantyText;p.partsAvailable=_partsAvailable;}saveDB();closeM('m-prod');renderProds();toast('✓ تم تحديث المنتج');if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();}
   else{
     // توليد ID فريد بصيغة PRD-D (أجهزة) أو PRD-P (قطع غيار) لمنع التضارب مع الأصناف الموجودة
     const prefix=sec==='parts'?'PRD-P':'PRD-D';
     const newId=nextFreeId(prefix,'products',3);
     if($('prod-search'))$('prod-search').value='';
     const _newQty=parseFloat($('pr-qty').value)||0;
-    const _newProd={id:newId,name:nm,egs:($('pr-egs')?$('pr-egs').value.trim():''),cat:$('pr-cat').value,subcat:subcat||'',section:sec,brand:$('pr-brand').value,buy:parseFloat($('pr-buy').value)||0,sell:parseFloat($('pr-sell').value)||0,qty:_newQty,qtyByBranch:{[activeBranchKey()]:_newQty},alert:_prAlrtVal(),notes:$('pr-notes').value,onlinePrice:_onlinePrice,discountPrice:_discountPrice,shipSize:_shipSize,onlineVisible:_onlineVisible,imageUrl:_imageUrl,images:_images,description:_description,warrantyText:_warrantyText,partsAvailable:_partsAvailable};
+    const _nowTs=Date.now();
+    const _newProd={id:newId,name:nm,egs:($('pr-egs')?$('pr-egs').value.trim():''),cat:$('pr-cat').value,subcat:subcat||'',section:sec,brand:$('pr-brand').value,buy:parseFloat($('pr-buy').value)||0,sell:parseFloat($('pr-sell').value)||0,qty:_newQty,qtyByBranch:{[activeBranchKey()]:_newQty},alert:_prAlrtVal(),alertUpdatedAt:_nowTs,notes:$('pr-notes').value,onlinePrice:_onlinePrice,discountPrice:_discountPrice,shipSize:_shipSize,onlineVisible:_onlineVisible,imageUrl:_imageUrl,images:_images,imagesUpdatedAt:_nowTs,description:_description,warrantyText:_warrantyText,partsAvailable:_partsAvailable};
     DB.products.unshift(_newProd);
     saveDB();closeM('m-prod');renderProds();toast('✓ تم إضافة المنتج');
     if(typeof pushOnlineCatalogIfChanged==='function')pushOnlineCatalogIfChanged();
@@ -15154,13 +15187,15 @@ function toggleAlert(pid){
   const p=DB.products.find(x=>x.id===pid);if(!p)return;
   if((p.alert||0)>0){p._prevAlert=p.alert;p.alert=0;toast('🔕 اتوقف تنبيه "'+p.name+'"');}
   else{p.alert=p._prevAlert||1;toast('🔔 اتشغل تنبيه "'+p.name+'" عند رصيد '+p.alert+' (عدّل الحد من ✏️)');}
+  p.alertUpdatedAt=Date.now(); // طابع زمني مستقل لحقل التنبيه — راجع شرح processFirebaseDoc
   saveDB();renderProds();renderDash();
 }
 function muteAllAlerts(){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
   const n=DB.products.filter(p=>(p.alert||0)>0).length;
   showDangerConfirm('إيقاف تنبيه النواقص عن كل الأصناف ('+n+' صنف)؟\nبعدها شغّل الجرس 🔔 للأصناف المهمة اللي عايز تتابعها فقط.',()=>{
-  DB.products.forEach(p=>{if((p.alert||0)>0){p._prevAlert=p.alert;p.alert=0;}});
+  const _muteTs=Date.now();
+  DB.products.forEach(p=>{if((p.alert||0)>0){p._prevAlert=p.alert;p.alert=0;p.alertUpdatedAt=_muteTs;}});
   addLog('إيقاف تنبيهات النواقص عن كل الأصناف ('+n+')');
   saveDB();renderProds();renderDash();
   toast('✓ اتوقفت التنبيهات عن '+n+' صنف — شغّل 🔔 للي يهمك');
@@ -20455,6 +20490,24 @@ function _mergeProductQtyByBranch(a,b){
   const qty=Object.values(mergedQ).reduce((s,v)=>s+(parseFloat(v)||0),0);
   return {qtyByBranch:mergedQ,qtyByBranchUpdatedAt:mergedT,qty};
 }
+// ======= دمج حقل بعينه بالطابع الزمني الخاص بيه، مش بتوقيت السجل كله — إصلاح باگ
+// حقيقي بلّغ عنه مستخدم: تنبيه نواقص كتمه (🔕) أو صورة رفعها على جهاز، بيرجعوا
+// يختفوا/يتشغّلوا لوحدهم بعد إقفال وفتح البرنامج. السبب: قبل كده كان في تعارض بين
+// جهازين على نفس المنتج، السجل كله (مش بس الحقل اللي اتغيّر) كان بياخد نسخة الجهاز
+// اللي حفظ أحدث توقيتًا — حتى لو التعديل ده كان في حقل تاني خالص (زي بيع قلّل
+// الكمية)، وده كان بيمسح بصمت أي تعديل أحدث فعليًا على alert أو الصور حصل على جهاز
+// تاني لسه مامزامنش. زي بالظبط حل qtyByBranch فوق، لكن لحقل واحد بدل تجميعة فروع.
+// لو مفيش طابع زمني للحقل ده عند أي الطرفين (سجلات قديمة قبل الإصلاح ده)، بيرجع
+// يقارن بتوقيت السجل كله زي ما كان بيحصل قبل كده بالظبط (توافق للخلف، مفيش كسر).
+function _mergeProductTimestampedField(a,b,valKey,tsKey){
+  const aTs=a&&a[tsKey],bTs=b&&b[tsKey];
+  if(typeof aTs==='number'&&typeof bTs==='number')
+    return bTs>aTs?{val:b[valKey],ts:bTs}:{val:a[valKey],ts:aTs};
+  if(typeof bTs==='number')return {val:b[valKey],ts:bTs};
+  if(typeof aTs==='number')return {val:a[valKey],ts:aTs};
+  const aWhole=(a&&a.updatedAt)||0,bWhole=(b&&b.updatedAt)||0;
+  return bWhole>aWhole?{val:b[valKey],ts:bTs}:{val:a[valKey],ts:aTs};
+}
 function processFirebaseDoc(doc,silent){
   const el=$('db-status'),ls=$('db-last-save');
   if(doc.exists){
@@ -20562,7 +20615,24 @@ function processFirebaseDoc(doc,silent){
           // setProdQty لشرح توقيت qtyByBranchUpdatedAt المستقل لكل فرع.
           if(k==='products'&&remoteItem){
             const merged=_mergeProductQtyByBranch(localItem,remoteItem);
-            winner={...winner,qtyByBranch:merged.qtyByBranch,qtyByBranchUpdatedAt:merged.qtyByBranchUpdatedAt,qty:merged.qty};
+            // تنبيه النواقص (alert) والصور (images/imageUrl) بنفس فكرة الكمية بالفرع
+            // بالظبط: كل حقل بيتدمج بطابعه الزمني الخاص، مش بتوقيت السجل كله — راجع
+            // شرح _mergeProductTimestampedField فوق لتفاصيل الباگ اللي ده بيصلّحه
+            const alertM=_mergeProductTimestampedField(localItem,remoteItem,'alert','alertUpdatedAt');
+            const imagesM=_mergeProductTimestampedField(localItem,remoteItem,'images','imagesUpdatedAt');
+            const imgUrlM=_mergeProductTimestampedField(localItem,remoteItem,'imageUrl','imagesUpdatedAt');
+            if(localItem.alert!==remoteItem.alert||JSON.stringify(localItem.images||[])!==JSON.stringify(remoteItem.images||[])){
+              try{
+                const pname=localItem.name||remoteItem.name||localItem.id;
+                if(localItem.alert!==remoteItem.alert)
+                  logSyncConflict('products',localItem.id,'تعديل متزامن على تنبيه نواقص "'+pname+'" — قيمة من هذا الجهاز='+(localItem.alert!=null?localItem.alert:'—')+'، قيمة من الجهاز الآخر='+(remoteItem.alert!=null?remoteItem.alert:'—')+'. تم اعتماد أحدث تعديل فعلي للتنبيه تحديدًا (مش أحدث حفظة للمنتج ككل)، فمفيش تعديل تنبيه ضاع.');
+                if(JSON.stringify(localItem.images||[])!==JSON.stringify(remoteItem.images||[]))
+                  logSyncConflict('products',localItem.id,'تعديل متزامن على صور "'+pname+'" — تم اعتماد أحدث تعديل فعلي للصور تحديدًا (مش أحدث حفظة للمنتج ككل)، فمفيش صورة اترفعت ضاعت.');
+              }catch(_eLogAI){}
+            }
+            winner={...winner,qtyByBranch:merged.qtyByBranch,qtyByBranchUpdatedAt:merged.qtyByBranchUpdatedAt,qty:merged.qty,
+              alert:(alertM.val!=null?alertM.val:winner.alert),alertUpdatedAt:alertM.ts,
+              images:(imagesM.val!=null?imagesM.val:winner.images),imageUrl:(imgUrlM.val!=null?imgUrlM.val:winner.imageUrl),imagesUpdatedAt:imagesM.ts};
           }
           combined.push(winner);
           seenIds.add(localItem.id);
