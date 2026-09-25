@@ -248,6 +248,24 @@ function closeContactSuccess(){
   setTimeout(() => { $('contact-success-overlay').hidden = true; }, 180);
 }
 
+// ===== عدّاد زوار الموقع — لصاحب المحل بس، بيشوفه هو بس من البرنامج/الموبايل، مش ظاهر
+// في الموقع خالص. بنسجّل زيارة واحدة بس لكل جلسة متصفح (sessionStorage) عشان الرقم يعبّر
+// عن "زوار" حقيقيين مش كل تنقل بين الصفحات. نفس فكرة الرسائل/الطلبات بالظبط: مستند شبه
+// فاضي جوه sz_data/_site_visits_incoming/items — البرنامج (مسجل دخول بحساب المدير) هو
+// بس اللي بيقرا الـsubcollection دي بعدين، يعدّها، ويحوّلها لرقم إجمالي =====
+const VISIT_FLAG_KEY = 'act_store_visited_v1';
+function logSiteVisitOnce(){
+  try{
+    if(sessionStorage.getItem(VISIT_FLAG_KEY)) return;
+    sessionStorage.setItem(VISIT_FLAG_KEY, '1');
+  }catch(e){ /* لو الجلسة اتمنعت (خصوصية المتصفح)، نكمل ونسجل الزيارة عادي بدل ما نوقف */ }
+  try{
+    db.collection('sz_data').doc('_site_visits_incoming').collection('items').add({
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }).catch(()=>{});
+  }catch(e){}
+}
+
 // ===== نافذة "اطلب صيانة" — بتبعت كل طلب كمستند مستقل جوه
 // sz_data/_online_maint_requests_incoming/items (نفس فكرة الطلبات/الرسائل الأونلاين
 // بالظبط)؛ البرنامج بيراجعها ويحوّلها لإذن استلام رسمي بيه رقم تتبع حقيقي =====
@@ -364,5 +382,5 @@ document.addEventListener('DOMContentLoaded', () => {
   applyBranding();
   wireEvents();
   updateCartBadge();
-  if(initFirebase()){ loadCatalog(); loadPromoBanner(); }
+  if(initFirebase()){ loadCatalog(); loadPromoBanner(); logSiteVisitOnce(); }
 });

@@ -249,6 +249,7 @@
         <div class="hero-tile"><div class="lbl">🧾 آجل</div><div class="val num" id="v-credit">0</div></div>
       </div>
       <div class="hero-count">عدد الفواتير النهارده: <strong id="v-count" class="num">0</strong></div>
+      <div class="hero-count">👁 إجمالي زوار الموقع: <strong id="v-sitevisits" class="num">0</strong></div>
     </div>
 
     <div class="menu-grid">
@@ -1034,6 +1035,7 @@
     $('v-count').textContent=String(ts.count||0);
     $('v-cashnow').textContent=fmtN(d.cashNow);
     $('v-month').textContent=fmtN(d.monthSalesTotal);
+    $('v-sitevisits').textContent=String(d.siteVisitsTotal||0);
 
     var ls=d.lowStockItems||[];
     $('lowstock-badge').textContent=String(d.lowStockCount||0);

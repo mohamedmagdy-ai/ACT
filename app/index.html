@@ -14111,7 +14111,8 @@ function renderDash(){
     <div class="sc ${_obConfirmed?(_cashNow>=0?'teal':'red'):'red'}" style="cursor:pointer;${_obConfirmed?'':'border:2px solid #e65100;'}" onclick="openOpeningModal()" title="اضغط لتسجيل/مراجعة رصيد أول المدة"><div class="sl">💵 الخزنة (الشهر) ${_obConfirmed?'':'⚠'}</div><div class="sv" style="color:${_cashNow>=0?'#00695c':'#c62828'}">${fmtN(_cashNow)} ج</div><div class="ss">${_obConfirmed?('أول المدة: '+fmtN(_ob)+' | محصّل: '+fmtN(liqM.inflow)+' | مدفوع: '+fmtN(liqM.outflow)):'<strong style="color:#e65100;">لسه ما اتأكدش رصيد أول الشهر ده — دوس هنا</strong>'}</div></div>
     <div class="sc purple"><div class="sl">🏦 رأس المال</div><div class="sv">${fmtN(_invVal+_cashNow)} ج</div><div class="ss">بضاعة: ${fmtN(_invQty)} قطعة بقيمة ${fmtN(_invVal)} | خزنة: ${fmtN(_cashNow)}</div></div>
     <div class="sc ${_wdM<=Math.max(0,tm.profit)?'teal':'red'}" style="cursor:pointer" onclick="openWithdrawModal()" title="اضغط لتسجيل سحب أو إيداع جديد"><div class="sl">🤲 مسحوباتي (الشهر)</div><div class="sv" style="color:${_wdM<=Math.max(0,tm.profit)?'#00695c':'#c62828'}">${fmtN(_wdM)} ج</div><div class="ss">ربح الشهر: ${fmtN(tm.profit)} ج ${_wdM>tm.profit&&_wdM>0?'— ⚠ ساحب أكتر من الربح':''}</div></div>
-    <div class="sc green" style="cursor:pointer" onclick="showTab('reports',document.querySelector('[onclick*=reports]'))"><div class="sl">💰 ليا / عليا</div><div class="sv" style="color:#2e7d32;">${fmtN(debtToMe)} ج</div><div class="ss" style="color:#c62828;">عليا: ${fmtN(debtOnMe)} ج</div></div>`:''}`;
+    <div class="sc green" style="cursor:pointer" onclick="showTab('reports',document.querySelector('[onclick*=reports]'))"><div class="sl">💰 ليا / عليا</div><div class="sv" style="color:#2e7d32;">${fmtN(debtToMe)} ج</div><div class="ss" style="color:#c62828;">عليا: ${fmtN(debtOnMe)} ج</div></div>
+    <div class="sc purple" title="عدد الزيارات الفعلية للموقع الأونلاين — بتتحدّث تلقائي كل ٣٠ ثانية، وميشوفهاش غيرك"><div class="sl">👁 زوار الموقع</div><div class="sv">${fmtN(SITE_VISITS_TOTAL||0)}</div><div class="ss">إجمالي الزيارات من أول ما اتفعّل العداد</div></div>`:''}`;
   const ls=DB.products.filter(p=>(p.alert||0)>0&&p.qty<=p.alert);const lsEl=$('dash-low-stock');
   if(lsEl){if(ls.length){lsEl.style.display='';lsEl.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;"><span style="font-size:13px;font-weight:bold;color:#c62828;">⚠️ أصناف محتاجة شراء (${ls.length})</span><button class="btn btn-sm" onclick="if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}openM('m-purch')" style="background:#c62828;color:white;border-color:#c62828;">+ مشتريات</button></div><div style="max-height:150px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#ffebee;"><th style="padding:5px 8px;text-align:right;">المنتج</th><th style="padding:5px 8px;width:70px;text-align:center;">الكمية</th><th style="padding:5px 8px;width:80px;text-align:center;">التنبيه</th><th style="padding:5px 8px;width:70px;text-align:center;">الحالة</th></tr></thead><tbody>${ls.map(p=>`<tr><td style="padding:5px 8px;">${p.name}</td><td style="padding:5px 8px;text-align:center;font-weight:bold;color:${p.qty===0?'#c62828':'#e65100'};">${p.qty}</td><td style="padding:5px 8px;text-align:center;color:#888;">${p.alert}</td><td style="padding:5px 8px;text-align:center;">${p.qty===0?'<span style="color:#c62828;font-weight:bold;">نفد</span>':'<span style="color:#e65100;">منخفض</span>'}</td></tr>`).join('')}</tbody></table></div>`;}else lsEl.style.display='none';}
   ['dash-sales','dash-maint','dash-purch','dash-exp'].forEach(id=>{const e=$(id);if(e){const cb=e.closest('.cb');if(cb){cb.style.maxHeight='200px';cb.style.overflowY='auto';}}});
@@ -19283,6 +19284,8 @@ function buildOwnerDashboardSnapshot(){
       serviceCenters:serviceCenters,
       bestSellers:bestSellers,
       stagnant:stagnant,
+      // عدّاد زوار الموقع — للمالك بس (راجع pullIncomingSiteVisits فوق لتفاصيل الآلية)
+      siteVisitsTotal:(typeof SITE_VISITS_TOTAL==='number')?SITE_VISITS_TOTAL:0,
     };
   }catch(e){try{logger.warn('buildOwnerDashboardSnapshot failed:',e&&e.message);}catch(_n){}return null;}
 }
@@ -19993,6 +19996,44 @@ function _computeOnlineOrderPricing(rawItems,governorate){
   const shipCustomer=(tier==='high')?(high.customer||0):(std.customer||0);
   const shipRealCost=(tier==='high')?(high.cost||0):(std.cost||0);
   return {items,missing,itemsTotal,tier,shipCustomer,shipRealCost,grandTotal:itemsTotal+shipCustomer};
+}
+// ===== عدّاد زوار الموقع — بيظهر لصاحب المحل بس (في البرنامج والموبايل)، مش أي حد تاني.
+// نفس فكرة الطلبات/الرسائل/طلبات الصيانة بالظبط: الموقع (زائر مجهول، بدون تسجيل دخول)
+// بيضيف مستند فاضي شبه تمامًا لكل "زيارة جديدة" (مرة واحدة بس لكل جلسة متصفح، عن طريق
+// sessionStorage من جهة الموقع) جوه sz_data/_site_visits_incoming/items/{autoId} — نفس
+// الـsubcollection pattern المستخدم فعلاً وبينجح مع الرسائل/الطلبات/الصيانة، عشان زائر
+// مجهول ميحتاجش صلاحية تعديل على مستند مشترك (نفس السبب الأمني الموثّق فوق بالظبط).
+// البرنامج (مسجل دخول بحساب المدير، وله صلاحية كاملة على sz_data أصلاً حسب Rules) هو بس
+// اللي بيقرا الـsubcollection دي، يعدّ المستندات الجديدة، يمسحها، ويزوّد رقم إجمالي
+// الزيارات المحفوظ في مستند منفصل sz_data/_site_visits عن طريق FieldValue.increment —
+// عملية ذرّية آمنة حتى لو أكتر من جهاز/فرع بيحدّث في نفس اللحظة بالظبط (مفيش سباق ولا
+// فقدان زيارات). الرقم الإجمالي نفسه بيتخزّن محليًا (localStorage) كمان عشان يبان فورًا
+// في لوحة التحكم من غير ما يستنى أول قراءة سحابية بعد فتح البرنامج.
+let SITE_VISITS_TOTAL = (function(){ try{ return parseInt(localStorage.getItem('sz_site_visits_total')||'0',10)||0; }catch(e){ return 0; } })();
+function _setSiteVisitsTotal(n){
+  SITE_VISITS_TOTAL = Math.max(0, n||0);
+  try{ localStorage.setItem('sz_site_visits_total', String(SITE_VISITS_TOTAL)); }catch(e){}
+  try{ if($('s-dash') && $('s-dash').classList.contains('active')) renderDash(); }catch(_e){}
+}
+function pullIncomingSiteVisits(){
+  try{
+    if(!FS_COL||!window.firebase||!firebase.firestore)return;
+    const itemsCol=FS_COL.doc('_site_visits_incoming').collection('items');
+    const totalDoc=FS_COL.doc('_site_visits');
+    (window._fbReady||Promise.resolve()).then(()=>itemsCol.get()).then(snap=>{
+      const n=(snap&&!snap.empty)?snap.size:0;
+      const bump=n>0
+        ?totalDoc.set({total:firebase.firestore.FieldValue.increment(n),updatedAt:Date.now()},{merge:true}).catch(()=>{})
+        :Promise.resolve();
+      if(n>0){
+        // بنمسح كل مستند لوحده (مش batch واحد) عشان لو واحد فشل، الباقي يتمسح عادي
+        snap.forEach(docSnap=>{docSnap.ref.delete().catch(()=>{});});
+      }
+      return bump.then(()=>totalDoc.get());
+    }).then(d=>{
+      if(d&&d.exists){const v=d.data()||{};_setSiteVisitsTotal(v.total||0);}
+    }).catch(e=>{try{logger.warn('pullIncomingSiteVisits failed:',e&&e.message);}catch(_n){}});
+  }catch(e){}
 }
 function pullIncomingOnlineOrders(){
   try{
@@ -20905,6 +20946,8 @@ setInterval(()=>{
     if(typeof pullIncomingSiteMessages==='function')pullIncomingSiteMessages();
     // نفس الدورة كمان: طلبات صيانة جديدة جاية من موقع المتجر
     if(typeof pullIncomingMaintRequests==='function')pullIncomingMaintRequests();
+    // نفس الدورة كمان: زيارات جديدة للموقع (عدّاد الزوار)
+    if(typeof pullIncomingSiteVisits==='function')pullIncomingSiteVisits();
   }catch(e){}
 },30000);
 </script>
