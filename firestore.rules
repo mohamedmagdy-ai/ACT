@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===== بياناتك الحقيقية: المدير بس (بحسابه الحقيقي) اللي يقدر يوصلها =====
+    match /sz_data/{document=**} {
+      allow read, write: if request.auth != null
+                          && request.auth.uid == 'iAfujpAs5zabtruyxr5S34zcFU13';
+    }
+    // ===== النسخ الاحتياطية الشهرية: نفس الحماية =====
+    match /{coll}/{document=**} {
+      allow read, write: if coll.matches('bk_.*')
+                          && request.auth != null
+                          && request.auth.uid == 'iAfujpAs5zabtruyxr5S34zcFU13';
+    }
+    // ===== بوابة تتبع العملاء: قراءة عامة لسجل واحد بعينه بس، بدون تسجيل دخول =====
+    match /sz_public_tracking/{token} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if request.auth != null
+                             && request.auth.uid == 'iAfujpAs5zabtruyxr5S34zcFU13';
+      allow delete: if false;
+    }
+    // ===== المتجر الأونلاين: القاعدة العامة فوق (sz_data/{document=**}) سايبة كل
+    // حاجة جوه sz_data مقفولة على المدير بس — هنا بنضيف استثناءين محددين بس، فوقها،
+    // عشان موقع المتجر العام (بدون تسجيل دخول خالص) يقدر يشتغل:
+    //
+    // 1) كتالوج المنتجات المعروضة أونلاين: قراءة عامة لمستند واحد بس (الاسم/السعر/
+    //    التصنيف/الكمية المتاحة — البرنامج هو اللي بيصفّي الحقول دي قبل ما يرفعها،
+    //    سعر الشراء أو أي بيانات تكلفة متترفعش هنا أبدًا). الكتابة تفضل للمدير بس.
+    match /sz_data/_online_catalog {
+      allow read: if true;
+    }
+    // 2) طلبات جديدة جاية من الموقع: أي حد (من غير تسجيل دخول) يقدر "يضيف" طلب
+    //    جديد بمعرّف مستند تلقائي بس — مايقدرش يقرا ولا يعدّل ولا يمسح أي طلب،
+    //    لا بتاعه ولا بتاع حد تاني (عشان بيانات عملاء تانيين متتسربش). المدير
+    //    (البرنامج، مسجّل دخول) بس اللي يقرا الطلبات ويمسحها بعد ما يعالجها —
+    //    وده أصلاً متغطي بالقاعدة العامة فوق (sz_data/{document=**}).
+    match /sz_data/_online_orders_incoming/items/{orderId} {
+      allow create: if true;
+    }
+    // 3) محتوى الموقع (الشروط والأحكام + سياسة الخصوصية): قراءة عامة لمستند واحد،
+    //    نفس منطق الكتالوج بالظبط. الكتابة تفضل للمدير بس.
+    match /sz_data/_online_site_content {
+      allow read: if true;
+    }
+    // 4) رسائل "تواصل معنا" من الموقع: نفس منطق الطلبات بالظبط — إضافة رسالة جديدة
+    //    بس، من غير قراءة أو تعديل لرسائل التانيين.
+    match /sz_data/_online_messages_incoming/items/{msgId} {
+      allow create: if true;
+    }
+    // 5) طلبات الصيانة من الموقع: نفس منطق الطلبات والرسائل بالظبط — إضافة طلب
+    //    صيانة جديد بس (نوع الجهاز/الماركة/الموديل/وصف العطل/اسم ورقم العميل)،
+    //    من غير قراءة أو تعديل لطلبات التانيين. البرنامج بيراجعها ويحوّلها
+    //    لإذن استلام رسمي.
+    match /sz_data/_online_maint_requests_incoming/items/{reqId} {
+      allow create: if true;
+    }
+    // 6) عدّاد زوار الموقع: أي حد (من غير تسجيل دخول) يقدر "يضيف" مستند فاضي شبه
+    //    تمامًا (زيارة واحدة) بمعرّف تلقائي بس — مايقدرش يقرا ولا يعدّل ولا يمسح أي
+    //    زيارة، لا بتاعه ولا بتاع حد تاني. البرنامج (مسجّل دخول) بس اللي يقراها
+    //    ويعدّها ويمسحها — وده أصلاً متغطي بالقاعدة العامة فوق (sz_data/{document=**}).
+    //    من غير السطر ده، كل محاولة تسجيل زيارة من الموقع كانت بترفض بصمت (permission
+    //    denied) من غير ما يظهر أي خطأ للزائر أو للمالك — ده اللي كان السبب في إن
+    //    العداد فاضل واقف على صفر رغم زيارات حقيقية.
+    match /sz_data/_site_visits_incoming/items/{visitId} {
+      allow create: if true;
+    }
+    // ===== تراخيص المنتج — أضفها بس لو/لمّا تفعّل نظام الترخيص لاحقًا =====
+    // match /sz_licenses/{key} {
+    //   allow get: if true;
+    //   allow list: if false;
+    //   allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deviceIds'])
+    //                 && request.resource.data.deviceIds.size() <= (resource.data.maxDevices == null ? 1 : resource.data.maxDevices);
+    //   allow create, delete: if false;
+    // }
+    // ===== كل حاجة تانية: ممنوعة تمامًا افتراضيًا =====
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
