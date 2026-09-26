@@ -114,7 +114,7 @@
 </div>
 
 <footer class="site-footer" id="site-footer">
-  <p class="footer-links"><a href="index.html">المتجر</a> · <a href="terms.html">الشروط والأحكام</a> · <a href="privacy.html">سياسة الخصوصية</a></p>
+  <p class="footer-links"><a href="index.html">المتجر</a> · <a href="terms.html">الشروط والأحكام</a> · <a href="privacy.html">سياسة الخصوصية</a> <span id="footer-facebook-wrap" hidden>· <a id="footer-facebook" href="#" target="_blank" rel="noopener">صفحتنا على فيسبوك</a></span></p>
 </footer>
 
 <script src="config.js"></script>
@@ -128,6 +128,11 @@
     var basePhone = window.STORE_PHONE || (window.STORE_WHATSAPP ? window.STORE_WHATSAPP.replace(/^20/, '0') : '');
     var allPhones = [basePhone, window.STORE_PHONE_2, window.STORE_PHONE_LANDLINE].filter(Boolean).join(' - ');
     phoneEl.textContent = allPhones;
+  }
+  if(window.STORE_FACEBOOK_URL){
+    var fbWrap = document.getElementById('footer-facebook-wrap');
+    var fb = document.getElementById('footer-facebook');
+    if(fbWrap && fb){ fbWrap.hidden = false; fb.href = window.STORE_FACEBOOK_URL; }
   }
 })();
 </script>

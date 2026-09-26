@@ -335,6 +335,14 @@ function applyBranding(){
     a.hidden = false;
     a.href = 'https://wa.me/' + window.STORE_WHATSAPP;
   }
+  if(window.STORE_FACEBOOK_URL){
+    const fbWrap = $('footer-facebook-wrap');
+    const fb = $('footer-facebook');
+    if(fbWrap && fb){
+      fbWrap.hidden = false;
+      fb.href = window.STORE_FACEBOOK_URL;
+    }
+  }
 }
 
 function setSection(section){

@@ -139,7 +139,7 @@
 </div>
 
 <footer class="site-footer" id="site-footer">
-  <p class="footer-links"><a href="index.html">المتجر</a> · <a href="about.html">مين إحنا</a> · <a href="terms.html">الشروط والأحكام</a> · <a href="privacy.html">سياسة الخصوصية</a></p>
+  <p class="footer-links"><a href="index.html">المتجر</a> · <a href="about.html">مين إحنا</a> · <a href="terms.html">الشروط والأحكام</a> · <a href="privacy.html">سياسة الخصوصية</a> <span id="footer-facebook-wrap" hidden>· <a id="footer-facebook" href="#" target="_blank" rel="noopener">صفحتنا على فيسبوك</a></span></p>
 </footer>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" crossorigin="anonymous"></script>
@@ -172,6 +172,11 @@
     if(window.STORE_WHATSAPP){
       var wa = $('teaser-wa-link');
       if(wa){ wa.hidden = false; wa.href = 'https://wa.me/' + window.STORE_WHATSAPP; }
+    }
+    if(window.STORE_FACEBOOK_URL){
+      var fbWrap = $('footer-facebook-wrap');
+      var fb = $('footer-facebook');
+      if(fbWrap && fb){ fbWrap.hidden = false; fb.href = window.STORE_FACEBOOK_URL; }
     }
   }
 

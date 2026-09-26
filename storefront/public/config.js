@@ -27,3 +27,6 @@ window.STORE_PHONE = "";
 // (اتركهم فاضيين "" لو عايز تشيلهم)
 window.STORE_PHONE_LANDLINE = "03-4040559";
 window.STORE_PHONE_2 = "01206944479";
+
+// رابط صفحة الفيسبوك بتاعتك (لو سبته فاضي، رابط فيسبوك مش هيظهر في الفوتر)
+window.STORE_FACEBOOK_URL = "https://www.facebook.com/profile.php?id=61594966583646";
