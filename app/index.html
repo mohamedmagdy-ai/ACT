@@ -11783,6 +11783,36 @@ function setPartnerFixedShareFor(partner,pct){
   if(idx>-1){DB.partnerFixedShares[idx].pct=pct;DB.partnerFixedShares[idx].updatedAt=now;}
   else{DB.partnerFixedShares.push({id:'PFS-'+now+'-'+Math.floor(Math.random()*9999),partner,pct,createdAt:now,updatedAt:now});}
 }
+// هجرة تلقائية لمرة واحدة بس: قبل v1.9.0 كانت نسبة كل شريك بتتحسب تلقائيًا (ديناميكيًا)
+// من نسبة رصيد رأس ماله لإجمالي أرصدة كل الشركاء — بدون أي تسجيل ثابت في أي مكان. من
+// v1.9.0 بقت النسبة عقد شراكة ثابت مسجَّل صراحة في DB.partnerFixedShares ومبتتغيرش
+// لوحدها. فأول مرة حد يفتح فيها البرنامج بعد التحديث ومفيش ولا شريك متسجل له نسبة
+// ثابتة، النسب اللي كانت ظاهرة وصح قبل كده كانت هتبان صفر فجأة — ده مش مقصود ولا
+// معناه إن حد "شال" النسب، هي بس ماكانتش متسجلة كقيمة ثابتة في الأول أصلاً (كانت بتتحسب
+// كل مرة من جديد). عشان كده أول استخدام لـ getAllPartnersWithShares() بعد التحديث بيسجّل
+// تلقائيًا آخر نسبة كانت محسوبة بالطريقة القديمة (من أرصدة رأس المال وقت التحديث) كنقطة
+// بداية للعقد الثابت — وبعد كده تفضل زي ما هي، متتغيرش لوحدها تاني. المدير يقدر بعد كده
+// يعدّلها يدوي في أي وقت من شاشة "🤝 الشركاء ورأس المال" لو عايز يظبطها بالظبط على العقد
+// الفعلي المتفق عليه.
+function _migrateFixedSharesFromLastDynamicRatioIfNeeded(){
+  try{
+    if(DB.partnerFixedShares&&DB.partnerFixedShares.length)return; // اتسجلت نسب ثابتة بالفعل (يدوي أو من هجرة قبل كده) — متعملش overwrite أبدًا
+    const names=new Set();
+    Object.keys(getPartnerInitialCapital()).forEach(n=>names.add(n));
+    (DB.partnerCapital||[]).forEach(r=>names.add(r.partner));
+    (DB.partnerCapitalInjections||[]).forEach(r=>names.add(r.partner));
+    const rows=Array.from(names).map(name=>({name,balance:getPartnerCurrentBalance(name)})).filter(r=>r.balance>0);
+    if(!rows.length)return; // مفيش شركاء بأرصدة أصلاً، مفيش نسب نهاجرها
+    const total=rows.reduce((s,r)=>s+r.balance,0);
+    if(!(total>0))return;
+    rows.forEach(r=>{
+      const pct=Math.round((r.balance/total)*10000)/100;
+      setPartnerFixedShareFor(r.name,pct);
+    });
+    saveDB();
+    addLog('هجرة تلقائية: تسجيل آخر نسبة كانت محسوبة ديناميكيًا من رصيد رأس المال كنسبة عقد شراكة ثابت لكل شريك ('+rows.length+' شريك) — قبل تفعيل نظام النسبة الثابتة في v1.9.0');
+  }catch(_e){}
+}
 // ======= مديونية الشريك: لو سحب أكتر من نصيبه الفعلي من الربح =======
 // المستخدم وضّح صراحة: الفرق ده "مديونية عليه واجبة السداد" — مش بيتخصم من رأس ماله،
 // ومش بيترحّل تلقائيًا يتخصم من نصيبه في أرباح السنة الجاية. بيفضل رقم قائم بذاته،
@@ -11872,6 +11902,7 @@ function getPartnerCurrentBalance(partner){
 // getPartnerFixedShares فوق للشرح الكامل). لو شريك لسه معندوش نسبة ثابتة مسجّلة،
 // نرجّعله 0% (مش نحسبها ديناميكي زي الأول) عشان يبان واضح إنه محتاج يتسجّل له نسبة.
 function getAllPartnersWithShares(){
+  try{_migrateFixedSharesFromLastDynamicRatioIfNeeded();}catch(_e){}
   const names=new Set();
   Object.keys(getPartnerInitialCapital()).forEach(n=>names.add(n));
   (DB.partnerCapital||[]).forEach(r=>names.add(r.partner));
