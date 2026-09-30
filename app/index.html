@@ -4847,6 +4847,81 @@ function displayInvNum(id){
   if(!m)return s;
   return String(parseInt(m[1],10));
 }
+// ======= ترتيب التقارير المطبوعة برقم المستند + إظهار الأرقام "المتحرقة" كسطر فاضي =======
+// المشكلة اللي اتبلّغ عنها: التقارير المطبوعة (كشف شهري، تقرير يومي...) كانت بتطلع
+// بترتيب إدخال السجلات في الداتا (اللي ممكن يتلخبط أكتر بعد أي مزامنة بين الأجهزة)،
+// مش بترتيب رقم الفاتورة — يعني المحاسب بيشوف 45 بعدها 12 بعدها 78 بدل ترتيب منطقي.
+// الحل: نستخرج الرقم التسلسلي الحقيقي من كل id (displayInvNum بالظبط)، ونرتب بيه رقميًا
+// (مش كنص، عشان النص بيبوّظ ترتيب الأرقام اللي عدد خاناتها مختلف زي 9 و10).
+// وكمان: لو رقم "اتحرق" — العداد استهلكه (اتقفز عليه) بس مفيش مستند حقيقي بيه في أي
+// تاريخ خالص (زي فاتورة صيانة اتلغت نهائيًا) — بيظهر سطر فاضي مكانه بدل ما يختفي
+// بصمت، عشان تسلسل الأرقام قدام المحاسب يفضل كامل وواضح ومفيش فيه "قفزة" من غير تفسير.
+// مهم: رقم "موجود فعلاً بس في تاريخ/شهر تاني" (مش المفروض يظهر في التقرير المطبوع ده
+// أصلاً) ميتحطش له سطر فاضي بالغلط — بيتجاهل تمامًا، لأنه مش متحرق، هيظهر في تقريره هو.
+function _invIdParts(id){
+  const s=String(id||'');
+  const m=s.match(/^(.*?)(\d+)(?!.*\d)$/); // كل حاجة قبل آخر مجموعة أرقام = "prefix" (بادئة المستند + لاحقة الفرع لو موجودة مع بعض)
+  if(!m)return null;
+  return {prefix:m[1],num:parseInt(m[2],10),pad:m[2].length};
+}
+// core مشترك: items أي Array (سجلات أو صفوف عرض)، idOf بتاخد العنصر وترجع الـid بتاعه،
+// allIds قايمة كل الـids الموجودة فعليًا (من غير فلترة تاريخ) لنفس النوع، عشان نفرّق
+// صح بين رقم اتحرق فعلاً ورقم موجود بس في تاريخ تاني
+function _sortAndFillGapsCore(items,idOf,allIds){
+  const existing={};
+  (allIds||[]).forEach(id=>{
+    const p=_invIdParts(id);
+    if(!p)return;
+    if(!existing[p.prefix])existing[p.prefix]=new Set();
+    existing[p.prefix].add(p.num);
+  });
+  const groups={},order=[],unparsed=[];
+  (items||[]).forEach(item=>{
+    const p=_invIdParts(idOf(item));
+    if(!p){unparsed.push({blank:false,item});return;}
+    if(!groups[p.prefix]){groups[p.prefix]=[];order.push(p.prefix);}
+    groups[p.prefix].push({item,n:p.num,pad:p.pad});
+  });
+  const out=[];
+  order.forEach(prefix=>{
+    const list=groups[prefix].slice().sort((a,b)=>a.n-b.n);
+    const minN=list[0].n,maxN=list[list.length-1].n,pad=list[0].pad;
+    const byNum={};list.forEach(x=>{byNum[x.n]=x.item;});
+    const existSet=existing[prefix]||new Set();
+    for(let n=minN;n<=maxN;n++){
+      if(byNum[n]!==undefined)out.push({blank:false,item:byNum[n]});
+      else if(!existSet.has(n))out.push({blank:true,id:prefix+String(n).padStart(pad,'0')});
+      // لو الرقم ده موجود فعلاً (existSet.has(n)) بس مش هنا (مش النهارده/الشهر ده) —
+      // متجاهلينه تمامًا، مش سطر فاضي ولا سطر حقيقي، هيظهر في تقرير تاريخه هو
+    }
+  });
+  return out.concat(unparsed);
+}
+// rows: Array من صفوف عرض (كل صف Array وأول عنصر فيه هو الـid) — الشكل المستخدم في printMonthly
+function sortAndFillGapsRows(rows,allIds){
+  return _sortAndFillGapsCore(rows,r=>r&&r[0],allIds).map(x=>x.blank?{blank:true,id:x.id}:{blank:false,row:x.item});
+}
+// records: Array من سجلات حقيقية (كل واحد له .id) — الشكل المستخدم في printDailyReport
+function sortAndFillGapsRecords(records,allIds){
+  return _sortAndFillGapsCore(records,r=>r&&r.id,allIds).map(x=>x.blank?{blank:true,id:x.id}:{blank:false,rec:x.item});
+}
+// ======= ترتيب المصروفات في التقارير المطبوعة بتاريخ الإدخال الفعلي، مش تاريخ العملية =======
+// تاريخ العملية (date) ممكن يتسجّل يدوي بتاريخ سابق (مصروف اتسجّل النهارده عن حاجة
+// حصلت الأسبوع اللي فات مثلاً)، فترتيب المصروفات بيه بيديله ترتيب مش حقيقي لأول ما
+// اتضافت فعليًا. createdAt (لما يكون موجود) هو التوقيت الحقيقي للإدخال. لسجلات قديمة
+// من غير createdAt خالص (نسخ قديمة من البرنامج قبل ما الحقل ده يتسجل لكل حركة)، بنرجع
+// لترتيب الإدخال الطبيعي في القاعدة (DB.expenses.unshift ⇒ الأحدث إدخالًا index أصغر)
+// كأقرب تقريب متاح، بدل ما نسيبها من غير ترتيب خالص.
+function _expEntryTime(ex,fallbackIdx){
+  if(ex&&Number.isFinite(ex.createdAt))return ex.createdAt;
+  return -(fallbackIdx==null?0:fallbackIdx);
+}
+function sortExpensesByEntryDate(list){
+  if(!list||!list.length)return list||[];
+  const withIdx=list.map(ex=>({ex,idx:DB.expenses.indexOf(ex)}));
+  withIdx.sort((a,b)=>_expEntryTime(a.ex,a.idx)-_expEntryTime(b.ex,b.idx));
+  return withIdx.map(x=>x.ex);
+}
 function isM(d){const dt=new Date(d);return dt.getMonth()===curM&&dt.getFullYear()===curY;}
 function isY(d){return new Date(d).getFullYear()===curY;}
 function sumBy(arr,f,fn){return arr.filter(r=>!fn||fn(r.date)).reduce((s,r)=>s+(parseFloat(r[f])||0),0);}
@@ -7405,10 +7480,12 @@ function printExpensesMonth(forcedMonth){
   const allMonthExp=DB.expenses.filter(e=>(e.date||'').slice(0,7)===month&&e.type!=='تحويل بين الحسابات'&&isMyBranch(e));
   // العهد النقدية اللي لسه ما اتسوتش، أو اتحولت لفاتورة مشتريات (فهتتحسب من هناك بدل
   // كده)، مش مصروف مؤكد هنا — بنستبعدهم ونوريهم في ملحوظة منفصلة تحت بس
-  const rows=allMonthExp.filter(e=>!e.pendingCustody&&!e.excludedAsInventoryPurchase);
+  const rows=sortExpensesByEntryDate(allMonthExp.filter(e=>!e.pendingCustody&&!e.excludedAsInventoryPurchase));
   const pendingRows=allMonthExp.filter(e=>e.pendingCustody);
   const purchaseConvertedRows=allMonthExp.filter(e=>e.excludedAsInventoryPurchase);
   if(!rows.length&&!pendingRows.length&&!purchaseConvertedRows.length){toast('لا توجد مصروفات في شهر '+month,'warn');return;}
+  // ملحوظة: rows خلاص مرتبة بتاريخ الإدخال (sortExpensesByEntryDate فوق) — الفلترة
+  // التالية (.filter) بتحافظ على نفس الترتيب ده لأنها مش بتعيد ترتيب العناصر
   const docRows=rows.filter(e=>e.hasInvoice);
   const undocRows=rows.filter(e=>!e.hasInvoice);
   const docTotal=docRows.reduce((s,e)=>s+(e.amount||0),0);
@@ -8088,6 +8165,8 @@ function printDailyReport(forcedDay){
   const M=n=>(Math.round((n||0)*100)/100).toFixed(2);
   const sec=t=>`<div style="background:#0f2540;color:#fff;padding:5px 10px;font-size:10pt;font-weight:bold;margin-top:8px;-webkit-print-color-adjust:exact;print-color-adjust:exact;">${t}</div>`;
   const tb=rows=>rows.length?`<table class="inv-tbl" style="font-size:9pt;">${rows.join('')}</table>`:'<div style="color:#999;font-size:9pt;padding:4px 10px;">— لا يوجد</div>';
+  // سطر فاضي لأي رقم مستند "اتحرق" فعليًا (راجع شرح sortAndFillGapsRecords فوق)
+  const blankRow=id=>`<tr style="color:#999;background:#f7f7f7;font-style:italic;"><td>${e(id)}</td><td colspan="3" style="text-align:center;">— رقم اتحرق / اتلغى —</td></tr>`;
   const sales=DB.sales.filter(s=>fd(s.date)&&isMyBranch(s));
   const taxS=(DB.taxInvoices||[]).filter(t=>t.taxType==='sale'&&fd(t.date)&&isMyBranch(t));
   const mis=(DB.maintInvoices||[]).filter(m=>fd(m.date)&&isMyBranch(m));
@@ -8096,7 +8175,7 @@ function printDailyReport(forcedDay){
   const wos=(DB.workOrders||[]).filter(w=>fd(w.date)&&isMyBranch(w));
   const purs=DB.purchases.filter(p=>fd(p.date)&&isMyBranch(p));
   const _isAdminForReport=canSwitchBranch();
-  const exps=DB.expenses.filter(e=>fd(e.date)&&isMyBranch(e)&&(_isAdminForReport||!COMPANY_WIDE_EXPENSE_TYPES.has(e.type)));
+  const exps=sortExpensesByEntryDate(DB.expenses.filter(e=>fd(e.date)&&isMyBranch(e)&&(_isAdminForReport||!COMPANY_WIDE_EXPENSE_TYPES.has(e.type))));
   const pays=(DB.payments||[]).filter(p=>fd(p.date)&&isMyBranch(p));
   const rets=(DB.returns||[]).filter(r=>fd(r.date)&&isMyBranch(r));
   const wds=(DB.withdrawals||[]).filter(w=>fd(w.date));
@@ -8105,6 +8184,13 @@ function printDailyReport(forcedDay){
   const maintT=mis.filter(m=>m.exit!=='warranty').reduce((s,x)=>s+(x.cost||0),0)+taxM.reduce((s,x)=>s+(x.total||0),0);
   const liqDay=calcLiquidity(fd);
   const st=(x)=>isDeferredInv(x)?'<span style="color:#c62828;">آجل</span>':'كاش';
+  // ترتيب رقمي بحسب رقم المستند + سطر فاضي لأي رقم اتحرق، لكل قسم من أقسام التقرير
+  // اليومي على حدة (كل نوع مستند له تسلسل مستقل بعدّاده)
+  const salesDisp=sortAndFillGapsRecords(sales,DB.sales.filter(isMyBranch).map(x=>x.id));
+  const taxSDisp=sortAndFillGapsRecords(taxS,(DB.taxInvoices||[]).filter(t=>t.taxType==='sale'&&isMyBranch(t)).map(x=>x.id));
+  const misDisp=sortAndFillGapsRecords(mis,(DB.maintInvoices||[]).filter(isMyBranch).map(x=>x.id));
+  const taxMDisp=sortAndFillGapsRecords(taxM,(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&isMyBranch(t)).map(x=>x.id));
+  const pursDisp=sortAndFillGapsRecords(purs,DB.purchases.filter(isMyBranch).map(x=>x.id));
   $('print-output').innerHTML=`<div class="inv-wrap">
     <div style="text-align:center;border-bottom:3px solid #0f2540;padding-bottom:6px;">
       <div style="font-size:16pt;font-weight:bold;color:#0f2540;">${e(getStoreCfg().name)} — التقرير اليومي</div>
@@ -8119,14 +8205,14 @@ function printDailyReport(forcedDay){
       <span style="border:1px solid #ffcc80;border-radius:4px;padding:4px 10px;background:#fff8ee;">💵 صافي حركة الكاش اليوم: ${M(liqDay.net)} ج</span>
     </div>
     ${sec('🛒 فواتير المبيعات ('+e(sales.length+taxS.length)+')')}
-    ${tb([...sales.map(s=>`<tr><td>${e(s.id)}</td><td class="name-col">${e(s.customer||'')}</td><td>${M(s.total)} ج</td><td>${st(s)}</td></tr>`),...taxS.map(s=>`<tr><td>${e(s.id)} <span style="color:#e65100;">ض</span></td><td class="name-col">${e(s.customer||'')}</td><td>${M(s.total)} ج</td><td>${st(s)}</td></tr>`)])}
+    ${tb([...salesDisp.map(d=>d.blank?blankRow(d.id):`<tr><td>${e(d.rec.id)}</td><td class="name-col">${e(d.rec.customer||'')}</td><td>${M(d.rec.total)} ج</td><td>${st(d.rec)}</td></tr>`),...taxSDisp.map(d=>d.blank?blankRow(d.id):`<tr><td>${e(d.rec.id)} <span style="color:#e65100;">ض</span></td><td class="name-col">${e(d.rec.customer||'')}</td><td>${M(d.rec.total)} ج</td><td>${st(d.rec)}</td></tr>`)])}
     ${sec('🔧 فواتير الصيانة ('+e(mis.length+taxM.length)+')')}
-    ${tb([...mis.map(m=>`<tr><td>${e(m.id)}</td><td class="name-col">${e(m.customer||'')} — ${e(m.device||'')}</td><td>${m.exit==='warranty'?'ضمان':M(m.cost)+' ج'}</td><td>${m.exit==='warranty'?'—':st(m)}</td></tr>`),...taxM.map(m=>`<tr><td>${e(m.id)} <span style="color:#e65100;">ض</span></td><td class="name-col">${e(m.customer||'')}</td><td>${M(m.total)} ج</td><td>${st(m)}</td></tr>`)])}
+    ${tb([...misDisp.map(d=>d.blank?blankRow(d.id):`<tr><td>${e(d.rec.id)}</td><td class="name-col">${e(d.rec.customer||'')} — ${e(d.rec.device||'')}</td><td>${d.rec.exit==='warranty'?'ضمان':M(d.rec.cost)+' ج'}</td><td>${d.rec.exit==='warranty'?'—':st(d.rec)}</td></tr>`),...taxMDisp.map(d=>d.blank?blankRow(d.id):`<tr><td>${e(d.rec.id)} <span style="color:#e65100;">ض</span></td><td class="name-col">${e(d.rec.customer||'')}</td><td>${M(d.rec.total)} ج</td><td>${st(d.rec)}</td></tr>`)])}
     ${sec('📄 أذونات استلام جديدة ('+e(rcpts.length)+') وأوامر شغل ('+e(wos.length)+')')}
     ${tb([...rcpts.map(r=>`<tr><td>${e(r.id)}</td><td class="name-col">${e(r.customer||'')}</td><td>${e(r.device||'')} ${e(r.brand||'')} ${e(r.model||'')}</td><td>${e(r.customerPhone||'')}</td></tr>`),...wos.map(w=>`<tr><td>${e(w.id)}</td><td class="name-col">${e(w.customer||'')}</td><td>${e(w.works||'—')}</td><td>${w.exit==='warranty'?'ضمان':M(w.total||((w.cost||0)+(w.labor||0)))+' ج'}</td></tr>`)])}
     ${sec('📦 المشتريات ('+e(purs.length)+')')}
-    ${tb(purs.map(p=>`<tr><td>${e(p.id)}</td><td class="name-col">${e(p.supplier||'')}</td><td>${M(p.total)} ج</td><td>${st(p)}</td></tr>`))}
-    ${sec('💸 المصروفات ('+e(exps.length)+')')}
+    ${tb(pursDisp.map(d=>d.blank?blankRow(d.id):`<tr><td>${e(d.rec.id)}</td><td class="name-col">${e(d.rec.supplier||'')}</td><td>${M(d.rec.total)} ج</td><td>${st(d.rec)}</td></tr>`))}
+    ${sec('💸 المصروفات ('+e(exps.length)+') — مرتبة بتاريخ الإدخال')}
     ${tb(exps.map(ex=>`<tr><td>${e(ex.id)}</td><td class="name-col">${e(ex.desc||'')}</td><td>${e(ex.type||'')}</td><td>${M(ex.amount)} ج${ex.nonCash?' (غير نقدي)':''}</td></tr>`))}
     ${sec('💰 تحصيلات وسدادات ('+e(pays.length)+') | مرتجعات ('+e(rets.length)+') | مسحوبات ('+e(wds.length)+') | تفكيك ('+e(dsms.length)+')')}
     ${tb([...pays.map(p=>`<tr><td>${p.type==='purch'?'سداد مورد':'تحصيل'}</td><td class="name-col">${e(p.refId||'')}</td><td>${M(p.amount)} ج</td><td>${e(p.note||'')}</td></tr>`),
@@ -9359,21 +9445,27 @@ function printMonthly(kind,forcedMonth){
   const cfg={
     'sales':     {inp:'rep-sl-month',title:'كشف مبيعات شهر',
       rows:m=>DB.sales.filter(r=>(r.date||'').slice(0,7)===m&&isMyBranch(r)).map(r=>[r.id,r.customer||'',_itemsDesc(r.items),r.total||0,r.payment||'كاش',r.date||'']),
+      allIds:()=>DB.sales.filter(isMyBranch).map(r=>r.id),
       head:['رقم الفاتورة','العميل','البيان (الأصناف المصروفة)','الإجمالي','الدفع','التاريخ'],sumCol:3,descCol:2},
     'tax-sales': {inp:'rep-sl-month',title:'كشف المبيعات الضريبية شهر',
       rows:m=>(DB.taxInvoices||[]).filter(r=>r.taxType==='sale'&&(r.date||'').slice(0,7)===m&&isMyBranch(r)).map(r=>[r.id,r.customer||'',_itemsDesc(r.items),(r.base||0),(r.tax||0),r.total||0,r.date||'']),
+      allIds:()=>(DB.taxInvoices||[]).filter(r=>r.taxType==='sale'&&isMyBranch(r)).map(r=>r.id),
       head:['رقم الفاتورة','العميل','البيان (الأصناف المصروفة)','قبل الضريبة','الضريبة','الإجمالي','التاريخ'],sumCol:5,descCol:2},
     'maint':     {inp:'rep-mi-month',title:'كشف فواتير الصيانة شهر',
       rows:m=>(DB.maintInvoices||[]).filter(r=>(r.date||'').slice(0,7)===m&&isMyBranch(r)).map(r=>[r.id,r.customer||'',r.device||'',_itemsDesc(r.items),r.exit==='warranty'?0:(r.cost||0),r.exit==='warranty'?'ضمان':(r.payment||'كاش'),r.date||'']),
+      allIds:()=>(DB.maintInvoices||[]).filter(isMyBranch).map(r=>r.id),
       head:['رقم الفاتورة','العميل','الجهاز','البيان (القطع والخدمات)','الإجمالي','الدفع','التاريخ'],sumCol:4,descCol:3},
     'tax-maint': {inp:'rep-mi-month',title:'كشف الصيانة الضريبية شهر',
       rows:m=>(DB.taxInvoices||[]).filter(r=>(r.taxType==='maint'||r.type==='tax-maint')&&(r.date||'').slice(0,7)===m&&isMyBranch(r)).map(r=>[r.id,r.customer||'',r.device||'',_itemsDesc(r.items),(r.tax||0),r.exit==='warranty'?0:(r.total||0),r.date||'']),
+      allIds:()=>(DB.taxInvoices||[]).filter(r=>(r.taxType==='maint'||r.type==='tax-maint')&&isMyBranch(r)).map(r=>r.id),
       head:['رقم الفاتورة','العميل','الجهاز','البيان (القطع والخدمات)','الضريبة','الإجمالي','التاريخ'],sumCol:5,descCol:3},
     'purch-inv': {inp:'rep-pu-month',title:'كشف المشتريات بفاتورة شهر',
       rows:m=>DB.purchases.filter(r=>r.type==='invoice'&&(r.date||'').slice(0,7)===m&&isMyBranch(r)).map(r=>[r.id,r.supplier||'',purchItems(r).length,r.total||0,r.payment||'كاش',r.date||'']),
+      allIds:()=>DB.purchases.filter(r=>r.type==='invoice'&&isMyBranch(r)).map(r=>r.id),
       head:['رقم السند','المورد','أصناف','الإجمالي','الدفع','التاريخ'],sumCol:3},
     'purch-ni':  {inp:'rep-pu-month',title:'كشف المشتريات بدون فاتورة شهر',
       rows:m=>DB.purchases.filter(r=>r.type==='noinvoice'&&(r.date||'').slice(0,7)===m&&isMyBranch(r)).map(r=>[r.id,r.supplier||'',purchItems(r).length,r.total||0,r.payment||'كاش',r.date||'']),
+      allIds:()=>DB.purchases.filter(r=>r.type==='noinvoice'&&isMyBranch(r)).map(r=>r.id),
       head:['رقم السند','المورد','أصناف','الإجمالي','الدفع','التاريخ'],sumCol:3}
   }[kind];
   if(!cfg)return;
@@ -9381,6 +9473,10 @@ function printMonthly(kind,forcedMonth){
   const rows=cfg.rows(month);
   if(!rows.length){toast('لا توجد بيانات في شهر '+month,'warn');return;}
   const grand=rows.reduce((s,r)=>s+(parseFloat(r[cfg.sumCol])||0),0);
+  // ترتيب رقمي بحسب رقم المستند (مش ترتيب الإدخال) + سطر فاضي لأي رقم "اتحرق" فعليًا
+  // (راجع شرح sortAndFillGapsRows فوق) — عدد الفواتير الحقيقي في الهيدر يفضل بيحسب
+  // الصفوف الحقيقية بس (rows.length)، من غير الصفوف الفاضية
+  const disp=sortAndFillGapsRows(rows,cfg.allIds());
   $('print-output').innerHTML=`<div class="inv-wrap">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:0;border-bottom:2px solid #000;padding-bottom:7px;">
       <div style="text-align:right;line-height:1.7;">
@@ -9396,7 +9492,10 @@ function printMonthly(kind,forcedMonth){
     </div>
     <div style="padding:5px 0;font-size:9.5pt;border-bottom:1px solid #ddd;margin-bottom:7px;"><strong>تاريخ الطباعة :</strong> ${todayStr} &nbsp;&nbsp; <strong>عدد الفواتير :</strong> ${rows.length}</div>
     <table class="inv-tbl"><thead><tr><th>م</th>${cfg.head.map(h=>'<th>'+h+'</th>').join('')}</tr></thead>
-    <tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td>${r.map((c,ci)=>`<td${(ci===1||ci===cfg.descCol)?' class="name-col"':''}${ci===cfg.descCol?' style="text-align:right;font-size:8pt;"':''}>${typeof c==='number'?c.toFixed(2):c}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    <tbody>${disp.map((d,i)=>d.blank
+      ?`<tr style="color:#999;background:#f7f7f7;font-style:italic;"><td>${i+1}</td><td>${d.id}</td><td colspan="${cfg.head.length-1}" style="text-align:center;">— رقم اتحرق / اتلغى، مفيش مستند بيه —</td></tr>`
+      :`<tr><td>${i+1}</td>${d.row.map((c,ci)=>`<td${(ci===1||ci===cfg.descCol)?' class="name-col"':''}${ci===cfg.descCol?' style="text-align:right;font-size:8pt;"':''}>${typeof c==='number'?c.toFixed(2):c}</td>`).join('')}</tr>`
+    ).join('')}</tbody></table>
     <div style="text-align:left;font-size:11pt;font-weight:bold;margin:8px 0;">الإجمالي : ${grand.toFixed(2)} ج</div>
     <div style="font-size:9.5pt;margin-bottom:8px;"><strong>فقط</strong> ${n2w(grand)}</div>
   </div>`;
@@ -14897,10 +14996,13 @@ function renderDash(){
     ?(DB.branches||[]).every(b=>(DB.openingBalances||[]).some(o=>o.month===todayStr.slice(0,7)&&(o.branch||'BR-MAIN')===b.id))
     :(DB.openingBalances||[]).some(o=>o.month===todayStr.slice(0,7)&&(o.branch||'BR-MAIN')===activeBranchKey());
   const _mt=calcMethodTotals();
-  // مبلغ اليوم بطريقة دفع معيّنة، مع مراعاة الدفع المقسّم (كاش+فيزا) بنسبته الفعلية
+  // مبلغ اليوم بطريقة دفع معيّنة، مع مراعاة نوعين الدفع المقسّم (كاش+فيزا) و(كاش+انستا
+  // باي) بنسبة كل جزء فعليًا — قبل كده "مقسّم انستا" ماكانتش بتتحسب خالص هنا (باگ)، فكان
+  // جزء الانستا بتاع أي فاتورة مقسّمة بيضيع من كل الأرقام دي بدل ما يتوزّع صح
   const _todayByMethod=(method)=>{
     const amt=(rec,total)=>{
-      if(rec.payment==='مقسّم'&&rec.paymentSplit){const s=rec.paymentSplit,tot=(s.cash||0)+(s.visa||0);if(tot>0)return total*((method==='كاش'?(s.cash||0):(s.visa||0))/tot);return 0;}
+      if(rec.payment==='مقسّم'&&rec.paymentSplit){const s=rec.paymentSplit,tot=(s.cash||0)+(s.visa||0);if(tot>0)return total*((method==='كاش'?(s.cash||0):(method==='فيزا'?(s.visa||0):0))/tot);return 0;}
+      if(rec.payment==='مقسّم انستا'&&rec.paymentSplit){const s=rec.paymentSplit,tot=(s.cash||0)+(s.instapay||0);if(tot>0)return total*((method==='كاش'?(s.cash||0):(method==='انستا باي'?(s.instapay||0):0))/tot);return 0;}
       return rec.payment===method?total:0;
     };
     return DB.sales.filter(s=>s.date===todayStr&&isMyBranch(s)).reduce((s,x)=>s+amt(x,x.total||0),0)
@@ -14910,9 +15012,10 @@ function renderDash(){
   };
   const _todayCash=_todayByMethod('كاش');
   const _todayVisa=_todayByMethod('فيزا');
+  const _todayInsta=_todayByMethod('انستا باي');
   $('dash-stats').innerHTML=`
     <div class="sc teal"><div class="sl">💵 نقدي اليوم</div><div class="sv">${fmtN(_todayCash)} ج</div><div class="ss">نقدي الشهر (لحد دلوقتي): ${fmtN(_mt['كاش']||0)} ج</div></div>
-    <div class="sc blue"><div class="sl">💳 فيزا اليوم</div><div class="sv">${fmtN(_todayVisa)} ج</div><div class="ss">فيزا الشهر (لحد دلوقتي): ${fmtN(_mt['فيزا']||0)} ج</div></div>
+    <div class="sc blue"><div class="sl">💳 فيزا / انستا اليوم</div><div class="sv">${fmtN(_todayVisa+_todayInsta)} ج</div><div class="ss">💳 فيزا: ${fmtN(_todayVisa)} ج &nbsp;|&nbsp; 📲 انستا: ${fmtN(_todayInsta)} ج</div><div class="ss">الشهر (لحد دلوقتي): فيزا ${fmtN(_mt['فيزا']||0)} ج | انستا ${fmtN(_mt['انستا باي']||0)} ج</div></div>
     ${_adm?`<div class="sc blue"><div class="sl">مبيعات الشهر</div><div class="sv">${fmtN(tm.sm+tm.mm)} ج</div><div class="ss">مبيعات: ${fmtN(tm.sm)} ج | صيانة: ${fmtN(tm.mm)} ج</div></div>
     <div class="sc teal"><div class="sl">إيراد السنة</div><div class="sv">${fmtN(ty.rev)} ج</div><div class="ss">مبيعات + صيانة</div></div>
     <div class="sc amber" style="cursor:pointer;" onclick="quickViewPurchasesMonth()" title="دوس لتشوف كل مشتريات الشهر بسرعة"><div class="sl">مشتريات الشهر</div><div class="sv">${fmtN(tm.pm)} ج</div><div class="ss">السنة: ${fmtN(ty.pm)} ج</div></div>
