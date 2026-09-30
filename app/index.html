@@ -649,7 +649,7 @@ tr:hover td{background:#fafafa;}
 <div id="treasury-view-capital">
   <div class="sg" id="treasury-stats-capital"></div>
   <div class="card" style="margin-top:14px;">
-    <div class="ch"><span>🤝 الشركاء</span><button class="btn btn-sm btn-p" onclick="openWithdrawModal()">+ سحب / إيداع</button></div>
+    <div class="ch"><span>🤝 الشركاء</span><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-sm btn-p" onclick="openWithdrawModal()">+ سحب / إيداع</button><button class="btn btn-sm btn-g" onclick="openPartnerSettlementModal()" title="بينفذ تسوية حقيقية وينقل الأرباح المحتجزة الجديدة فعليًا لرأس مال كل شريك بنسبته">✅ تنفيذ تسوية أرباح</button></div></div>
     <div class="cb" id="treasury-partners-box"></div>
   </div>
   <div class="card" style="margin-top:14px;">
@@ -686,10 +686,11 @@ tr:hover td{background:#fafafa;}
         <input id="bank-new-name" type="text" placeholder="اسم البنك (مثال: بنك مصر)" style="flex:1;min-width:140px;"/>
         <input id="bank-new-pct" type="number" min="0" max="100" step="0.01" placeholder="نسبة العمولة %" style="width:130px;"/>
         <input id="bank-new-acct" type="text" placeholder="رقم الحساب (اختياري)" style="width:170px;"/>
-        <input id="bank-new-days" type="number" min="0" step="1" placeholder="مدة التحويل (يوم)" value="15" style="width:140px;"/>
+        <input id="bank-new-days" type="number" min="0" step="1" placeholder="مدة التحويل (يوم) — اختياري" style="width:140px;"/>
         <button class="btn btn-g" onclick="_uiAddBank()">➕ إضافة بنك</button>
       </div>
       <div id="banks-list" style="border:1px solid #eee;border-radius:6px;max-height:300px;overflow-y:auto;"></div>
+      <div id="banks-dupe-warning" style="display:none;background:#fff3e0;border:1px solid #ffb74d;border-radius:6px;padding:8px 12px;margin-top:8px;font-size:12px;color:#e65100;"></div>
       <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <label style="font-size:12px;">تقرير عمولات البنوك لشهر: <input id="banks-report-month" type="month" style="padding:4px 6px;border:1px solid #ccc;border-radius:5px;"/></label>
         <button class="btn" onclick="printBanksRevenueReport($('banks-report-month').value||undefined)">📊 اطبع تقرير عمولات البنوك</button>
@@ -720,9 +721,32 @@ tr:hover td{background:#fafafa;}
   <button class="btn btn-p" onclick="openAddEmployeeForm()">+ إضافة موظف</button>
 </div>
 <div class="sg" id="emp-stats"></div>
+<!-- لوحة إجراء سريع: اختار موظف ونوع الإجراء ونفّذ على طول، من غير ما تدور في الجدول —
+     الجدول بقى للعرض بس (تقرير نضيف)، وكل الإجراءات هنا أو من زرار "⚙️ إجراءات" بالصف -->
+<div class="card" style="margin-bottom:12px;">
+<div class="cb">
+  <div style="font-weight:bold;font-size:13px;margin-bottom:8px;color:#1a3a5c;">⚡ إجراء سريع</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
+    <div class="fg" style="min-width:190px;margin-bottom:0;"><label>الموظف</label><select id="emp-quick-select"></select></div>
+    <div class="fg" style="min-width:170px;margin-bottom:0;"><label>الإجراء</label>
+      <select id="emp-quick-action">
+        <option value="salary">💰 صرف راتب</option>
+        <option value="advance">💸 سلفة</option>
+        <option value="bonus">🎁 مكافأة</option>
+        <option value="leave">🏖️ إجازة</option>
+        <option value="eval">⭐ تقييم</option>
+        <option value="edit">✏️ تعديل البيانات</option>
+        <option value="history">📋 سجل الرواتب</option>
+        <option value="terminate">🚪 تصفية / إنهاء خدمة</option>
+      </select>
+    </div>
+    <button class="btn btn-g" onclick="runEmpQuickAction()">تنفيذ</button>
+  </div>
+</div>
+</div>
 <div class="sb"><span>🔍</span><input oninput="srch('emp-tbl',this.value)" placeholder="بحث بالاسم..."/></div>
 <div class="card"><div class="cb" style="padding:0;"><div class="tbl-wrap"><table>
-<thead><tr><th>الكود</th><th>الاسم</th><th>الوظيفة</th><th>الراتب الأساسي</th><th>💰 السلف (متبقي/إجمالي)</th><th>🎁 المكافآت</th><th>📦⚠️ نواقص جرد</th><th>رقم الهاتف</th><th>تاريخ التعيين</th><th>الحالة</th><th></th></tr></thead>
+<thead><tr><th>الكود</th><th>الاسم</th><th>الوظيفة</th><th>الراتب الأساسي</th><th>آخر نشاط</th><th>تاريخ التعيين</th><th>الحالة</th><th></th></tr></thead>
 <tbody id="emp-tbl"></tbody>
 </table></div></div></div>
 </div>
@@ -798,6 +822,7 @@ tr:hover td{background:#fafafa;}
 <button class="btn btn-gold" onclick="runFullAudit()" title="فحص شامل لكل البيانات: الخزنة، المخزون، الدفعات، الأرصدة المعلّقة">🩺 فحص شامل للبيانات</button>
 <button class="btn btn-p" onclick="openNetting()">⚖ مقاصة مورد</button>
 <button class="btn btn-gold" onclick="openPartyStmt()">📒 كشف حساب طرف</button>
+<button class="btn btn-p" onclick="openPaymentFilterReport()" title="فلترة الفواتير بالفترة، طريقة الدفع (كاش/فيزا/تحويل/آجل)، ونوع المستند (مبيعات/صيانة/مشتريات)، مع الإجمالي مقسّم بكل طريقة">🔎 تقرير تفصيلي بطريقة الدفع</button>
 <button class="btn btn-p" onclick="openMonthPicker('product-perf')">📈 الأفضل والراكد</button>
 <button class="btn btn-gold" onclick="openMonthPicker('channel')">📱 المحل مقابل الأونلاين</button>
 <button class="btn btn-p" onclick="openMonthPicker('kpi')" title="نسبة إغلاق الصيانة، متوسط تكلفة الإصلاح، أعلى ٥ عملاء، هامش ربح كل فني">📊 لوحة مؤشرات الأداء (KPIs)</button>
@@ -832,7 +857,7 @@ tr:hover td{background:#fafafa;}
     <button class="stab" onclick="switchStab('stab-counters',this)">🔢 العدادات</button>
     <button class="stab" onclick="switchStab('stab-online',this);loadOnlineStoreSettings();loadSiteContentSettings();loadGithubImageCfg()">🛒 المتجر الأونلاين</button>
     <button class="stab" onclick="switchStab('stab-audit',this);renderAuditLog();renderSnapshots()">📜 السجل والنسخ</button>
-    <button class="stab" onclick="switchStab('stab-advanced',this);renderSyncConflictLog();">🛠 متقدم</button>
+    <button class="stab" onclick="switchStab('stab-advanced',this);renderSyncConflictLog();renderArchiveBox();">🛠 متقدم</button>
 </div>
   <!-- المستخدمين -->
   <div class="stab-content active" id="stab-users">
@@ -886,7 +911,7 @@ tr:hover td{background:#fafafa;}
   <!-- الشركاء ورأس المال -->
   <div class="stab-content" id="stab-partners">
     <div style="background:#f0f7ff;border:1px solid #90caf9;border-radius:7px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1565c0;">
-      💡 نسبة كل شريك بتتحسب تلقائيًا من رصيد رأس ماله الحالي (رأس مال أصلي + أرباح محتجزة من السنين المعتمدة + مساهمات جديدة) — مش رقم ثابت. أي مساهمة جديدة بتحدّث كل النسب فورًا.
+      💡 نسبة كل شريك عقد شراكة ثابت — بتتسجل يدوي تحت ومتتغيرش لوحدها مع رصيد رأس المال. لو شريك سحب أكتر من نصيبه من الربح، الفرق ده بيتسجل "مديونية عليه واجبة السداد" (منفصلة عن رأس ماله تمامًا)، مش بيتخصم من رأس ماله ولا بيترحّل يتخصم تلقائيًا من أرباحه الجاية.
     </div>
     <div id="partners-balance-tbl" style="margin-bottom:16px;"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
@@ -909,8 +934,29 @@ tr:hover td{background:#fafafa;}
         </div>
         <button class="btn btn-gold" onclick="confirmSetInitialCapital()" style="margin-top:8px;">💾 حفظ رأس المال الأصلي</button>
       </div>
+      <div style="border:1.5px dashed #64b5f6;border-radius:7px;padding:12px;background:#f0f7ff;">
+        <div style="font-weight:bold;font-size:13px;margin-bottom:8px;">🔢 ضبط النسبة الثابتة (عقد الشراكة)</div>
+        <div style="font-size:11px;color:#1565c0;margin-bottom:8px;">النسبة المتفق عليها فعليًا بين الشركاء — إجمالي نسب كل الشركاء المفروض يساوي 100%.</div>
+        <div class="fgrid">
+          <div class="fg full"><label>اسم الشريك</label><input id="pfs-partner" list="pci-partner-list" type="text" placeholder="اكتب اسم الشريك" style="font-size:12px;padding:6px 8px;"/></div>
+          <div class="fg full"><label>النسبة %</label><input id="pfs-pct" type="number" step="0.01" min="0" max="100" placeholder="مثال: 50" style="font-size:12px;padding:6px 8px;"/></div>
+        </div>
+        <button class="btn btn-p" onclick="confirmSetPartnerFixedShare()" style="margin-top:8px;">💾 حفظ النسبة الثابتة</button>
+      </div>
+      <div style="border:1.5px dashed #ef9a9a;border-radius:7px;padding:12px;background:#fff5f5;">
+        <div style="font-weight:bold;font-size:13px;margin-bottom:8px;">💳 سداد مديونية شريك</div>
+        <div style="font-size:11px;color:#c62828;margin-bottom:8px;">لو شريك سدد كاش فعلي من مديونيته المستحقة (سحب أكتر من نصيبه سابقًا) — سجّله هنا، مش من "+ سحب / إيداع".</div>
+        <div class="fgrid">
+          <div class="fg full"><label>اسم الشريك</label><input id="pdbt-partner" list="pci-partner-list" type="text" placeholder="اكتب اسم الشريك" style="font-size:12px;padding:6px 8px;"/></div>
+          <div class="fg"><label>المبلغ المسدد</label><input id="pdbt-amount" type="number" placeholder="0" style="font-size:12px;padding:6px 8px;"/></div>
+          <div class="fg"><label>التاريخ</label><input id="pdbt-date" type="date" style="font-size:12px;padding:6px 8px;"/></div>
+          <div class="fg full"><label>ملاحظات (اختياري)</label><input id="pdbt-notes" type="text" placeholder="..." style="font-size:12px;padding:6px 8px;"/></div>
+        </div>
+        <button class="btn btn-r" onclick="confirmRepayPartnerDebt()" style="margin-top:8px;">✔ تسجيل السداد</button>
+      </div>
     </div>
     <div id="partners-injections-log" style="margin-top:16px;"></div>
+    <div id="partners-debt-log" style="margin-top:16px;"></div>
   </div>
   <!-- الضريبة -->
   <div class="stab-content" id="stab-tax">
@@ -1074,6 +1120,20 @@ tr:hover td{background:#fafafa;}
         <button class="btn" onclick="$('import-file').click()">📤 استيراد نسخة احتياطية (backup)</button>
       </div>
       <input accept=".json" id="import-file" onchange="importBackup(this)" style="display:none;" type="file"/>
+    </div>
+    <div style="background:#fdf0e6;border:1px solid #ffb74d;border-radius:6px;padding:12px;margin-bottom:14px;">
+      <div style="font-weight:bold;font-size:13px;margin-bottom:8px;color:#8a5a00;">🗄️ أرشفة البيانات القديمة</div>
+      <div style="font-size:11.5px;color:#555;margin-bottom:10px;">الفواتير والمصروفات والمسحوبات القديمة اللي "مُقفلة ماليًا" (متسددة بالكامل، مش آجلة) بتفضل متراكمة في البرنامج للأبد وبتكبر حجم البيانات. الأرشفة بتنزّلك ملف فيه كل السجلات دي كاملة، وبعدين تشيلها من الشاشات العادية عشان البرنامج يفضل خفيف. الفواتير الآجلة اللي لسه عليها فلوس، وعُهد النقدية تحت التسوية، مستبعدة تلقائيًا مهما قدُم تاريخها.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <label style="font-size:12px;">دورة الأرشفة: </label>
+        <select id="arch-period-select" onchange="saveArchivePeriod()" style="padding:6px 8px;border:1px solid #ccc;border-radius:5px;font-size:12px;">
+          <option value="3">كل 3 شهور</option>
+          <option value="6">كل 6 شهور</option>
+          <option value="12">كل سنة</option>
+        </select>
+        <button class="btn btn-p" onclick="openArchiveReview()">🗄️ مراجعة وأرشفة الآن</button>
+      </div>
+      <div style="font-size:11.5px;color:#777;margin-top:8px;">آخر أرشفة على الجهاز ده: <b id="arch-last-run">...</b></div>
     </div>
     <div id="db-folder-box" style="background:#fff3e0;border:1px solid #ffb74d;border-radius:6px;padding:12px;margin-bottom:14px;">
       <div style="font-weight:bold;font-size:13px;margin-bottom:6px;color:#8a5a00;">📁 مكان نسخة قاعدة البيانات على هذا الجهاز</div>
@@ -1838,6 +1898,12 @@ tr:hover td{background:#fafafa;}
 </div>
 <div class="fg" id="ex-docref-wrap" style="display:none;"><label>رقم الفاتورة/الإيصال</label><input id="ex-docref" placeholder="مثال: فاتورة المورد رقم 123" type="text"/></div>
 <div class="fg"><label>ملاحظات</label><input id="ex-n" placeholder="..." type="text"/></div>
+<div class="fg full" style="background:#fff8ee;border:1px solid #ffcc80;border-radius:6px;padding:8px 10px;">
+  <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;">
+    <input type="checkbox" id="ex-personal" style="width:16px;height:16px;cursor:pointer;"/>
+    👛 دفعتها بنفسي من فلوسي الشخصية — لسه ملمستش خزنة المحل (تفضل مصروف حقيقي في الأرباح، لكن متتخصمش من الكاش لحد ما تتسدد)
+  </label>
+</div>
 </div></div>
 <div class="mf"><button class="btn" onclick="closeM('m-exp')">إلغاء</button><button class="btn btn-p" onclick="saveExp()">✔ حفظ</button></div>
 </div></div>
@@ -2325,6 +2391,41 @@ tr:hover td{background:#fafafa;}
 <div class="mf"><button class="btn" onclick="closeM('m-day-pick')">إلغاء</button><button class="btn btn-p" onclick="confirmDayPicker()">🖨️ طباعة التقرير</button></div>
 </div></div>
 
+<!-- تقرير تفصيلي بطريقة الدفع: فترة + طريقة دفع + نوع مستند، وبيطلع قائمة الفواتير
+     نفسها (مش رقم إجمالي بس) مع إجمالي مقسّم بكل طريقة دفع -->
+<div class="mo" id="m-pay-filter"><div class="md" style="width:420px;">
+<div class="mh"><span class="mt">🔎 تقرير تفصيلي بطريقة الدفع</span><button class="xbtn" onclick="closeM('m-pay-filter')">✕</button></div>
+<div class="mb">
+  <div class="fgrid">
+    <div class="fg"><label>من تاريخ</label><input type="date" id="pf-from"/></div>
+    <div class="fg"><label>لحد تاريخ</label><input type="date" id="pf-to"/></div>
+    <div class="fg"><label>نوع المستند</label>
+      <select id="pf-type">
+        <option value="all">الكل</option>
+        <option value="sale">🛒 مبيعات (عادية)</option>
+        <option value="sale-tax">🧾 مبيعات ضريبية</option>
+        <option value="maint">🔧 صيانة (عادية)</option>
+        <option value="maint-tax">🧾 صيانة ضريبية</option>
+        <option value="purch">🚚 مشتريات</option>
+      </select>
+    </div>
+    <div class="fg"><label>طريقة الدفع</label>
+      <select id="pf-method">
+        <option value="all">الكل</option>
+        <option value="كاش">كاش</option>
+        <option value="فيزا">فيزا</option>
+        <option value="تحويل بنكي">تحويل بنكي</option>
+        <option value="شيك">شيك</option>
+        <option value="آجل">آجل</option>
+        <option value="معلق">معلّق</option>
+        <option value="مقسّم">دفع مقسّم</option>
+      </select>
+    </div>
+  </div>
+</div>
+<div class="mf"><button class="btn" onclick="closeM('m-pay-filter')">إلغاء</button><button class="btn btn-p" onclick="printPaymentFilterReport()">🖨️ عرض وطباعة النتيجة</button></div>
+</div></div>
+
 <!-- modal إعادة تسمية عميل/مورد في كل مكان -->
 <div class="mo" id="m-rename-party"><div class="md" style="width:460px;">
 <div class="mh"><span class="mt">🔄 إعادة تسمية عميل/مورد في كل مكان</span><button class="xbtn" onclick="closeM('m-rename-party')">✕</button></div>
@@ -2668,6 +2769,22 @@ tr:hover td{background:#fafafa;}
 </div>
 <div class="mf"><button class="btn" onclick="closeM('m-withdraw')">إغلاق</button><button class="btn btn-g" onclick="saveWithdrawal()">🤲 تسجيل السحب</button></div>
 </div></div>
+<!-- modal تنفيذ تسوية أرباح جزئية (إجراء حقيقي بينقل الأرباح المحتجزة لرأس المال) -->
+<div class="mo" id="m-partner-settle"><div class="md" style="width:820px;">
+<div class="mh"><span class="mt">✅ تنفيذ تسوية أرباح ونقلها لرأس المال</span><button class="xbtn" onclick="closeM('m-partner-settle')">✕</button></div>
+<div class="mb">
+<div id="pst-preview"></div>
+</div>
+<div class="mf"><button class="btn" onclick="closeM('m-partner-settle')">إلغاء</button><button class="btn" onclick="refreshPartnerSettlementPreview()" title="لو فيه حركة جديدة اتسجلت وانت فاتح الشاشة، دوس هنا عشان تحدّث الأرقام (هيرجّع خانات المبالغ للقيمة الكاملة المحسوبة تاني)">🔄 تحديث الأرقام</button><button class="btn btn-g" id="pst-commit-btn" onclick="confirmPartnerSettlement()">✅ تنفيذ التسوية الآن</button></div>
+</div></div>
+<!-- modal دمج البنوك المكررة -->
+<div class="mo" id="m-merge-banks"><div class="md" style="width:760px;">
+<div class="mh"><span class="mt">🧹 دمج البنوك المكررة</span><button class="xbtn" onclick="closeM('m-merge-banks')">✕</button></div>
+<div class="mb">
+<div id="mgb-preview"></div>
+</div>
+<div class="mf"><button class="btn" onclick="closeM('m-merge-banks')">إلغاء</button><button class="btn btn-gold" id="mgb-commit-btn" onclick="confirmMergeDuplicateBanks()">🧹 دمج الآن</button></div>
+</div></div>
 <!-- modal تسجيل دفعة آجل -->
 <div class="mo" id="m-payment"><div class="md" style="width:460px;">
 <div class="mh"><span class="mt">💳 تسجيل دفعة</span><button class="xbtn" onclick="closeM('m-payment')">✕</button></div>
@@ -2770,6 +2887,36 @@ tr:hover td{background:#fafafa;}
   <div class="mf">
     <button class="btn" onclick="cancelBackupImport()">إلغاء</button>
     <button class="btn btn-r" onclick="confirmBackupImport()">✔ نعم، استبدل كل البيانات دلوقتي</button>
+  </div>
+</div></div>
+
+<div class="mo" id="m-archive-review"><div class="md" style="width:520px;">
+  <div class="mh">🗄️ مراجعة الأرشفة <button class="xbtn" onclick="closeM('m-archive-review')">✕</button></div>
+  <div class="mb"><div id="arch-review-body" style="font-size:13px;line-height:1.8;"></div></div>
+  <div class="mf">
+    <button class="btn" onclick="closeM('m-archive-review')">إلغاء</button>
+    <button class="btn btn-g" id="arch-confirm-btn" onclick="confirmArchiveNow()">✔ نزّل ملف الأرشيف وابدأ الأرشفة</button>
+  </div>
+</div></div>
+
+<!-- مركز إجراءات الموظف: بديل الأزرار السبعة المزحومة في صف الجدول — كل حاجة هنا -->
+<div class="mo" id="m-emp-actions"><div class="md" style="width:480px;">
+  <div class="mh"><span class="mt" id="emp-actions-title">⚙️ إجراءات موظف</span><button class="xbtn" onclick="closeM('m-emp-actions')">✕</button></div>
+  <div class="mb"><div id="emp-actions-body"></div></div>
+  <div class="mf"><button class="btn" onclick="closeM('m-emp-actions')">إغلاق</button></div>
+</div></div>
+
+<!-- تصفية / إنهاء خدمة موظف: حساب تلقائي للمستحق (أيام شغل + راتب متناسب + مكافآت معلّقة
+     ناقص السلف ونواقص الجرد المعلّقة)، وتأكيد صريح قبل التنفيذ -->
+<div class="mo" id="m-emp-terminate"><div class="md" style="width:520px;">
+  <div class="mh"><span class="mt">🚪 تصفية / إنهاء خدمة</span><button class="xbtn" onclick="closeM('m-emp-terminate')">✕</button></div>
+  <div class="mb">
+    <div id="term-body" style="font-size:13px;line-height:1.9;"></div>
+    <div class="fg full" style="margin-top:10px;"><label>ملاحظات (اختياري)</label><input id="term-notes" placeholder="سبب إنهاء الخدمة، أو أي ملاحظة..." type="text"/></div>
+  </div>
+  <div class="mf">
+    <button class="btn" onclick="closeM('m-emp-terminate')">إلغاء</button>
+    <button class="btn btn-r" id="term-confirm-btn" onclick="confirmTerminateEmployee()">✔ تأكيد التصفية وإنهاء الخدمة</button>
   </div>
 </div></div>
 
@@ -3230,8 +3377,9 @@ function recalcCashDrawerAtomic(reason){try{
     // عشان تفضل متسقة مع الحساب الرئيسي لو استُخدمت مستقبلًا)
     (DB.fixedAssets||[]).filter(a=>isMyBranch(a)&&(a.payment||'كاش')==='كاش').forEach(a=> purchases += safeNum(a.cost,0));
     // EXPENSES (net of excluded purchase ones, excluding pending custody unresolved ones)
-    DB.expenses.filter(e=>isMyBranch(e)&&e.payment==='كاش'&&!e.excludedAsInventoryPurchase).forEach(e=>{
+    DB.expenses.filter(e=>isMyBranch(e)&&e.payment==='كاش'&&!e.excludedAsInventoryPurchase&&!e.personalPending).forEach(e=>{
       // Only subtract actual confirmed expense; pending custody remains "cash gone but not expense"
+      // شخصي مدفوع من برّه الخزنة (personalPending): فلوس أصلاً ملمستش الدرج، فمالهاش تأثير هنا خالص
       outflow += safeNum(e.amount,0);
     });
     return null;
@@ -3319,7 +3467,7 @@ const DB_KEY = 'sz_db_v1';
 // عشان يوصل لأي جهاز تاني، وده اللي مكنش بيحصل. بعد الإصلاح، أول مزامنة ناجحة من كل
 // جهاز هتدمج كل البنوك/الحركات البنكية اللي اتسجلت من أي جهاز خلال الفترة اللي فاتت
 // مع بعض تلقائيًا (دمج بالـid، مفيش أي بيانات بتتفقد).
-const DB_KEYS=['customers','products','sales','maintenance','purchases','custody','expenses','receipts','workOrders','maintInvoices','returns','taxInvoices','employees','payments','insuranceLimits','insurancePayments','fixedAssets','openingBalances','withdrawals','logs','disassemblies','partnerCapital','branches','serviceCenters','transfers','technicianCommissions','partnerCapitalInjections','pendingWhatsapp','syncConflicts','loyaltyPoints','partnerInitialCapital','onlineOrders','onlineMessages','onlineMaintRequests','banks','bankTx'];
+const DB_KEYS=['customers','products','sales','maintenance','purchases','custody','expenses','receipts','workOrders','maintInvoices','returns','taxInvoices','employees','payments','insuranceLimits','insurancePayments','fixedAssets','openingBalances','withdrawals','logs','disassemblies','partnerCapital','partnerSettlements','branches','serviceCenters','transfers','technicianCommissions','partnerCapitalInjections','pendingWhatsapp','syncConflicts','loyaltyPoints','partnerInitialCapital','onlineOrders','onlineMessages','onlineMaintRequests','banks','bankTx','partnerFixedShares','partnerDebts'];
 const SAMPLE_DATA = {
   customers:[],
   serviceCenters:[],
@@ -3978,7 +4126,7 @@ function loadDB(){
       window._dbWasFreshSeed=false; // فيه بيانات حقيقية في localStorage فعلاً — مش بداية جديدة
       const parsed=JSON.parse(raw);
       // ensure all keys exist
-      const keys=['customers','products','sales','maintenance','purchases','custody','expenses','receipts','workOrders','maintInvoices','taxInvoices','returns','employees','payments','insuranceLimits','insurancePayments','fixedAssets','partnerCapital','branches','serviceCenters','transfers','technicianCommissions','partnerCapitalInjections','pendingWhatsapp','syncConflicts','loyaltyPoints','partnerInitialCapital'];
+      const keys=['customers','products','sales','maintenance','purchases','custody','expenses','receipts','workOrders','maintInvoices','taxInvoices','returns','employees','payments','insuranceLimits','insurancePayments','fixedAssets','partnerCapital','partnerSettlements','branches','serviceCenters','transfers','technicianCommissions','partnerCapitalInjections','pendingWhatsapp','syncConflicts','loyaltyPoints','partnerInitialCapital','partnerFixedShares','partnerDebts'];
       keys.forEach(k=>{if(!parsed[k])parsed[k]=[];});
       // تنظيف أي تكرار حرفي قديم اتراكم بسبب باج الدمج (راجع دالة dedupeIdless فوق)
       keys.forEach(k=>{parsed[k]=dedupeIdless(parsed[k]);});
@@ -4046,7 +4194,7 @@ function loadDB(){
   // نسخة .exe جديدة على جهاز فاضي. دلوقتي الافتراضي عكسه: قاعدة فاضية تمامًا، إلا
   // لو حد طلب بيانات تجريبية صراحة (مش موجود حاليًا أي مكان بيطلبها).
   if(localStorage.getItem('sz_want_sample')!=='1'){
-    return {customers:[],products:[],sales:[],maintenance:[],purchases:[],custody:[],expenses:[],receipts:[],workOrders:[],maintInvoices:[],taxInvoices:[],returns:[],employees:[],payments:[],insuranceLimits:[],insurancePayments:[],fixedAssets:[],partnerCapital:[],partnerInitialCapital:[],serviceCenters:[],onlineOrders:[],onlineMessages:[],onlineMaintRequests:[],branches:[{id:'BR-MAIN',name:'الفرع الرئيسي',isDefault:true,createdAt:Date.now()}],_deleted:{}};
+    return {customers:[],products:[],sales:[],maintenance:[],purchases:[],custody:[],expenses:[],receipts:[],workOrders:[],maintInvoices:[],taxInvoices:[],returns:[],employees:[],payments:[],insuranceLimits:[],insurancePayments:[],fixedAssets:[],partnerCapital:[],partnerSettlements:[],partnerInitialCapital:[],serviceCenters:[],onlineOrders:[],onlineMessages:[],onlineMaintRequests:[],branches:[{id:'BR-MAIN',name:'الفرع الرئيسي',isDefault:true,createdAt:Date.now()}],_deleted:{}};
   }
   return JSON.parse(JSON.stringify(SAMPLE_DATA));
 }
@@ -4343,6 +4491,32 @@ function _stableStringifyNoTs(obj,_isTop){
   });
   return '{'+parts.join(',')+'}';
 }
+// تجهيز خط الأساس فور تحميل قاعدة البيانات عند فتح البرنامج — قبل أي حفظة ممكن
+// تحصل. ده بيصلّح باگ حقيقي كان وراء بلاغ "أمر الشغل بيرجع مفتوح والفاتورة بتضيع":
+// _lastSnapshotForStamp متغيّر في الذاكرة بس، بيترجع فاضي (null) كل مرة البرنامج
+// يتفتح. من غير التجهيز ده، أول حفظة (saveDB) في أي جلسة — لأي سبب، حتى تعديل
+// مالوش أي علاقة بأمر الشغل — كانت بتلاقي "خط الأساس" فاضي لكل سجلات قاعدة
+// البيانات كلها، فتعتبر كل سجل "اتغيّر لتوّه" وتختمه بوقت دلوقتي، حتى لو محدش
+// لمسه فعليًا. لو الجهاز ده (مثلاً فاتح في الشركة من الصبح، مش هو اللي بيعمل
+// الفاتورة) لسه معاه نسخة قديمة من أمر شغل اتقفل على جهاز تاني (المحل) بعد كده،
+// أول حفظة له كانت بتختم نسخته القديمة دي بوقت أحدث من وقت القفل الحقيقي — فوقت
+// المزامنة، "الأحدث بيكسب" كانت بتختار غلط النسخة القديمة ظنًا إنها الأحدث،
+// فأمر الشغل يرجع "مفتوح" ورقم الفاتورة يتحرق. بالتجهيز ده، أول حفظة في الجلسة
+// بتقارن صح بخط الأساس الحقيقي (آخر حالة معروفة للجهاز ده)، مش بخط أساس فاضي.
+function _primeUpdatedAtBaseline(){
+  try{
+    const m={};
+    DB_KEYS.forEach(k=>{
+      const arr=DB[k];
+      const km={};
+      if(Array.isArray(arr)){
+        arr.forEach(it=>{if(it&&it.id)km[it.id]=_stableStringifyNoTs(it);});
+      }
+      m[k]=km;
+    });
+    _lastSnapshotForStamp=m;
+  }catch(_e){_lastSnapshotForStamp=null;}
+}
 function autoStampUpdatedAt(){
   const now=Date.now();
   if(!_lastSnapshotForStamp)_lastSnapshotForStamp={};
@@ -4603,6 +4777,8 @@ function clearAllData(){
 }
 
 const DB = loadDB();
+// لازم يتنادي فورًا هنا، قبل أي saveDB() ممكنة — راجع شرح _primeUpdatedAtBaseline فوق
+try{_primeUpdatedAtBaseline();}catch(_ePrime){}
 
 // عند بدء التشغيل: نتأكد إن IndexedDB عندها أحدث/أشمل نسخة ممكنة، ولو مش موجودة، نرحّل النسخة
 // الحالية إليها فوراً. ده بيشتغل في الخلفية من غير ما يأخر ظهور الشاشة الأساسية للبرنامج.
@@ -6439,6 +6615,7 @@ function openNewExpenseModal(){
   if($('ex-type'))$('ex-type').value='';
   if($('ex-doc'))$('ex-doc').value='0';
   if($('ex-docref'))$('ex-docref').value='';
+  if($('ex-personal'))$('ex-personal').checked=false;
   exDocChanged();
   openM('m-exp');
 }
@@ -6447,6 +6624,7 @@ function saveExp(){
   const editId=$('ex-edit-id')?$('ex-edit-id').value:'';
   const hasInvoice=($('ex-doc')&&$('ex-doc').value==='1');
   const docRef=$('ex-docref')?$('ex-docref').value.trim():'';
+  const personalPending=!!($('ex-personal')&&$('ex-personal').checked);
   if(editId){
     if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('التعديل للمدير فقط ⚠️','warn');return;}
     const e=DB.expenses.find(x=>x.id===editId);if(!e){toast('المصروف غير موجود','warn');return;}
@@ -6454,6 +6632,10 @@ function saveExp(){
     e.desc=d;e.type=$('ex-type').value;e.amount=safeNum($('ex-amt').value,0);
     e.date=$('ex-dt').value;e.payment=$('ex-pay').value;e.notes=$('ex-n').value;
     e.hasInvoice=hasInvoice;e.docRef=hasInvoice?docRef:'';
+    // لو المصروف كان شخصي معلّق واتسدد قبل كده، منلغيش حالة التسوية دي بمجرد تعديل بسيط —
+    // التسوية بتتلغى بس لو حد شال العلامة عمدًا من زرار "إلغاء التسوية" (مش موجود هنا للتبسيط)
+    if(personalPending&&!e.personalPending)e.personalPending=true;
+    if(!personalPending&&e.personalPending&&!e.personalPendingSettledAt)e.personalPending=false;
     e.branch=e.branch||CURRENT_BRANCH||'BR-MAIN';
     e.updatedAt=Date.now();
     addLog('تعديل مصروف '+editId+': '+d+' (من '+fmtN(oldAmt||0)+' إلى '+fmtN(e.amount)+' ج)');
@@ -6464,11 +6646,11 @@ function saveExp(){
     return;
   }
   const _amt=safeNum($('ex-amt').value,0);
-  try{addLog('تسجيل مصروف: '+d+' ('+fmtN(_amt)+' ج)');}catch(e){}
-  DB.expenses.unshift({id:nextFreeId('EXP-','expenses',3),desc:d,type:$('ex-type').value,amount:_amt,date:fmtDateISO($('ex-dt').value||todayStr),payment:$('ex-pay').value,notes:$('ex-n').value,hasInvoice,docRef:hasInvoice?docRef:'',branch:CURRENT_BRANCH||'BR-MAIN',createdAt:Date.now(),updatedAt:Date.now()});
+  try{addLog('تسجيل مصروف: '+d+' ('+fmtN(_amt)+' ج)'+(personalPending?' — شخصي من برّه الخزنة':''));}catch(e){}
+  DB.expenses.unshift({id:nextFreeId('EXP-','expenses',3),desc:d,type:$('ex-type').value,amount:_amt,date:fmtDateISO($('ex-dt').value||todayStr),payment:$('ex-pay').value,notes:$('ex-n').value,hasInvoice,docRef:hasInvoice?docRef:'',personalPending,branch:CURRENT_BRANCH||'BR-MAIN',createdAt:Date.now(),updatedAt:Date.now()});
   saveDB();
   try{ recalcCashDrawerAtomic('expense_add'); }catch(_e_){}
-  closeM('m-exp');renderExpStats();renderExp();try{renderDash();}catch(e){}toast('تم حفظ المصروف');
+  closeM('m-exp');renderExpStats();renderExp();try{renderDash();}catch(e){}toast(personalPending?'تم حفظ المصروف كـ"شخصي معلّق" — مش هيتخصم من الكاش لحد ما تسوّيه':'تم حفظ المصروف');
 }
 function openEditExpense(id){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('التعديل للمدير فقط ⚠️','warn');return;}
@@ -6481,9 +6663,34 @@ function openEditExpense(id){
   if($('ex-n'))$('ex-n').value=e.notes||'';
   if($('ex-doc'))$('ex-doc').value=e.hasInvoice?'1':'0';
   if($('ex-docref'))$('ex-docref').value=e.docRef||'';
+  if($('ex-personal'))$('ex-personal').checked=!!(e.personalPending&&!e.personalPendingSettledAt);
   exDocChanged();
   const sel=$('ex-type');if(sel){sel.value=e.type||'أخرى';if(sel.value!==e.type){const o=document.createElement('option');o.textContent=e.type;sel.appendChild(o);sel.value=e.type;}}
   if(e.type==='رواتب'||e.type==='سلف')setTimeout(()=>toast('⚠ مصروف مرتبط بموظف — تعديل المبلغ هنا يعدل الحسابات فقط ولا يغير ملف الموظف','warn'),300);
+}
+// تسوية مصروف "شخصي معلّق" (اتدفع من فلوس صاحبه الشخصية، لسه ملمستش الخزنة): بترد
+// المبلغ لصاحبه من الخزنة دلوقتي عن طريق تسجيله كسحب شخصي عادي (نفس آلية سحب الأرباح
+// المُثبتة أصلاً في البرنامج) — المصروف الأصلي فضل ومازال محسوب في الأرباح من يوم ما
+// اتسجل، ودلوقتي بس بنسجل خروج الكاش الفعلي اللي بيرده للشريك.
+function settlePersonalExpense(id){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
+  const exp=DB.expenses.find(x=>x.id===id);
+  if(!exp){toast('المصروف غير موجود','warn');return;}
+  if(!exp.personalPending||exp.personalPendingSettledAt){toast('المصروف ده مش شخصي معلّق','warn');return;}
+  const defPartner=localStorage.getItem('sz_last_wd_partner')||'محمد مجدى';
+  showPromptModal('💵 تسوية مصروف شخصي — رد '+fmtN(exp.amount||0)+' ج من الخزنة',[{label:'اسم الشريك اللي هيترد له المبلغ',value:defPartner}],(vals)=>{
+    const partner=(vals[0]||'').trim()||defPartner;
+    if(!DB.withdrawals)DB.withdrawals=[];
+    DB.withdrawals.unshift({id:'WD-'+Date.now(),amount:exp.amount||0,type:'withdraw',partner,payment:'كاش',date:todayStr,notes:'سداد مصروف شخصي معلّق '+exp.id+' — '+(exp.desc||''),linkedExpenseId:exp.id,by:(CURRENT_USER&&(CURRENT_USER.username||CURRENT_USER.name))||'',ts:Date.now()});
+    localStorage.setItem('sz_last_wd_partner',partner);
+    exp.personalPendingSettledAt=Date.now();
+    exp.personalPendingSettledBy=partner;
+    addLog('تسوية مصروف شخصي معلّق '+exp.id+': رد '+fmtN(exp.amount||0)+' ج لـ'+partner);
+    saveDB();
+    try{ recalcCashDrawerAtomic('personal_expense_settle_'+exp.id); }catch(_e_){}
+    renderExp();renderExpStats();try{renderDash();}catch(er){}
+    toast('✓ اتسدد المبلغ لـ'+partner+' من الخزنة، والمصروف بقى مسدد بالكامل');
+  });
 }
 
 // ======= رسالة واتساب جاهزة لكل العملاء (رابط لكل عميل، الإرسال يدوي) =======
@@ -6601,12 +6808,12 @@ function renderExp(){
   const isAdminUser=canSwitchBranch(); // المدير أو المحاسب صاحب صلاحية العرض الكامل
   let rows=applyTableSort('exp-tbl',DB.expenses.filter(e=>(_expFilter==='all'||(_expFilter==='doc'?e.hasInvoice:!e.hasInvoice))&&isMyBranch(e)&&(isAdminUser||!COMPANY_WIDE_EXPENSE_TYPES.has(e.type))));
   rows=applyVTableSearch('exp-tbl',rows);
-  renderVirtualTable('exp-tbl',rows,e=>`<tr${e.pendingCustody?' style="background:#fff8e1;"':(e.excludedAsInventoryPurchase?' style="background:#eef7ff;opacity:0.75;"':'')}>
-    <td><strong>${escapeHtml(e.id)}</strong></td><td>${escapeHtml(e.desc)}${e.hasInvoice?' <span class="badge b-gn" style="font-size:9px;" title="'+escapeHtml(e.docRef||'موثق بفاتورة')+'">📄 موثق</span>':' <span class="badge b-gy" style="font-size:9px;">بدون فاتورة</span>'}${e.pendingCustody?' <span class="badge b-am" style="font-size:9px;" title="المبلغ ده خرج من الخزنة فعليًا، لكن لسه مش مصروف مؤكد محاسبيًا — سوّي العهدة عشان يتأكد">⏳ تحت التسوية</span>':''}${e.excludedAsInventoryPurchase?' <span class="badge b-bl" style="font-size:9px;" title="اتحولت لفاتورة مشتريات — التكلفة هتتحسب من هناك وقت البيع، مش هنا">📦 محسوبة مع فاتورة المشتريات</span>':''}</td>
+  renderVirtualTable('exp-tbl',rows,e=>{const isPersonalOpen=e.personalPending&&!e.personalPendingSettledAt;return `<tr${e.pendingCustody?' style="background:#fff8e1;"':isPersonalOpen?' style="background:#fdf0e6;"':(e.excludedAsInventoryPurchase?' style="background:#eef7ff;opacity:0.75;"':'')}>
+    <td><strong>${escapeHtml(e.id)}</strong></td><td>${escapeHtml(e.desc)}${e.hasInvoice?' <span class="badge b-gn" style="font-size:9px;" title="'+escapeHtml(e.docRef||'موثق بفاتورة')+'">📄 موثق</span>':' <span class="badge b-gy" style="font-size:9px;">بدون فاتورة</span>'}${e.pendingCustody?' <span class="badge b-am" style="font-size:9px;" title="المبلغ ده خرج من الخزنة فعليًا، لكن لسه مش مصروف مؤكد محاسبيًا — سوّي العهدة عشان يتأكد">⏳ تحت التسوية</span>':''}${isPersonalOpen?' <span class="badge b-am" style="font-size:9px;" title="اتدفعت من فلوس صاحبها الشخصية — لسه ملمستش الخزنة، ومحسوبة في الأرباح عادي">👛 شخصي — لسه ماتسددش</span>':''}${e.personalPending&&e.personalPendingSettledAt?' <span class="badge b-gn" style="font-size:9px;">👛 شخصي — اتسدد</span>':''}${e.excludedAsInventoryPurchase?' <span class="badge b-bl" style="font-size:9px;" title="اتحولت لفاتورة مشتريات — التكلفة هتتحسب من هناك وقت البيع، مش هنا">📦 محسوبة مع فاتورة المشتريات</span>':''}</td>
     <td><span class="badge b-pp">${escapeHtml(e.type)}</span></td>
     <td><strong>${fmtN(e.amount)} ج</strong></td><td>${escapeHtml(e.date)}</td><td>${escapeHtml(e.payment)}</td>
-    <td style="display:flex;gap:3px;flex-wrap:wrap;"><button class="btn btn-sm" onclick="viewItem('exp','${e.id}')">👁 معاينة</button>${(CURRENT_USER&&CURRENT_USER.role==='admin')?`<button class="btn btn-sm" onclick="openEditExpense('${e.id}')" title="تعديل المصروف">✏️ تعديل</button><button class="btn btn-sm" onclick="convertExpToAsset('${e.id}')" title="حوّل لأصل ثابت (لو المصروف ده شراء جهاز/معدة مش استهلاكي)" style="color:#6a1b9a;">🏢 تحويل أصول</button><button class="btn btn-sm btn-r" onclick="deleteExpense('${e.id}')" title="إلغاء المصروف">🗑</button>`:``}
-  </tr>`,99,'لا توجد مصروفات');
+    <td style="display:flex;gap:3px;flex-wrap:wrap;"><button class="btn btn-sm" onclick="viewItem('exp','${e.id}')">👁 معاينة</button>${isPersonalOpen?`<button class="btn btn-sm btn-g" onclick="settlePersonalExpense('${e.id}')" title="سجّل رد المبلغ لصاحبه من الخزنة">💵 سوّي</button>`:``}${(CURRENT_USER&&CURRENT_USER.role==='admin')?`<button class="btn btn-sm" onclick="openEditExpense('${e.id}')" title="تعديل المصروف">✏️ تعديل</button><button class="btn btn-sm" onclick="convertExpToAsset('${e.id}')" title="حوّل لأصل ثابت (لو المصروف ده شراء جهاز/معدة مش استهلاكي)" style="color:#6a1b9a;">🏢 تحويل أصول</button><button class="btn btn-sm btn-r" onclick="deleteExpense('${e.id}')" title="إلغاء المصروف">🗑</button>`:``}
+  </tr>`;},99,'لا توجد مصروفات');
 }
 function deleteExpense(id){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
@@ -7964,7 +8171,7 @@ function calcMethodTotals(){
   // المبيعات والمصروفات اللي فعلاً بتاعة فرع بعينه
   (DB.fixedAssets||[]).forEach(a=>{if(isM(a.date))put(a.payment||'كاش',-(a.cost||0));});
   DB.expenses.forEach(e=>{
-    if(!isM(e.date)||e.nonCash||e.excludedAsInventoryPurchase||!_strictBranchMatch(e))return;
+    if(!isM(e.date)||e.nonCash||e.excludedAsInventoryPurchase||e.personalPending||!_strictBranchMatch(e))return;
     if(e.type==='تحويل بين الحسابات'){put(e.payment,-(e.amount||0));put(e.toMethod||'كاش',(e.amount||0));return;}
     put(e.payment,-(e.amount||0));
   });
@@ -8307,7 +8514,7 @@ function _buildCashMoveRows(month,opts){
       if(opts.includeTransfers)rows.push({date:e.date,doc:e.id,desc:'🔄 تحويل داخلي: '+(e.payment||'')+' ← '+(e.toMethod||'')+' ('+fmtN(e.amount||0)+' ج)',inA:0,outA:0,method:(e.payment||'')+' ← '+(e.toMethod||''),isTransfer:true});
       return;
     }
-    if(e.nonCash||e.excludedAsInventoryPurchase)return;
+    if(e.nonCash||e.excludedAsInventoryPurchase||e.personalPending)return;
     rows.push({date:e.date,doc:e.id,desc:'مصروف ('+(e.type||'')+') — '+(e.desc||''),inA:(e.amount||0)<0?-(e.amount||0):0,outA:(e.amount||0)>0?(e.amount||0):0,method:paymentLabel(e)});
   });
   (DB.withdrawals||[]).forEach(w=>{if(fn(w.date))rows.push(w.type==='deposit'?{date:w.date,doc:w.id,desc:'إيداع شخصي'+(w.notes?' — '+w.notes:''),inA:w.amount||0,outA:0,method:paymentLabel(w)}:{date:w.date,doc:w.id,desc:'مسحوبات شخصية'+(w.notes?' — '+w.notes:''),inA:0,outA:w.amount||0,method:paymentLabel(w)});});
@@ -8389,6 +8596,10 @@ function printAccountantReport(forcedMonth){
   const undocExp=DB.expenses.filter(e=>fn(e.date)&&!e.hasInvoice&&isMyBranch(e)&&!e.pendingCustody&&!e.excludedAsInventoryPurchase).reduce((s,e)=>s+(e.amount||0),0);
   const pendingCustodyTotal=DB.expenses.filter(e=>fn(e.date)&&isMyBranch(e)&&e.pendingCustody).reduce((s,e)=>s+(e.amount||0),0);
   const purchaseConvertedTotal=DB.expenses.filter(e=>fn(e.date)&&isMyBranch(e)&&e.excludedAsInventoryPurchase).reduce((s,e)=>s+(e.amount||0),0);
+  // مصروفات شخصية معلّقة (اتدفعت من فلوس صاحبها، لسه ملمستش الخزنة، ولسه ماتسددتش): داخلة
+  // في المصروفات والربح فوق عادي (هي تكلفة حقيقية على الشركة)، بس محتاجة تتوضح كمبلغ الشركة
+  // "عليها" لصاحبها لحد ما تترد له من الخزنة
+  const personalPendingTotal=DB.expenses.filter(e=>fn(e.date)&&isMyBranch(e)&&e.personalPending&&!e.personalPendingSettledAt).reduce((s,e)=>s+(e.amount||0),0);
   // حركة الخزينة بالتفصيل
   const ob=openingFor(month);
   let inSales=0,inMaint=0,inTax=0,inPays=0,inRetP=0,inDep=0,outPurch=0,outSupPays=0,outExp=0,outAssets=0,outWd=0,outRet=0;
@@ -8405,7 +8616,7 @@ function printAccountantReport(forcedMonth){
     else{if(_dS.has(p.refId))inPays+=(p.amount||0);}
   });
   DB.purchases.forEach(r=>{if(fn(r.date)&&!isDeferredInv(r)&&isMyBranch(r))outPurch+=(r.total||0);});
-  DB.expenses.forEach(e=>{if(fn(e.date)&&!e.nonCash&&!e.excludedAsInventoryPurchase&&_strictBranchMatch(e))outExp+=(e.amount||0);});
+  DB.expenses.forEach(e=>{if(fn(e.date)&&!e.nonCash&&!e.excludedAsInventoryPurchase&&!e.personalPending&&_strictBranchMatch(e))outExp+=(e.amount||0);});
   (DB.fixedAssets||[]).forEach(a=>{if(fn(a.date))outAssets+=(a.cost||0);});
   (DB.withdrawals||[]).forEach(w=>{if(fn(w.date)){if(w.type==='deposit')inDep+=(w.amount||0);else outWd+=(w.amount||0);}});
   (DB.returns||[]).forEach(r=>{if(!fn(r.date)||!isMyBranch(r))return;const ci=(r.cashImpact!=null)?r.cashImpact:(r.amount||0);if(r.type==='purch')inRetP+=ci;else outRet+=ci;});
@@ -8483,6 +8694,7 @@ function printAccountantReport(forcedMonth){
       <tr class="tot"><td>صافي الربح ${netProfitAfterDep>=0?'':'(خسارة)'}</td><td style="color:${netProfitAfterDep>=0?'#2e7d32':'#c62828'};">${M(netProfitAfterDep)}</td></tr>
     </table>
     ${pendingCustodyTotal>0?`<div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:6px;padding:7px 10px;margin:8px 0;font-size:9.5px;"><strong style="color:#e65100;">⏳ ملحوظة: فيه عهد نقدية بإجمالي ${M(pendingCustodyTotal)} ج لسه تحت التسوية — مش داخلة في المصروفات أو الربح أعلاه لحد ما تتسوّى فعليًا.</strong></div>`:''}
+    ${personalPendingTotal>0?`<div style="background:#fdf0e6;border:1px solid #ffb74d;border-radius:6px;padding:7px 10px;margin:8px 0;font-size:9.5px;"><strong style="color:#8a5a00;">👛 ملحوظة: فيه مصروفات شخصية بإجمالي ${M(personalPendingTotal)} ج مدفوعة من فلوس صاحبها ولسه ماترّدتش من الخزنة — داخلة في المصروفات والربح فوق، بس الشركة لسه "عليها" المبلغ ده لحد ما يترد (تسوية من شاشة المصروفات).</strong></div>`:''}
     ${purchaseConvertedTotal>0?`<div style="background:#eef7ff;border:1px solid #90caf9;border-radius:6px;padding:7px 10px;margin:8px 0;font-size:9.5px;"><strong style="color:#1565c0;">📦 ملحوظة: فيه عهد بإجمالي ${M(purchaseConvertedTotal)} ج اتحوّلت لفاتورة مشتريات — التكلفة هتتحسب من هناك وقت البيع، مش هنا.</strong></div>`:''}
 
     <div ${secT}>ثانياً: حركة الخزينة النقدية</div>
@@ -8566,17 +8778,22 @@ function printYearEndClosing(forcedYear){
   const undocExp=DB.expenses.filter(e=>fn(e.date)&&!e.hasInvoice&&!e.pendingCustody&&!e.excludedAsInventoryPurchase).reduce((s,e)=>s+(e.amount||0),0);
   const netProfit=t.profit; // ملحوظة: t.profit بقى شامل خصم الإهلاك بالفعل (جوه calcT نفسها دلوقتي) — depYear هنا بتفضل للعرض/التقرير بس، مش بتتخصم هنا تاني عشان منخصمش الإهلاك مرتين
 
-  // توزيع الأرباح بين الشركاء: نسبة كل شريك بتتحسب ديناميكيًا من رصيد رأس ماله الحالي
-  // (رأس مال أصلي + أرباح محتجزة + مساهمات جديدة) — مش رقم ثابت مكتوب يدوي
+  // توزيع الأرباح بين الشركاء: نسبة كل شريك عقد شراكة ثابت (متسجلة يدوي من "🤝 الشركاء
+  // ورأس المال")، مش محسوبة ديناميكيًا من رصيد رأس ماله — راجع getPartnerFixedShares
   const PARTNERS=getAllPartnersWithShares().map(p=>({name:p.name,pct:p.pct}));
   const wdYear=(DB.withdrawals||[]).filter(w=>fn(w.date));
   const partnerRows=PARTNERS.map(p=>{
     const share=netProfit*p.pct/100;
     const withdrawn=wdYear.filter(w=>(w.partner||'غير محدد')===p.name).reduce((s,w)=>s+(w.amount||0),0);
-    const diff=share-withdrawn; // موجب = رصيد محتجز زاد رأس ماله، سالب = سحب أكتر من نصيبه (خصم من رأس ماله)
+    // لازم نطرح أي تسويات جزئية اتنفذت خلال السنة دي قبل التقفيل — نفس منطق
+    // _computeSettlementPreview بالظبط (راجع شرحها هناك للإشارة الموقّعة)
+    const alreadySettled=(DB.partnerSettlements||[]).filter(r=>r.year===year&&r.partner===p.name).reduce((s,r)=>s+(r.retained||0)-(r.debtIncurred||0),0);
+    const diff=share-withdrawn-alreadySettled; // موجب = رصيد محتجز زاد رأس ماله، سالب = سحب أكتر من نصيبه (مديونية عليه، مش خصم من رأس ماله)
     const capBefore=getPartnerCapitalBefore(p.name,year);
-    const capAfter=capBefore+diff;
-    return {...p,share,withdrawn,diff,capBefore,capAfter};
+    const capAfter=capBefore+Math.max(0,diff); // رأس المال بيتأثر بس بالجزء الموجب — الجزء السالب بيبقى مديونية منفصلة
+    const debtBefore=getPartnerDebtBalance(p.name);
+    const debtAfter=debtBefore+Math.max(0,-diff);
+    return {...p,share,withdrawn,diff,capBefore,capAfter,debtBefore,debtAfter};
   });
   const otherWd=wdYear.filter(w=>!PARTNERS.some(p=>p.name===(w.partner||''))).reduce((s,w)=>s+(w.amount||0),0);
   const _approved=(DB.partnerCapital||[]).some(r=>r.year===year);
@@ -8609,18 +8826,19 @@ function printYearEndClosing(forcedYear){
 
     <div ${secT}>ثانياً: توزيع الأرباح ورأس المال التراكمي بين الشركاء</div>
     <table ${tbl}>
-      <tr style="background:#f5f5f5;font-weight:bold;"><td>الشريك</td><td>النسبة</td><td>نصيبه من ربح السنة</td><td>سحب فعلياً</td><td>المحتجز (زيادة/نقص رأس المال)</td><td>رأس المال أول السنة</td><td>رأس المال آخر السنة</td></tr>
+      <tr style="background:#f5f5f5;font-weight:bold;"><td>الشريك</td><td>النسبة</td><td>نصيبه من ربح السنة</td><td>سحب فعلياً</td><td>المحتجز / المديونية</td><td>رأس المال أول السنة</td><td>رأس المال آخر السنة</td><td>مديونيته المستحقة</td></tr>
       ${partnerRows.map(p=>`<tr>
         <td><strong>${p.name}</strong></td><td>${p.pct}%</td><td>${M(p.share)}</td><td>${M(p.withdrawn)}</td>
-        <td style="color:${p.diff>=0?'#2e7d32':'#c62828'};font-weight:bold;">${p.diff>=0?'+':'-'}${M(Math.abs(p.diff))}</td>
+        <td style="color:${p.diff>=0?'#2e7d32':'#c62828'};font-weight:bold;">${p.diff>=0?'+':'-'}${M(Math.abs(p.diff))}${p.diff<0?' (مديونية)':''}</td>
         <td>${M(p.capBefore)}</td>
         <td style="font-weight:bold;">${M(p.capAfter)}</td>
+        <td style="font-weight:bold;color:${p.debtAfter>0?'#c62828':'#888'};">${M(p.debtAfter)}</td>
       </tr>`).join('')}
-      ${otherWd>0?`<tr><td colspan="3" style="color:#888;">مسحوبات غير مرتبطة بشريك معروف</td><td>${M(otherWd)}</td><td colspan="3">—</td></tr>`:''}
+      ${otherWd>0?`<tr><td colspan="3" style="color:#888;">مسحوبات غير مرتبطة بشريك معروف</td><td>${M(otherWd)}</td><td colspan="4">—</td></tr>`:''}
     </table>
     <div style="font-size:8pt;color:#777;margin:-8px 0 14px;">
-      "المحتجز" = نصيب الشريك من ربح السنة ناقص اللي سحبه فعلياً — ده جزء من الربح تحوّل بضاعة/سيولة شغالة في المحل بدل ما يتسحب كاش، فبيزود (أو ينقص لو سحب أكتر من نصيبه) رأس مال الشريك المتراكم.<br/>
-      "رأس المال أول/آخر السنة" رقم تراكمي من كل السنين اللي فاتت + السنة دي.
+      "المحتجز" = نصيب الشريك من ربح السنة ناقص اللي سحبه فعلياً ناقص أي تسوية سابقة هذه السنة — لو موجب، ده جزء من الربح تحوّل بضاعة/سيولة شغالة في المحل بدل ما يتسحب كاش، فبيزود رأس مال الشريك المتراكم. لو سالب (سحب أكتر من نصيبه)، الفرق ده <strong>مديونية عليه واجبة السداد</strong> — مش خصم من رأس المال، ومش بيترحّل يتخصم تلقائيًا من نصيبه في أرباح السنة الجاية.<br/>
+      "رأس المال أول/آخر السنة" رقم تراكمي من كل السنين اللي فاتت + السنة دي (بيتأثر بالجزء الموجب بس).
       ${_approved?'<span style="color:#2e7d32;font-weight:bold;"> ✔ نتيجة هذه السنة معتمدة ومرحّلة بالفعل لرأس المال.</span>':'<span style="color:#c62828;font-weight:bold;"> ⚠ لسه ما اتعتمدتش — دوس "اعتماد وترحيل" تحت عشان تتسجل رسمياً في رأس المال.</span>'}
     </div>
 
@@ -8638,6 +8856,239 @@ function printYearEndClosing(forcedYear){
   </div>`;
   showReportFromPrintOutput('تقفيل السنة المالية '+year);
   CURRENT_BRANCH=_prevBranchCtx; // نرجّع وضع الفرع الأصلي زي ما كان قبل التقرير
+}
+// ======= تنفيذ تسوية أرباح جزئية (إجراء حقيقي، مش تقرير معاينة) =======
+// ده بديل شاشة "تسوية جزئية / معاينة" القديمة (كانت بتطبع بس، من غير ما تسجل حاجة).
+// دلوقتي: بتحسب نصيب كل شريك من صافي الربح من أول السنة الحالية لحد النهاردة، وبتاخد بالها
+// من أي تسويات جزئية اتنفذت قبل كده في نفس السنة (DB.partnerSettlements) عشان ما نكررش
+// نفس المبلغ، وبتنفذ نقل "الجديد بس" فعليًا لرأس مال كل شريك. الشاشة دي بقت في "💰 رأس
+// المال" (خزنة ورأس المال) مش في التقارير، بناءً على طلب صاحب النظام.
+//
+// معادلة عدم التكرار (اتفحصت رياضيًا): لو سنة اتقفلت رسميًا آخرها (تقفيل السنة المالية)،
+// _approveYearEndClosingContinue بتطرح أي تسويات جزئية سابقة لنفس السنة من "المحتجز"
+// المسجل في DB.partnerCapital، فمجموع (DB.partnerCapital.retained + DB.partnerSettlements.retained)
+// لنفس السنة بيساوي بالظبط (نصيب الشريك الكامل للسنة - مسحوباته الكاملة للسنة) — من غير
+// أي عدّ مزدوج، بغض النظر عن عدد مرات التسوية الجزئية اللي حصلت خلال السنة.
+function _computeSettlementPreview(){
+  const year=new Date().getFullYear();
+  const cutoff=todayStr;
+  const fn=d=>{ d=d||''; return d.slice(0,4)===String(year)&&d<=cutoff; };
+  const _prevBranchCtx=CURRENT_BRANCH;
+  CURRENT_BRANCH='ALL';
+  const t=calcT(fn);
+  const grossProfit=(t.rev-t.rtOut)-(t.cogs-t.rtCogsBack);
+  let depSoFar=0;
+  const curMonthNum=parseInt(cutoff.slice(5,7),10)||1;
+  for(let mo=1;mo<=curMonthNum;mo++) depSoFar+=calcDepreciationForMonth(year+'-'+String(mo).padStart(2,'0'));
+  const docExp=DB.expenses.filter(e=>fn(e.date)&&e.hasInvoice&&!e.pendingCustody&&!e.excludedAsInventoryPurchase).reduce((s,e)=>s+(e.amount||0),0);
+  const undocExp=DB.expenses.filter(e=>fn(e.date)&&!e.hasInvoice&&!e.pendingCustody&&!e.excludedAsInventoryPurchase).reduce((s,e)=>s+(e.amount||0),0);
+  const netProfit=t.profit;
+  const PARTNERS=getAllPartnersWithShares().map(p=>({name:p.name,pct:p.pct}));
+  const wdSoFar=(DB.withdrawals||[]).filter(w=>fn(w.date)&&w.type!=='deposit');
+  const partnerRows=PARTNERS.map(p=>{
+    const share=netProfit*p.pct/100;
+    const withdrawn=wdSoFar.filter(w=>(w.partner||'غير محدد')===p.name).reduce((s,w)=>s+(w.amount||0),0);
+    // "اتسوّى قبل كده هذه السنة" لازم يعيد بناء نفس "الفرق" الموقّع (بالإشارة) اللي
+    // اتسجل في كل تسوية سابقة — زي ما كان retained لوحده بيمثله قبل فصل المديونية:
+    // لو اتحوّل لرأس مال (retained>0) ده فرق موجب، ولو اتسجل مديونية بدل ما يتحوّل
+    // (debtIncurred>0) ده فرق سالب بنفس القيمة (retained-debtIncurred بيرجّع الإشارة
+    // الصح، مش بيجمعهم كرقمين موجبين). من غيرها، تسوية تانية جوه نفس السنة كانت
+    // هتحسب نفس العجز القديم تاني من الصفر بدل ما تعتبره "اتسجل بالفعل". سجلات قديمة
+    // من قبل فصل المديونية دي مالهاش debtIncurred خالص (بترجع 0 تلقائي)، فبتفضل شغالة
+    // صح زي ما كانت بالظبط.
+    const alreadySettled=(DB.partnerSettlements||[]).filter(r=>r.year===year&&r.partner===p.name).reduce((s,r)=>s+(r.retained||0)-(r.debtIncurred||0),0);
+    const newRetained=share-withdrawn-alreadySettled; // الفرق الجديد: لو موجب بيتحوّل لرأس ماله، لو سالب بيبقى مديونية عليه (مش بيتخصم من رأس ماله)
+    const capBefore=getPartnerCurrentBalance(p.name);
+    // رأس المال بيتأثر بس بالمبلغ الموجب (اللي فعلاً بيتحوّل له) — أي عجز (سالب) بيبقى
+    // مديونية منفصلة تمامًا، مش خصم من رأس المال (طلب المستخدم صراحة)
+    const capAfter=capBefore+Math.max(0,newRetained);
+    const debtBefore=getPartnerDebtBalance(p.name);
+    const debtAfter=debtBefore+Math.max(0,-newRetained);
+    return {...p,share,withdrawn,alreadySettled,newRetained,capBefore,capAfter,debtBefore,debtAfter};
+  });
+  const otherWd=wdSoFar.filter(w=>!PARTNERS.some(p=>p.name===(w.partner||''))).reduce((s,w)=>s+(w.amount||0),0);
+  CURRENT_BRANCH=_prevBranchCtx;
+  return {year,cutoff,grossProfit,docExp,undocExp,depSoFar,netProfit,partnerRows,otherWd,rev:t.rev,rtOut:t.rtOut,cogs:t.cogs,rtCogsBack:t.rtCogsBack,warrCost:t.warrCost};
+}
+function openPartnerSettlementModal(){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
+  _renderPartnerSettlementPreview(_computeSettlementPreview());
+  openM('m-partner-settle');
+}
+function _renderPartnerSettlementPreview(prev){
+  const M=n=>(Math.round((n||0)*100)/100).toFixed(2);
+  const box=$('pst-preview');
+  if(!box)return;
+  if(!prev.partnerRows.length){
+    box.innerHTML='<div style="color:#c62828;text-align:center;padding:14px;">لسه مفيش شركاء مسجّلين برأس مال — سجّل رأس المال الأصلي لكل شريك أولاً من شاشة الإعدادات "🤝 الشركاء ورأس المال"</div>';
+    if($('pst-commit-btn'))$('pst-commit-btn').disabled=true;
+    window._pstPreview=null;
+    return;
+  }
+  const anyChange=prev.partnerRows.some(p=>Math.abs(p.newRetained)>=0.01);
+  prev.partnerRows.forEach(p=>{p.settleAmount=p.newRetained;}); // افتراضيًا المبلغ الكامل المحسوب، لكن قابل للتعديل يدويًا تحت (تسوية جزئية)
+  box.innerHTML=`
+    <div style="background:#e0f7fa;border:1px solid #80deea;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#00695c;line-height:1.8;">
+      من أول سنة ${prev.year} لحد ${prev.cutoff} — صافي الربح حتى الآن: <strong>${M(prev.netProfit)} ج</strong>
+    </div>
+    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11.5px;min-width:820px;">
+      <tr style="background:#f5f5f5;font-weight:bold;"><td style="padding:6px 8px;">الشريك</td><td style="padding:6px 8px;">النسبة</td><td style="padding:6px 8px;">نصيبه (تراكمي من أول السنة)</td><td style="padding:6px 8px;">سحب فعلاً</td><td style="padding:6px 8px;">اتسوّى قبل كده هذه السنة</td><td style="padding:6px 8px;">المبلغ المحسوب بالكامل</td><td style="padding:6px 8px;background:#fff8e1;">المبلغ اللي هيتنفذ فعلاً (قابل للتعديل)</td><td style="padding:6px 8px;">رأس ماله بعد التنفيذ</td><td style="padding:6px 8px;">مديونيته بعد التنفيذ</td></tr>
+      ${prev.partnerRows.map((p,idx)=>`<tr style="border-bottom:1px solid #eee;">
+        <td style="padding:6px 8px;"><strong>${escapeHtml(p.name)}</strong></td>
+        <td style="padding:6px 8px;">${p.pct}%</td>
+        <td style="padding:6px 8px;">${M(p.share)}</td>
+        <td style="padding:6px 8px;">${M(p.withdrawn)}</td>
+        <td style="padding:6px 8px;color:#888;">${M(p.alreadySettled)}</td>
+        <td style="padding:6px 8px;color:${p.newRetained>=0?'#2e7d32':'#c62828'};">${p.newRetained>=0?'+':'-'}${M(Math.abs(p.newRetained))}${p.newRetained<0?' (مديونية)':''}</td>
+        <td style="padding:6px 8px;background:#fffdf5;">
+          <input type="number" step="0.01" class="pst-amt-inp" data-idx="${idx}" data-partner="${escapeHtml(p.name)}"
+            value="${(Math.round(p.newRetained*100)/100)}"
+            style="width:110px;padding:5px 7px;border:1px solid #d2b25a;border-radius:4px;font-weight:bold;font-size:12px;color:${p.newRetained>=0?'#2e7d32':'#c62828'};"
+            oninput="_onPstAmountEdited(this)">
+        </td>
+        <td style="padding:6px 8px;font-weight:bold;" id="pst-capafter-${idx}">${M(p.capAfter)}</td>
+        <td style="padding:6px 8px;font-weight:bold;color:${p.debtAfter>0?'#c62828':'#999'};" id="pst-debtafter-${idx}">${M(p.debtAfter)}</td>
+      </tr>`).join('')}
+    </table></div>
+    ${prev.otherWd>0?`<div style="font-size:11px;color:#888;margin-top:6px;">مسحوبات غير مرتبطة بشريك معروف هذه السنة: ${M(prev.otherWd)} ج</div>`:''}
+    ${anyChange?'':'<div style="color:#e65100;font-size:12px;margin-top:8px;text-align:center;font-weight:bold;">مفيش أرباح محتجزة جديدة تستاهل التنفيذ دلوقتي (قريبة من صفر لكل الشركاء)</div>'}
+    <div style="font-size:10.5px;color:#888;margin-top:10px;border-top:1px dashed #ddd;padding-top:8px;">⚠ عمود "المبلغ اللي هيتنفذ فعلاً" معبّى افتراضيًا بالمبلغ الكامل المحسوب، لكنك تقدر تعدّله وتكتب أي مبلغ أقل (تسوية جزئية بس) — الفرق هيفضل محسوب تلقائيًا ويظهر في التسوية الجاية. لو المبلغ <strong>موجب</strong>، بيتحوّل فعليًا لرصيد رأس مال الشريك. لو <strong>سالب</strong> (سحب أكتر من نصيبه)، الفرق ده <strong>بيتسجل مديونية عليه واجبة السداد</strong> — رأس ماله مايتأثرش خالص، والمديونية مش بترحّل تتخصم تلقائيًا من نصيبه في أرباح السنة الجاية، وبتفضل قائمة لحد ما يسددها فعليًا من "🤝 الشركاء ورأس المال" → "سداد مديونية". التنفيذ إجراء حقيقي ونهائي زي تقفيل السنة، مش معاينة أو تقرير.</div>
+  `;
+  if($('pst-commit-btn'))$('pst-commit-btn').disabled=!anyChange;
+  window._pstPreview=prev;
+}
+function _onPstAmountEdited(inputEl){
+  const prev=window._pstPreview;
+  if(!prev)return;
+  const idx=parseInt(inputEl.dataset.idx,10);
+  const row=prev.partnerRows[idx];
+  if(!row)return;
+  let val=parseFloat(inputEl.value);
+  if(isNaN(val))val=0;
+  row.settleAmount=Math.round(val*100)/100;
+  // رأس المال بيتأثر بس بالجزء الموجب — أي جزء سالب بيبقى مديونية، مش خصم من رأس المال
+  const capAfter=row.capBefore+Math.max(0,row.settleAmount);
+  const debtAfter=row.debtBefore+Math.max(0,-row.settleAmount);
+  const capCell=$('pst-capafter-'+idx);
+  if(capCell)capCell.textContent=(Math.round(capAfter*100)/100).toFixed(2);
+  const debtCell=$('pst-debtafter-'+idx);
+  if(debtCell){debtCell.textContent=(Math.round(debtAfter*100)/100).toFixed(2);debtCell.style.color=debtAfter>0?'#c62828':'#999';}
+  inputEl.style.color=row.settleAmount>=0?'#2e7d32':'#c62828';
+  const anyChange=prev.partnerRows.some(p=>Math.abs(p.settleAmount!=null?p.settleAmount:p.newRetained)>=0.01);
+  if($('pst-commit-btn'))$('pst-commit-btn').disabled=!anyChange;
+}
+function refreshPartnerSettlementPreview(){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
+  _renderPartnerSettlementPreview(_computeSettlementPreview());
+  toast('✓ اتحدّثت الأرقام (رجعت خانات المبالغ للقيمة الكاملة المحسوبة)');
+}
+function confirmPartnerSettlement(){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
+  // بنستخدم المبالغ المعروضة دلوقتي على الشاشة زي ما هي (ممكن المدير يكون عدّل أي خانة
+  // لتسوية جزئية) — من غير ما نعيد الحساب من الصفر هنا، عشان معيدش الحساب أعمل override
+  // صامت على أي تعديل يدوي دخّله المدير. لو عايز أرقام جديدة، فيه زرار "🔄 تحديث الأرقام".
+  const prev=window._pstPreview;
+  if(!prev||!prev.partnerRows||!prev.partnerRows.length){toast('مفيش بيانات تسوية محمّلة، افتح الشاشة تاني','warn');return;}
+  document.querySelectorAll('.pst-amt-inp').forEach(inp=>{
+    const idx=parseInt(inp.dataset.idx,10);
+    const row=prev.partnerRows[idx];
+    if(!row)return;
+    let val=parseFloat(inp.value);
+    if(isNaN(val))val=0;
+    row.settleAmount=Math.round(val*100)/100;
+  });
+  const anyChange=prev.partnerRows.some(p=>Math.abs(p.settleAmount!=null?p.settleAmount:p.newRetained)>=0.01);
+  if(!anyChange){toast('محتاج تدخل مبلغ تسوية فعلي لشريك واحد على الأقل','warn');return;}
+  const anyPartial=prev.partnerRows.some(p=>Math.abs((p.settleAmount!=null?p.settleAmount:p.newRetained)-p.newRetained)>=0.01);
+  const anyDebt=prev.partnerRows.some(p=>(p.settleAmount!=null?p.settleAmount:p.newRetained)<-0.01);
+  showDangerConfirm((anyPartial?'ده تنفيذ جزئي — هيتم اعتماد المبلغ اللي كاتبه انت بالظبط (مش المبلغ الكامل المحسوب)، والباقي هيفضل محسوب تلقائيًا في التسوية الجاية. ':'هيتم تنفيذ التسوية بنسبة كل شريك الثابتة المتفق عليها. ')+'أي مبلغ موجب هيتحوّل فعليًا لرصيد رأس مال الشريك.'+(anyDebt?' أي مبلغ سالب هيتسجل مديونية عليه واجبة السداد (مش هيتخصم من رأس ماله، ومش هيترحّل يتخصم تلقائيًا من أرباحه الجاية). ':' ')+'إجراء نهائي وحقيقي زي تقفيل السنة، مش معاينة. متأكد؟',()=>_doCommitPartnerSettlement(prev));
+}
+function _doCommitPartnerSettlement(prev){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
+  if(!DB.partnerSettlements)DB.partnerSettlements=[];
+  if(!DB.partnerDebts)DB.partnerDebts=[];
+  const by=(CURRENT_USER&&(CURRENT_USER.username||CURRENT_USER.name))||'';
+  const nowIso=new Date().toISOString();
+  let movedToCapitalTotal=0,newDebtTotal=0;
+  prev.partnerRows.forEach(p=>{
+    const amt=(p.settleAmount!=null?p.settleAmount:p.newRetained);
+    if(Math.abs(amt)<0.01)return;
+    const isPartial=Math.abs(amt-p.newRetained)>=0.01;
+    let retainedToCapital=0,debtIncurred=0,capAfter=p.capBefore;
+    if(amt>=0){
+      // موجب: بيتحوّل فعليًا لرأس مال الشريك — زي ما كان دايمًا
+      retainedToCapital=amt;
+      capAfter=p.capBefore+amt;
+      movedToCapitalTotal+=amt;
+    }else{
+      // سالب: سحب أكتر من نصيبه — ده مديونية عليه واجبة السداد، مش خصم من رأس ماله
+      // خالص (طلب المستخدم صراحة: "مش بتتخصم من رأس المال او بتترحل مع الارباح لحين
+      // السداد بالكامل"). رأس ماله بيفضل زي ما هو بالظبط.
+      debtIncurred=Math.abs(amt);
+      capAfter=p.capBefore;
+      newDebtTotal+=debtIncurred;
+      DB.partnerDebts.push({id:'PDBT-'+Date.now()+'-'+Math.floor(Math.random()*9999),partner:p.name,amount:debtIncurred,type:'incurred',date:prev.cutoff,notes:'مديونية ناتجة عن تسوية أرباح سنة '+prev.year+' — سحب فعلي أكتر من نصيبه من الربح بمقدار '+fmtN(debtIncurred)+' ج',sourceSettlementYear:prev.year,createdAt:Date.now(),updatedAt:Date.now(),by});
+    }
+    DB.partnerSettlements.push({id:'PST-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),year:prev.year,partner:p.name,pct:p.pct,fromDate:prev.year+'-01-01',toDate:prev.cutoff,profitShareCum:p.share,withdrawnCum:p.withdrawn,fullComputed:p.newRetained,retained:retainedToCapital,debtIncurred,partial:isPartial,capBefore:p.capBefore,capAfter,debtBefore:p.debtBefore,debtAfter:p.debtBefore+debtIncurred,approvedAt:nowIso,createdAt:Date.now(),updatedAt:Date.now(),by});
+  });
+  addLog('تنفيذ تسوية أرباح بتاريخ '+prev.cutoff+' — نقل '+(Math.round(movedToCapitalTotal*100)/100)+' ج لرأس مال الشركاء'+(newDebtTotal>0.01?' + تسجيل '+(Math.round(newDebtTotal*100)/100)+' ج مديونية جديدة على شركاء سحبوا أكتر من نصيبهم':''));
+  saveDB();
+  closeM('m-partner-settle');
+  try{renderTreasury();}catch(_eT){}
+  try{renderPartnersCapital();}catch(_eP){}
+  toast('✓ تم تنفيذ التسوية'+(newDebtTotal>0.01?' — '+fmtN(newDebtTotal)+' ج اتسجلوا مديونية واجبة السداد':''));
+  _printPartnerSettlementReceipt(prev);
+}
+function _printPartnerSettlementReceipt(prev){
+  const M=n=>(Math.round((n||0)*100)/100).toFixed(2);
+  const secT='style="background:#00695c;color:#fff;padding:6px 10px;font-size:10.5pt;font-weight:bold;-webkit-print-color-adjust:exact;print-color-adjust:exact;"';
+  const tbl='style="width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:14px;"';
+  const settledRows=prev.partnerRows.filter(p=>Math.abs(p.settleAmount!=null?p.settleAmount:p.newRetained)>=0.01);
+  $('print-output').innerHTML=`<div class="inv-wrap">
+    <div style="text-align:center;border-bottom:3px solid #00695c;padding-bottom:8px;margin-bottom:6px;">
+      <div style="font-size:18pt;font-weight:bold;color:#00695c;">${getStoreCfg().name} — إيصال تنفيذ تسوية أرباح</div>
+      <div style="font-size:9.5pt;color:#555;">من أول سنة ${prev.year} لحد ${prev.cutoff} | تاريخ التنفيذ: ${todayStr}</div>
+    </div>
+    <div style="background:#e8f5e9;border:1px solid #66bb6a;border-radius:4px;padding:8px 12px;margin-bottom:14px;font-size:9.5pt;color:#2e7d32;font-weight:bold;">
+      ✔ ده إيصال تنفيذ فعلي — الأرباح المحتجزة الجديدة اتنقلت فعليًا لرصيد رأس مال كل شريك (أو اتسجلت مديونية عليه لو سحب أكتر من نصيبه)، مش مجرد معاينة.
+    </div>
+
+    <div ${secT}>ملخص الأداء المالي من أول السنة لحد ${prev.cutoff}</div>
+    <table ${tbl}>
+      <tr><td>إجمالي الإيراد (مبيعات + صيانة)</td><td>${M(prev.rev)}</td></tr>
+      <tr><td>يخصم: مرتجعات</td><td>(${M(prev.rtOut)})</td></tr>
+      <tr><td>يخصم: تكلفة البضاعة المباعة</td><td>(${M(prev.cogs-prev.rtCogsBack)})</td></tr>
+      <tr class="tot"><td>مجمل الربح</td><td>${M(prev.grossProfit)}</td></tr>
+      ${prev.warrCost>0?`<tr><td>يخصم: خسارة ضمان (قطع غيار اتصرفت مجانًا)</td><td>(${M(prev.warrCost)})</td></tr>`:''}
+      <tr><td>يخصم: مصروفات موثقة بفاتورة</td><td>(${M(prev.docExp)})</td></tr>
+      <tr><td>يخصم: مصروفات بدون فاتورة</td><td>(${M(prev.undocExp)})</td></tr>
+      <tr><td>يخصم: إهلاك الأصول الثابتة (من أول السنة لحد الشهر الحالي)</td><td>(${M(prev.depSoFar)})</td></tr>
+      <tr class="tot" style="font-size:11pt;"><td>صافي الربح ${prev.netProfit>=0?'':'(خسارة)'} حتى الآن</td><td style="color:${prev.netProfit>=0?'#2e7d32':'#c62828'};">${M(prev.netProfit)}</td></tr>
+    </table>
+
+    <div ${secT}>تنفيذ توزيع الأرباح بين الشركاء (نسبة عقد الشراكة الثابتة)</div>
+    <table ${tbl}>
+      <tr style="background:#f5f5f5;font-weight:bold;"><td>الشريك</td><td>النسبة</td><td>نصيبه (تراكمي)</td><td>سحب فعلاً</td><td>اتسوّى قبل كده</td><td>اتحوّل لرأس ماله / مديونية عليه</td><td>رأس ماله بعد التنفيذ</td><td>مديونيته بعد التنفيذ</td></tr>
+      ${settledRows.map(p=>{
+        const amt=(p.settleAmount!=null?p.settleAmount:p.newRetained);
+        const capAfter=p.capBefore+Math.max(0,amt);
+        const debtAfter=p.debtBefore+Math.max(0,-amt);
+        const isPartial=Math.abs(amt-p.newRetained)>=0.01;
+        return `<tr>
+        <td><strong>${p.name}</strong></td><td>${p.pct}%</td><td>${M(p.share)}</td><td>${M(p.withdrawn)}</td><td>${M(p.alreadySettled)}</td>
+        <td style="color:${amt>=0?'#2e7d32':'#c62828'};font-weight:bold;">${amt>=0?'+':'-'}${M(Math.abs(amt))}${amt<0?' (مديونية)':''}${isPartial?' (جزئي)':''}</td>
+        <td style="font-weight:bold;">${M(capAfter)}</td>
+        <td style="font-weight:bold;color:${debtAfter>0?'#c62828':'#888'};">${M(debtAfter)}</td>
+      </tr>`;}).join('')}
+    </table>
+    ${settledRows.some(p=>(p.settleAmount!=null?p.settleAmount:p.newRetained)<-0.01)?'<div style="font-size:9pt;color:#c62828;margin-top:-8px;margin-bottom:14px;">⚠ المديونية دي واجبة السداد على الشريك، ومش بتتخصم من رأس ماله ولا بترحّل تتخصم تلقائيًا من نصيبه في أرباح السنة الجاية — لحد ما يسددها فعليًا.</div>':''}
+
+    <div style="display:flex;justify-content:space-between;border:1px solid #aaa;border-radius:4px;padding:12px 16px;margin-top:10px;">
+      <div style="text-align:center;min-width:120px;"><div style="font-weight:bold;margin-bottom:22px;">إعداد: الإدارة</div><div style="border-top:1px solid #aaa;padding-top:4px;font-size:9pt;color:#888;">التوقيع</div></div>
+      <div style="text-align:center;min-width:120px;"><div style="font-weight:bold;margin-bottom:22px;">مراجعة: الشركاء</div><div style="border-top:1px solid #aaa;padding-top:4px;font-size:9pt;color:#888;">التوقيع والتاريخ</div></div>
+    </div>
+  </div>`;
+  showReportFromPrintOutput('إيصال تنفيذ تسوية أرباح بتاريخ '+prev.cutoff);
 }
 function approveYearEndClosing(forcedYear){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
@@ -8665,18 +9116,34 @@ function approveYearEndClosing(forcedYear){
 }
 function _approveYearEndClosingContinue(year,netProfit,PARTNERS,wdYear){
   if(!DB.partnerCapital)DB.partnerCapital=[];
+  if(!DB.partnerDebts)DB.partnerDebts=[];
+  const by=(CURRENT_USER&&(CURRENT_USER.username||CURRENT_USER.name))||'';
+  let newDebtTotal=0;
   PARTNERS.forEach(p=>{
     const share=netProfit*p.pct/100;
     const withdrawn=wdYear.filter(w=>(w.partner||'غير محدد')===p.name).reduce((s,w)=>s+(w.amount||0),0);
-    const retained=share-withdrawn;
+    // لازم نطرح أي تسويات أرباح جزئية اتنفذت خلال نفس السنة دي (من شاشة "💰 رأس المال" —
+    // ✅ تنفيذ تسوية أرباح) عشان منحوّلش نفس المبلغ مرتين: مرة وقت التسوية الجزئية، ومرة
+    // تانية هنا وقت التقفيل الرسمي — سواء اتحوّل لرأس مال (retained، فرق موجب) أو اتسجل
+    // مديونية (debtIncurred، فرق سالب — راجع نفس شرح الإشارة فوق _computeSettlementPreview).
+    const alreadySettled=(DB.partnerSettlements||[]).filter(r=>r.year===year&&r.partner===p.name).reduce((s,r)=>s+(r.retained||0)-(r.debtIncurred||0),0);
+    const rawRetained=share-withdrawn-alreadySettled;
+    // نفس قاعدة تسوية الأرباح الجزئية بالظبط: الجزء الموجب بيترحّل لرأس المال، والجزء
+    // السالب (سحب أكتر من نصيبه) بيتسجل مديونية عليه واجبة السداد — مش خصم من رأس المال
+    const retained=Math.max(0,rawRetained);
+    const debtIncurred=Math.max(0,-rawRetained);
     const idx=DB.partnerCapital.findIndex(r=>r.year===year&&r.partner===p.name);
     const existing=idx>-1?DB.partnerCapital[idx]:null;
-    const rec={year,partner:p.name,pct:p.pct,profitShare:share,withdrawn,retained,approvedAt:new Date().toISOString(),createdAt:existing?existing.createdAt:Date.now(),updatedAt:Date.now()};
+    const rec={year,partner:p.name,pct:p.pct,profitShare:share,withdrawn,alreadySettled,retained,fullComputed:rawRetained,approvedAt:new Date().toISOString(),createdAt:existing?existing.createdAt:Date.now(),updatedAt:Date.now()};
     if(idx>-1)DB.partnerCapital[idx]=rec;else DB.partnerCapital.push(rec);
+    if(debtIncurred>=0.01){
+      newDebtTotal+=debtIncurred;
+      DB.partnerDebts.push({id:'PDBT-'+Date.now()+'-'+Math.floor(Math.random()*9999),partner:p.name,amount:debtIncurred,type:'incurred',date:year+'-12-31',notes:'مديونية ناتجة عن تقفيل سنة '+year+' — سحب فعلي أكتر من نصيبه من الربح بمقدار '+fmtN(debtIncurred)+' ج',sourceSettlementYear:year,createdAt:Date.now(),updatedAt:Date.now(),by});
+    }
   });
-  addLog('اعتماد وترحيل تقفيل السنة المالية '+year+' لرأس مال الشركاء');
+  addLog('اعتماد وترحيل تقفيل السنة المالية '+year+' لرأس مال الشركاء'+(newDebtTotal>0.01?' + تسجيل '+(Math.round(newDebtTotal*100)/100)+' ج مديونية جديدة على شركاء سحبوا أكتر من نصيبهم':''));
   saveDB();
-  toast('✓ تم اعتماد وترحيل نتيجة سنة '+year+' لرأس مال الشركاء');
+  toast('✓ تم اعتماد وترحيل نتيجة سنة '+year+' لرأس مال الشركاء'+(newDebtTotal>0.01?' — '+fmtN(newDebtTotal)+' ج اتسجلوا مديونية واجبة السداد':''));
   printYearEndClosing(year);
 }
 // ======= كشوف شهرية موحدة =======
@@ -8808,6 +9275,68 @@ function confirmDayPicker(){
   if(!day){toast('اختار اليوم الأول','warn');return;}
   closeM('m-day-pick');
   printDailyReport(day);
+}
+// ============================================================
+// ======= تقرير تفصيلي بطريقة الدفع: فترة + طريقة دفع + نوع مستند =======
+// ============================================================
+// الفرق عن "كشف حركة الخزنة" و"تفصيل سيولة الشهر بطريقة الدفع": دول بيديوا رقم إجمالي
+// بس للشهر الحالي، أما هنا فبتشوف الفواتير نفسها اللي دفعت بطريقة معينة في أي فترة تختارها
+function openPaymentFilterReport(){
+  if($('pf-from'))$('pf-from').value=todayStr.slice(0,8)+'01';
+  if($('pf-to'))$('pf-to').value=todayStr;
+  if($('pf-type'))$('pf-type').value='all';
+  if($('pf-method'))$('pf-method').value='all';
+  openM('m-pay-filter');
+}
+function _pfCollect(){
+  const from=$('pf-from')?$('pf-from').value:'';
+  const to=$('pf-to')?$('pf-to').value:'';
+  const typeSel=$('pf-type')?$('pf-type').value:'all';
+  const methodSel=$('pf-method')?$('pf-method').value:'all';
+  const inRange=d=>{if(!d)return false;if(from&&d<from)return false;if(to&&d>to)return false;return true;};
+  const rows=[];
+  const push=(typeLabel,rec,amount,isTax)=>{
+    if(!isMyBranch(rec))return;
+    if(!inRange(rec.date))return;
+    const pay=rec.payment||'كاش';
+    if(methodSel!=='all'&&pay!==methodSel)return;
+    rows.push({typeLabel,id:rec.id,party:rec.customer||rec.supplier||'',amount,date:rec.date,payment:pay,isTax:!!isTax});
+  };
+  if(typeSel==='all'||typeSel==='sale')DB.sales.forEach(s=>push('🛒 مبيعات',s,s.total||0,false));
+  if(typeSel==='all'||typeSel==='sale-tax')(DB.taxInvoices||[]).filter(t=>t.taxType==='sale').forEach(t=>push('🧾 مبيعات ض',t,t.total||0,true));
+  if(typeSel==='all'||typeSel==='maint')(DB.maintInvoices||[]).filter(m=>m.exit!=='warranty').forEach(m=>push('🔧 صيانة',m,m.cost||0,false));
+  if(typeSel==='all'||typeSel==='maint-tax')(DB.taxInvoices||[]).filter(t=>(t.taxType==='maint'||t.type==='tax-maint')&&t.exit!=='warranty').forEach(t=>push('🧾 صيانة ض',t,t.total||0,true));
+  if(typeSel==='all'||typeSel==='purch')DB.purchases.forEach(p=>push('🚚 مشتريات',p,p.total||0,false));
+  rows.sort((a,b)=>(a.date||'').localeCompare(b.date||'')||String(a.id).localeCompare(String(b.id)));
+  return rows;
+}
+function printPaymentFilterReport(){
+  const rows=_pfCollect();
+  const from=$('pf-from')?$('pf-from').value:'';const to=$('pf-to')?$('pf-to').value:'';
+  const byMethod={};let grand=0;
+  rows.forEach(r=>{byMethod[r.payment]=(byMethod[r.payment]||0)+r.amount;grand+=r.amount;});
+  const methodChips=Object.entries(byMethod).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`<span style="border:1px solid #ddd;border-radius:4px;padding:4px 10px;margin-left:6px;display:inline-block;">${e(m)}: <strong>${fmtN(v)} ج</strong></span>`).join('');
+  const bodyRows=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.typeLabel}</td><td>${e(r.id)}${r.isTax?' <span style="color:#e65100;">ض</span>':''}</td><td class="name-col">${e(r.party)}</td><td>${e(r.payment)}</td><td>${e(r.date)}</td><td>${fmtN(r.amount)} ج</td></tr>`).join('')
+    ||'<tr><td colspan="7" style="text-align:center;color:#999;padding:16px;">لا توجد فواتير مطابقة</td></tr>';
+  $('print-output').innerHTML=`<div class="inv-wrap">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:0;border-bottom:2px solid #000;padding-bottom:7px;">
+      <div style="text-align:right;line-height:1.7;">
+        <div style="font-size:8pt;color:#555;">العنوان : 125 تعاونيات سموحة</div>
+        <div style="font-size:8pt;color:#555;">التليفون : 01211122131</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:18pt;font-weight:bold;">${e(getStoreCfg().name)}</div>
+        <div class="inv-title-box">تقرير تفصيلي بطريقة الدفع (${e(from||'من البداية')} — ${e(to||'لحد النهاردة')})</div>
+      </div>
+      <div style="min-width:80px;"></div>
+    </div>
+    <div style="padding:8px 0;font-size:9.5pt;border-bottom:1px solid #ddd;margin-bottom:8px;">${methodChips||'—'}</div>
+    <table class="inv-tbl"><thead><tr><th>م</th><th>النوع</th><th>رقم المستند</th><th>العميل/المورد</th><th>طريقة الدفع</th><th>التاريخ</th><th>المبلغ</th></tr></thead>
+    <tbody>${bodyRows}</tbody></table>
+    <div style="text-align:left;font-size:12pt;font-weight:bold;margin:10px 0;">الإجمالي: ${fmtN(grand)} ج (${rows.length} مستند)</div>
+  </div>`;
+  closeM('m-pay-filter');
+  showReportFromPrintOutput('تقرير تفصيلي بطريقة الدفع');
 }
 const YEAR_KIND_TITLES={
   'yec-print':'🏁 تقفيل السنة المالية — اختر السنة',
@@ -11236,6 +11765,75 @@ function setPartnerInitialCapitalFor(partner,amount){
   if(idx>-1){DB.partnerInitialCapital[idx].amount=amount;DB.partnerInitialCapital[idx].updatedAt=now;}
   else{DB.partnerInitialCapital.push({id:'PIC-'+now+'-'+Math.floor(Math.random()*9999),partner,amount,createdAt:now,updatedAt:now});}
 }
+// ======= نسبة كل شريك: عقد شراكة ثابت، مش نسبة ديناميكية من رصيد رأس المال =======
+// المستخدم وضّح صراحة: النسبة متفق عليها بعقد شراكة ثابت، ومفروض متتغيرش لوحدها كل
+// ما رصيد رأس مال شريك يتغيّر (كان ده السلوك القديم: pct=رصيد الشريك÷إجمالي كل الأرصدة،
+// وده كان بيخلي النسبة "تزحف" لوحدها بعد كل تسوية أو مساهمة جديدة من غير أي اتفاق
+// فعلي بين الشركاء على النسبة الجديدة دي). دلوقتي النسبة بتتسجل يدوي مرة واحدة (أو
+// تتعدّل يدوي لو العقد اتغيّر فعلاً)، وبتفضل ثابتة لحد ما حد يغيّرها بنفسه صراحة.
+function getPartnerFixedShares(){
+  const obj={};
+  (DB.partnerFixedShares||[]).forEach(r=>{if(r&&r.partner)obj[r.partner]=r.pct||0;});
+  return obj;
+}
+function setPartnerFixedShareFor(partner,pct){
+  if(!DB.partnerFixedShares)DB.partnerFixedShares=[];
+  const idx=DB.partnerFixedShares.findIndex(r=>r.partner===partner);
+  const now=Date.now();
+  if(idx>-1){DB.partnerFixedShares[idx].pct=pct;DB.partnerFixedShares[idx].updatedAt=now;}
+  else{DB.partnerFixedShares.push({id:'PFS-'+now+'-'+Math.floor(Math.random()*9999),partner,pct,createdAt:now,updatedAt:now});}
+}
+// ======= مديونية الشريك: لو سحب أكتر من نصيبه الفعلي من الربح =======
+// المستخدم وضّح صراحة: الفرق ده "مديونية عليه واجبة السداد" — مش بيتخصم من رأس ماله،
+// ومش بيترحّل تلقائيًا يتخصم من نصيبه في أرباح السنة الجاية. بيفضل رقم قائم بذاته،
+// منفصل تمامًا عن رأس المال والأرباح، لحد ما الشريك يسدده فعليًا (سداد صريح، مش
+// تسوية أرباح تلقائية). دفتر مستقل زي partnerCapitalInjections بالظبط: كل سطر إما
+// "incurred" (مديونية جديدة اتسجلت، من تسوية أرباح سحب فيها أكتر من نصيبه) أو
+// "repaid" (سداد فعلي دفعه الشريك) — الرصيد الحالي = مجموع الـincurred ناقص الـrepaid.
+function getPartnerDebtBalance(partner){
+  if(!DB.partnerDebts)return 0;
+  return DB.partnerDebts.filter(r=>r&&r.partner===partner).reduce((s,r)=>s+(r.type==='repaid'?-(r.amount||0):(r.amount||0)),0);
+}
+function repayPartnerDebt(partner,amount,date,notes){
+  if(!partner||!(amount>0))return null;
+  if(!DB.partnerDebts)DB.partnerDebts=[];
+  const rec={id:'PDBT-'+Date.now()+'-'+Math.floor(Math.random()*9999),partner:partner.trim(),amount,type:'repaid',date:date||todayStr,notes:notes||'',createdAt:Date.now(),updatedAt:Date.now(),by:(CURRENT_USER&&(CURRENT_USER.username||CURRENT_USER.name))||''};
+  DB.partnerDebts.push(rec);
+  addLog('سداد مديونية شريك: '+partner+' — '+fmtN(amount)+' ج (الباقي عليه بعد السداد: '+fmtN(getPartnerDebtBalance(partner))+' ج)');
+  return rec;
+}
+function confirmRepayPartnerDebt(){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
+  const partner=($('pdbt-partner').value||'').trim();
+  const amount=parseFloat($('pdbt-amount').value)||0;
+  if(!partner){toast('اختار اسم الشريك','warn');return;}
+  if(amount<=0){toast('اكتب مبلغ سداد صحيح','warn');return;}
+  const owed=getPartnerDebtBalance(partner);
+  if(owed<=0){toast('الشريك ده مالوش أي مديونية مسجّلة دلوقتي','warn');return;}
+  const rec=repayPartnerDebt(partner,amount,$('pdbt-date')?$('pdbt-date').value:todayStr,$('pdbt-notes')?$('pdbt-notes').value.trim():'');
+  if(!rec)return;
+  saveDB();
+  if($('pdbt-partner'))$('pdbt-partner').value='';
+  if($('pdbt-amount'))$('pdbt-amount').value='';
+  if($('pdbt-notes'))$('pdbt-notes').value='';
+  renderPartnersCapital();
+  try{renderTreasury();}catch(_eT){}
+  toast('✓ اتسجّل سداد '+fmtN(amount)+' ج من '+partner+' — الباقي عليه: '+fmtN(getPartnerDebtBalance(partner))+' ج');
+}
+function confirmSetPartnerFixedShare(){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
+  const partner=($('pfs-partner').value||'').trim();
+  const pct=parseFloat($('pfs-pct').value);
+  if(!partner){toast('اكتب اسم الشريك','warn');return;}
+  if(isNaN(pct)||pct<0||pct>100){toast('النسبة لازم تكون رقم بين 0 و100','warn');return;}
+  setPartnerFixedShareFor(partner,Math.round(pct*100)/100);
+  saveDB();
+  if($('pfs-partner'))$('pfs-partner').value='';
+  if($('pfs-pct'))$('pfs-pct').value='';
+  renderPartnersCapital();
+  const total=Object.values(getPartnerFixedShares()).reduce((s,v)=>s+(v||0),0);
+  toast('✓ نسبة '+partner+' اتسجلت: '+pct+'%'+(Math.abs(total-100)>=0.01?' — ⚠ إجمالي كل النسب الحالي '+(Math.round(total*100)/100)+'% (المفروض يساوي 100%)':''));
+}
 // هجرة تلقائية آمنة تمامًا: لو لقينا بيانات قديمة في localStorage (من نسخة سابقة
 // للبرنامج) ومفيش نفس البيانات دي منقولة لسه لـDB، بننقلها تلقائيًا أول ما البرنامج
 // يفتح — من غير ما نحتاج أي تدخل يدوي من المستخدم، ومن غير ما نضيّع أي حاجة مسجّلة
@@ -11251,8 +11849,14 @@ function migrateOldInitialCapitalIfNeeded(){
   }catch(_e){}
 }
 function getPartnerTotalRetained(partner){
-  // كل الأرباح المحتجزة من كل السنين المعتمدة (بدون حد أقصى لسنة معينة) — رصيد تراكمي كامل حتى اليوم
-  return (DB.partnerCapital||[]).filter(r=>r.partner===partner).reduce((s,r)=>s+(r.retained||0),0);
+  // كل الأرباح المحتجزة من كل السنين المعتمدة (تقفيل رسمي آخر السنة) + كل تسويات الأرباح
+  // الجزئية المنفَّذة (partnerSettlements) — بدون حد أقصى لسنة معينة، رصيد تراكمي كامل حتى اليوم.
+  // ملحوظة مهمة عشان منعملش عدّ مزدوج: لما سنة معينة بتتقفل رسميًا، صيغة "المحتجز" بتاعتها
+  // (في _approveYearEndClosingContinue) بتطرح أي تسويات جزئية اتنفذت في نفس السنة دي قبل
+  // التقفيل، فجمع الاتنين هنا مع بعض بيديني الرقم الصح بالظبط، مش أكتر.
+  const fromClosedYears=(DB.partnerCapital||[]).filter(r=>r.partner===partner).reduce((s,r)=>s+(r.retained||0),0);
+  const fromPartialSettlements=(DB.partnerSettlements||[]).filter(r=>r.partner===partner).reduce((s,r)=>s+(r.retained||0),0);
+  return fromClosedYears+fromPartialSettlements;
 }
 function getPartnerTotalInjections(partner){
   if(!DB.partnerCapitalInjections)return 0;
@@ -11262,16 +11866,21 @@ function getPartnerCurrentBalance(partner){
   const initial=getPartnerInitialCapital()[partner]||0;
   return initial+getPartnerTotalRetained(partner)+getPartnerTotalInjections(partner);
 }
-// كل الشركاء المعروفين حاليًا (من رأس المال الأصلي + المحتجز التاريخي + المساهمات)، مع
-// رصيد كل واحد ونسبته الحالية — ده المصدر الوحيد للنسب من دلوقتي، بدل الأرقام الثابتة
+// كل الشركاء المعروفين حاليًا (من رأس المال الأصلي + المحتجز التاريخي + المساهمات +
+// النسب الثابتة المسجّلة)، مع رصيد كل واحد ونسبته. النسبة دلوقتي عقد شراكة ثابت —
+// بتتسجل يدوي من "🤝 الشركاء ورأس المال" ومتتغيرش لوحدها مع رصيد رأس المال (راجع
+// getPartnerFixedShares فوق للشرح الكامل). لو شريك لسه معندوش نسبة ثابتة مسجّلة،
+// نرجّعله 0% (مش نحسبها ديناميكي زي الأول) عشان يبان واضح إنه محتاج يتسجّل له نسبة.
 function getAllPartnersWithShares(){
   const names=new Set();
   Object.keys(getPartnerInitialCapital()).forEach(n=>names.add(n));
   (DB.partnerCapital||[]).forEach(r=>names.add(r.partner));
   (DB.partnerCapitalInjections||[]).forEach(r=>names.add(r.partner));
-  const rows=Array.from(names).map(name=>({name,balance:getPartnerCurrentBalance(name)})).filter(r=>r.balance>0);
-  const total=rows.reduce((s,r)=>s+r.balance,0);
-  return rows.map(r=>({...r,pct:total>0?Math.round((r.balance/total)*10000)/100:0})).sort((a,b)=>b.balance-a.balance);
+  Object.keys(getPartnerFixedShares()).forEach(n=>names.add(n));
+  const fixedShares=getPartnerFixedShares();
+  const rows=Array.from(names).map(name=>({name,balance:getPartnerCurrentBalance(name),pct:fixedShares[name]!=null?fixedShares[name]:0}))
+    .filter(r=>r.balance>0||fixedShares[r.name]!=null);
+  return rows.sort((a,b)=>b.balance-a.balance);
 }
 // إضافة مساهمة رأس مال جديدة — شريك جديد أو قديم، بتأثر فورًا على كل النسب لكل الشركاء
 function addPartnerCapitalInjection(partner,amount,date,notes){
@@ -11288,19 +11897,33 @@ function renderPartnersCapital(){
   const shares=getAllPartnersWithShares();
   const tbl=$('partners-balance-tbl');
   if(tbl){
+    const totalPct=Object.values(getPartnerFixedShares()).reduce((s,v)=>s+(v||0),0);
     tbl.innerHTML=shares.length?`<table style="width:100%;border-collapse:collapse;font-size:12.5px;">
-      <tr style="background:#f5f5f5;font-weight:bold;"><td style="padding:7px 9px;">الشريك</td><td style="padding:7px 9px;">رأس المال الأصلي</td><td style="padding:7px 9px;">الأرباح المحتجزة</td><td style="padding:7px 9px;">مساهمات جديدة</td><td style="padding:7px 9px;">الإجمالي</td><td style="padding:7px 9px;">النسبة الحالية</td></tr>
+      <tr style="background:#f5f5f5;font-weight:bold;"><td style="padding:7px 9px;">الشريك</td><td style="padding:7px 9px;">رأس المال الأصلي</td><td style="padding:7px 9px;">الأرباح المحتجزة</td><td style="padding:7px 9px;">مساهمات جديدة</td><td style="padding:7px 9px;">الإجمالي</td><td style="padding:7px 9px;">نسبته (عقد ثابت)</td><td style="padding:7px 9px;">مديونيته المستحقة</td></tr>
       ${shares.map(p=>{
         const initial=getPartnerInitialCapital()[p.name]||0;
         const retained=getPartnerTotalRetained(p.name);
         const injections=getPartnerTotalInjections(p.name);
-        return `<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 9px;font-weight:bold;">${escapeHtml(p.name)}</td><td style="padding:7px 9px;">${fmtN(initial)} ج</td><td style="padding:7px 9px;color:${retained>=0?'#2e7d32':'#c62828'};">${fmtN(retained)} ج</td><td style="padding:7px 9px;color:#1565c0;">${fmtN(injections)} ج</td><td style="padding:7px 9px;font-weight:bold;">${fmtN(p.balance)} ج</td><td style="padding:7px 9px;font-weight:bold;font-size:14px;color:#1a3a5c;">${p.pct}٪</td></tr>`;
+        const debt=getPartnerDebtBalance(p.name);
+        return `<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 9px;font-weight:bold;">${escapeHtml(p.name)}</td><td style="padding:7px 9px;">${fmtN(initial)} ج</td><td style="padding:7px 9px;color:${retained>=0?'#2e7d32':'#c62828'};">${fmtN(retained)} ج</td><td style="padding:7px 9px;color:#1565c0;">${fmtN(injections)} ج</td><td style="padding:7px 9px;font-weight:bold;">${fmtN(p.balance)} ج</td><td style="padding:7px 9px;font-weight:bold;font-size:14px;color:#1a3a5c;">${p.pct}٪${!p.pct?' <span style="color:#c62828;font-size:10px;">⚠ مش متسجلة</span>':''}</td><td style="padding:7px 9px;font-weight:bold;color:${debt>0?'#c62828':'#999'};">${debt>0?fmtN(debt)+' ج':'—'}</td></tr>`;
       }).join('')}
-    </table>`:'<div style="color:#999;text-align:center;padding:14px;">لسه مفيش شركاء مسجّلين — ابدأ بإدخال رأس المال الأصلي لكل شريك تحت</div>';
+    </table>
+    ${Math.abs(totalPct-100)>=0.01?`<div style="color:#c62828;font-size:11.5px;margin-top:6px;font-weight:bold;">⚠ إجمالي نسب الشركاء الحالي ${(Math.round(totalPct*100)/100)}% — المفروض يساوي 100% بالظبط، راجع الأرقام تحت</div>`:''}
+    `:'<div style="color:#999;text-align:center;padding:14px;">لسه مفيش شركاء مسجّلين — ابدأ بإدخال رأس المال الأصلي لكل شريك تحت</div>';
   }
   const dl=$('pci-partner-list');
   if(dl)dl.innerHTML=shares.map(p=>`<option value="${escapeHtml(p.name)}"></option>`).join('');
   if($('pci-date')&&!$('pci-date').value)$('pci-date').value=todayStr;
+  if($('pdbt-date')&&!$('pdbt-date').value)$('pdbt-date').value=todayStr;
+  const debtLogEl=$('partners-debt-log');
+  if(debtLogEl){
+    const debts=(DB.partnerDebts||[]).slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    debtLogEl.innerHTML=debts.length?`<div style="font-weight:bold;font-size:12.5px;margin-bottom:6px;">📜 سجل المديونيات (نشأت وسداد)</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+        <tr style="background:#f5f5f5;font-weight:bold;"><td style="padding:5px 8px;">الشريك</td><td style="padding:5px 8px;">النوع</td><td style="padding:5px 8px;">المبلغ</td><td style="padding:5px 8px;">التاريخ</td><td style="padding:5px 8px;">ملاحظات</td></tr>
+        ${debts.map(d=>`<tr style="border-bottom:1px solid #eee;"><td style="padding:5px 8px;">${escapeHtml(d.partner)}</td><td style="padding:5px 8px;color:${d.type==='repaid'?'#2e7d32':'#c62828'};font-weight:bold;">${d.type==='repaid'?'✔ سداد':'⚠ مديونية جديدة'}</td><td style="padding:5px 8px;font-weight:bold;">${fmtN(d.amount)} ج</td><td style="padding:5px 8px;">${escapeHtml(d.date)}</td><td style="padding:5px 8px;color:#666;">${escapeHtml(d.notes||'—')}</td></tr>`).join('')}
+      </table>`:'';
+  }
   const logEl=$('partners-injections-log');
   if(logEl){
     const injections=(DB.partnerCapitalInjections||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0));
@@ -11443,7 +12066,7 @@ function canTransfer(){return !!(CURRENT_USER&&(CURRENT_USER.role==='admin'||(CU
 // أنواع المصروفات دي خاصة بالموظفين (اختصاص المدير والمحاسب بس، مش بتخص فرع بعينه) —
 // بتفضل ظاهرة بغض النظر عن الفرع الواقف فيه اللي صرفها، لأن الموظفين نفسهم حاجة مشتركة
 // بين الفروع مش تابعين لفرع معيّن
-const COMPANY_WIDE_EXPENSE_TYPES=new Set(['رواتب','سلف','مكافآت موظفين','🛡️ توريد تأمينات اجتماعية']);
+const COMPANY_WIDE_EXPENSE_TYPES=new Set(['رواتب','سلف','مكافآت موظفين','🛡️ توريد تأمينات اجتماعية','تصفية موظفين']);
 // بحث بالتطابق الجزئي على أي رقم مرجعي (إذن، أمر شغل، فاتورة...) — تقدر تكتب الأرقام
 // بس (زي "0001") من غير ما تحتاج تكتب اللاحقة الكاملة بتاعة الفرع (زي "MAIN-0001")
 function findByPartial(arr,id){
@@ -11852,6 +12475,7 @@ async function _doLoginInner(){
     try{ if(typeof applyCountersBarPref==='function')applyCountersBarPref(); }catch(_e1){}
     try{ if(typeof autoDailySnapshot==='function')autoDailySnapshot(); }catch(_e2){}
     try{ if(typeof exportReminder==='function')exportReminder(); }catch(_e3){}
+    try{ if(typeof checkArchiveReminder==='function')checkArchiveReminder(); }catch(_eArch){}
     try{ if(typeof reconcileStockOnce==='function')reconcileStockOnce(); }catch(_e4){}
     try{ if(typeof reconcileMaintV2==='function')reconcileMaintV2(); }catch(_e5){}
     try{ if(typeof renderDash==='function')renderDash(); }catch(_e6){ /* Chart.js CDN غالبًا ما يسبب هنا لو لم يحمل بعد — هيسجل كـ warning بس مش حاجة توقف الدخول */ try{ logger.warn('renderDash skipped (probably Chart.js CDN pending):',_e6&&_e6.message);}catch(_sink){} }
@@ -12807,6 +13431,152 @@ function exportReminder(){
   const days=last?Math.floor((Date.now()-parseInt(last))/86400000):999;
   if(days>=7)setTimeout(()=>toast(last?('💾 آخر نسخة خارجية من '+days+' يوم — نزّل نسخة من زرار "تصدير" فوق واحفظها برة الجهاز'):'💾 لسه منزلتش نسخة خارجية — دوس "تصدير" فوق واحفظ الملف على فلاشة أو درايف','warn'),2500);
 }
+
+// ============================================================
+// ======= الأرشفة الدورية: نقل السجلات المالية القديمة "المُقفلة" خارج القاعدة الحيّة =======
+// ============================================================
+// إعداد الدورة (3/6/12 شهر) وتاريخ آخر أرشفة محفوظين محليًا على هذا الجهاز (زي إعدادات
+// المحل)، أما عملية الأرشفة نفسها (حذف السجلات القديمة من DB) فبتتم بنفس آلية الحذف
+// العادية في البرنامج (markDeleted + saveDB) فبتتزامن زي أي تعديل تاني بالظبط.
+function getArchiveSettings(){
+  try{return Object.assign({periodMonths:12,lastArchivedAt:0},JSON.parse(localStorage.getItem('sz_archive_settings')||'{}'));}
+  catch(e){return {periodMonths:12,lastArchivedAt:0};}
+}
+function saveArchiveSettings(s){try{localStorage.setItem('sz_archive_settings',JSON.stringify(s));}catch(e){}}
+function _archiveCutoffISO(periodMonths){
+  const d=new Date();
+  d.setMonth(d.getMonth()-(periodMonths||12));
+  return d.toISOString().slice(0,10);
+}
+// الجداول اللي ممكن تتأرشف + شرط "لسه مفتوحة ماليًا" (لو true تتستبعد حتى لو قديمة)
+// — عمدًا مستبعدين منها: العملاء/المنتجات/الموظفين وأي بيانات مرجعية أو أرصدة حيّة
+// (زي رأس المال والعهدة الجارية)، وكمان أذونات الاستلام وأوامر الشغل لاحتمال إنها لسه
+// جزء من عملية صيانة مفتوحة حتى لو قديمة التاريخ.
+const ARCHIVE_TABLES=[
+  {key:'sales',label:'فواتير المبيعات',pType:'sale',isOpen:r=>isDeferredInv(r)&&getRemain('sale',r.id,r.total||0)>0},
+  {key:'taxInvoices',label:'الفواتير الضريبية',pType:r=>(r.taxType==='maint'||r.type==='tax-maint')?'maint':'sale',isOpen:r=>isDeferredInv(r)&&getRemain((r.taxType==='maint'||r.type==='tax-maint')?'maint':'sale',r.id,r.total||0)>0},
+  {key:'maintInvoices',label:'فواتير الصيانة',pType:'maint',isOpen:r=>r.exit!=='warranty'&&isDeferredInv(r)&&getRemain('maint',r.id,r.cost||0)>0},
+  {key:'purchases',label:'فواتير المشتريات',pType:'purch',isOpen:r=>isDeferredInv(r)&&getRemain('purch',r.id,r.total||0)>0},
+  {key:'expenses',label:'المصروفات',isOpen:r=>!!r.pendingCustody},
+  {key:'disassemblies',label:'عمليات التفكيك',isOpen:()=>false},
+  {key:'withdrawals',label:'المسحوبات والإيداعات الشخصية',isOpen:()=>false},
+  {key:'technicianCommissions',label:'عمولات الفنيين',isOpen:()=>false},
+];
+// المدفوعات والمرتجعات المرتبطة بفاتورة معينة بتتنقل معاها هي بس، مش بتاريخها المستقل —
+// عشان مايحصلش انفصال يبوّظ حساب "المتبقي" على فاتورة لسه حيّة
+function _archiveLinkedRows(parentType,parentId){
+  return {
+    pays:(DB.payments||[]).filter(p=>p.type===parentType&&p.refId===parentId),
+    rets:(DB.returns||[]).filter(r=>r.type===parentType&&r.ref===parentId)
+  };
+}
+function scanArchivable(periodMonths){
+  const cutoff=_archiveCutoffISO(periodMonths);
+  const result={};let total=0;
+  ARCHIVE_TABLES.forEach(t=>{
+    const rows=(DB[t.key]||[]).filter(r=>r&&r.date&&r.date<cutoff&&!t.isOpen(r));
+    result[t.key]=rows;total+=rows.length;
+  });
+  return {cutoff,result,total};
+}
+function renderArchiveBox(){
+  const s=getArchiveSettings();
+  const sel=$('arch-period-select');if(sel)sel.value=String(s.periodMonths);
+  const lastEl=$('arch-last-run');
+  if(lastEl)lastEl.textContent=s.lastArchivedAt?new Date(s.lastArchivedAt).toLocaleString('ar-EG'):'لسه ماتعملتش على الجهاز ده';
+}
+function saveArchivePeriod(){
+  const sel=$('arch-period-select');if(!sel)return;
+  const s=getArchiveSettings();
+  s.periodMonths=parseInt(sel.value)||12;
+  saveArchiveSettings(s);
+  toast('✓ اتسجلت دورة الأرشفة: كل '+s.periodMonths+' شهر');
+}
+function openArchiveReview(){
+  const s=getArchiveSettings();
+  const sel=$('arch-period-select');
+  const periodMonths=sel?(parseInt(sel.value)||s.periodMonths):s.periodMonths;
+  const scan=scanArchivable(periodMonths);
+  window._pendingArchiveScan=scan;
+  window._pendingArchivePeriod=periodMonths;
+  const rowsHtml=ARCHIVE_TABLES.map(t=>`<tr><td style="padding:4px 8px;border-bottom:1px solid #eee;">${e(t.label)}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:left;font-weight:bold;">${scan.result[t.key].length}</td></tr>`).join('');
+  const body=$('arch-review-body');
+  if(body){
+    body.innerHTML=scan.total>0?
+      `<p>هيتم نقل كل السجلات <b>المُقفلة ماليًا</b> (مش لسه عليها فلوس آجلة) والأقدم من <b>${e(scan.cutoff)}</b> (دورة ${periodMonths} شهر):</p>
+       <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin:10px 0;">${rowsHtml}</table>
+       <p style="font-weight:bold;">الإجمالي: ${scan.total} سجل</p>
+       <p style="font-size:11.5px;color:#555;">هيتنزّل أول حاجة ملف (زي ملف الـ backup) فيه كل السجلات دي كاملة، وبعدها هتتشال من شاشات البرنامج العادية — استرجاعها بعد كده بيبقى باستيراد ملف الأرشيف ده يدويًا لو احتجت.</p>
+       <p style="font-size:11.5px;color:#c62828;">الفواتير الآجلة اللي لسه عليها متبقي، وعُهد النقدية لسه تحت التسوية، مش هيتشالوا خالص حتى لو قديمين — البرنامج بيستبعدهم تلقائيًا.</p>`
+      :`<p style="color:#2e7d32;">🎉 مفيش سجلات قديمة مؤهلة للأرشفة دلوقتي (أقدم من ${e(scan.cutoff)} ومُقفلة ماليًا بالكامل).</p>`;
+  }
+  const btn=$('arch-confirm-btn');if(btn)btn.disabled=scan.total===0;
+  openM('m-archive-review');
+}
+function confirmArchiveNow(){
+  const scan=window._pendingArchiveScan;
+  const periodMonths=window._pendingArchivePeriod||12;
+  if(!scan||!scan.total){closeM('m-archive-review');return;}
+  const archivePayload={savedAt:new Date().toISOString(),cutoff:scan.cutoff,periodMonths,tables:{}};
+  ARCHIVE_TABLES.forEach(t=>{
+    const rows=scan.result[t.key]||[];
+    if(!rows.length)return;
+    const linkedPays=[],linkedRets=[];
+    rows.forEach(r=>{
+      const parentType=typeof t.pType==='function'?t.pType(r):t.pType;
+      if(!parentType)return;
+      const {pays,rets}=_archiveLinkedRows(parentType,r.id);
+      linkedPays.push(...pays);linkedRets.push(...rets);
+    });
+    archivePayload.tables[t.key]=rows;
+    if(linkedPays.length)archivePayload.tables[t.key+'__payments']=linkedPays;
+    if(linkedRets.length)archivePayload.tables[t.key+'__returns']=linkedRets;
+    const ids=new Set(rows.map(r=>r.id));
+    DB[t.key]=(DB[t.key]||[]).filter(r=>!ids.has(r.id));
+    ids.forEach(id=>markDeleted(t.key,id));
+    if(linkedPays.length){
+      const payIds=new Set(linkedPays.map(p=>p.id));
+      DB.payments=(DB.payments||[]).filter(p=>!payIds.has(p.id));
+      payIds.forEach(id=>markDeleted('payments',id));
+    }
+    if(linkedRets.length){
+      const retIds=new Set(linkedRets.map(r=>r.id));
+      DB.returns=(DB.returns||[]).filter(r=>!retIds.has(r.id));
+      retIds.forEach(id=>markDeleted('returns',id));
+    }
+  });
+  try{
+    const blob=new Blob([JSON.stringify(archivePayload,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    const d=new Date();
+    a.download=_companyFileSlug()+'_أرشيف_'+d.getFullYear()+'_'+String(d.getMonth()+1).padStart(2,'0')+'_'+String(d.getDate()).padStart(2,'0')+'.json';
+    a.click();
+  }catch(e){}
+  const s=getArchiveSettings();
+  s.periodMonths=periodMonths;
+  s.lastArchivedAt=Date.now();
+  saveArchiveSettings(s);
+  saveDB();
+  closeM('m-archive-review');
+  window._pendingArchiveScan=null;
+  toast('✅ اتعملت الأرشفة — '+scan.total+' سجل اتنقلوا لملف الأرشيف اللي اتنزّل دلوقتي');
+  try{renderArchiveBox();}catch(e){}
+  try{if(typeof renderDeferred==='function')renderDeferred();}catch(e){}
+  try{if(typeof renderPurch==='function')renderPurch(TABLE_LAST_FILTER['purch-tbl']||'all');}catch(e){}
+}
+// تنبيه دوري: لو الفترة المختارة عدّت من غير أرشفة، بيوري تنبيه (مرة كل يوم بحد أقصى)
+function checkArchiveReminder(){
+  try{
+    const s=getArchiveSettings();
+    const periodMs=(s.periodMonths||12)*30*86400000;
+    if(Date.now()-(s.lastArchivedAt||0)<periodMs)return;
+    const lastWarn=parseInt(localStorage.getItem('sz_archive_warn_at')||'0')||0;
+    if(Date.now()-lastWarn<86400000)return;
+    localStorage.setItem('sz_archive_warn_at',String(Date.now()));
+    setTimeout(()=>toast('⏳ فاتت '+s.periodMonths+' شهر من غير أرشفة — تقدر تعملها من ⚙️ الإعدادات ← 🛠 متقدم','warn'),1800);
+  }catch(e){}
+}
 // تسوية رجعية: خصم بنود الفواتير القديمة التي لم تُخصم لعدم تطابق الاسم حرفياً
 // القاعدة: البند المربوط بكود أو المطابق حرفياً كان خُصم عند الحفظ — لا يُلمس.
 // البند غير المطابق حرفياً لكنه يطابق بالمطابقة الذكية → يُخصم الآن ويُوسم حتى لا يتكرر أبداً.
@@ -12926,7 +13696,12 @@ function invApplyItems(items,dir,branchId){
 function getPaid(type,refId){return(DB.payments||[]).filter(p=>p.type===type&&p.refId===refId).reduce((s,p)=>s+(p.amount||0),0);}
 function getRemain(type,refId,total){
   const retSum=(DB.returns||[]).filter(r=>r.type===type&&r.ref===refId).reduce((s,r)=>s+(r.amount||0),0);
-  return Math.max(0,(total||0)-getPaid(type,refId)-retSum);
+  const raw=(total||0)-getPaid(type,refId)-retSum;
+  // التقريب لأقرب قرش قبل المقارنة مهم جدًا هنا: جمع/طرح أرقام عشرية كتير (فواتير +
+  // دفعات + مرتجعات) بيسيب أحيانًا فارق عشري ميكروسكوبي (زي 0.000000003) بسبب طبيعة
+  // حساب الأعداد العشرية في الجافاسكريبت — من غير التقريب ده، فاتورة متسددة فعليًا
+  // (0.00 جنيه ظاهريًا) تفضل "آجل" وتظهر في شاشة الآجل للأبد لأن remain>0 بالمنطق الدقيق
+  return Math.max(0,Math.round(raw*100)/100);
 }
 // لو العميل/المورد دفع أكتر من المطلوب (بعد تعديل الفاتورة بالنقصان مثلاً)، الدالة دي بترجع
 // قيمة الفرق الموجب (رصيد دائن له) بدل ما يختفي بصمت في getRemain
@@ -13887,7 +14662,7 @@ function calcLiquidity(fn){
   (DB.maintInvoices||[]).forEach(m=>{if(m.exit!=='warranty'&&!isDeferredInv(m)&&fn(m.date)&&isMyBranch(m)){inflow+=(m.cost||0);br.maint+=(m.cost||0);}});
   (DB.taxInvoices||[]).forEach(t=>{if((t.taxType==='maint'||t.type==='tax-maint')&&t.exit!=='warranty'&&!isDeferredInv(t)&&fn(t.date)&&isMyBranch(t)){inflow+=(t.total||0);br.taxMaint+=(t.total||0);}});
   DB.purchases.forEach(p=>{if(!isDeferredInv(p)&&fn(p.date)&&isMyBranch(p)){outflow+=(p.total||0);br.purch+=(p.total||0);}});
-  DB.expenses.forEach(e=>{if(fn(e.date)&&!e.nonCash&&e.type!=='تحويل بين الحسابات'&&!e.excludedAsInventoryPurchase&&_strictBranchMatch(e)){outflow+=(e.amount||0);br.exp+=(e.amount||0);}});
+  DB.expenses.forEach(e=>{if(fn(e.date)&&!e.nonCash&&e.type!=='تحويل بين الحسابات'&&!e.excludedAsInventoryPurchase&&!e.personalPending&&_strictBranchMatch(e)){outflow+=(e.amount||0);br.exp+=(e.amount||0);}});
   // شراء أصول ثابتة والمسحوبات: مفهوم عام على مستوى الشركة، مش لكل فرع لوحده
   (DB.fixedAssets||[]).forEach(a=>{if(fn(a.date)){outflow+=(a.cost||0);br.assets+=(a.cost||0);}});
   (DB.withdrawals||[]).forEach(w=>{if(fn(w.date)){if(w.type==='deposit'){inflow+=(w.amount||0);br.deposits=(br.deposits||0)+(w.amount||0);}else{outflow+=(w.amount||0);br.withdrawals+=(w.amount||0);}}});
@@ -14231,18 +15006,29 @@ function renderTreasury(){
       ${CURRENT_BRANCH==='ALL'?'<span style="font-size:11px;color:#888;">للتعديل، ادخل فرع بعينه</span>':`<div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-p" onclick="openOpeningModal()">${_obConfirmed?'✏️ تعديل الرصيد':'✔ تأكيد الرصيد'}</button><button class="btn btn-gold" onclick="openOpeningModal()" title="نفس الشاشة اللي فيها خانة (عدّيت كام فعلاً) لو حابب تسوي الخزنة على الدرج الحقيقي">🧮 تسوية بالعد الفعلي</button></div>`}
     </div>`;
 
-  const PARTNERS=[{name:'محمد مجدى',pct:66.67},{name:'محمد محمود',pct:33.33}];
-  const year=new Date().getFullYear();
-  $('treasury-partners-box').innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:13px;">
-    <tr style="background:#f5f5f5;font-weight:bold;"><td style="padding:6px 10px;">الشريك</td><td style="padding:6px 10px;">النسبة</td><td style="padding:6px 10px;">مسحوباته هذا الشهر</td><td style="padding:6px 10px;">مسحوباته هذه السنة</td><td style="padding:6px 10px;">رأس ماله المتراكم</td></tr>
+  // النسبة عقد شراكة ثابت دلوقتي (راجع getPartnerFixedShares) — مش بتتغيّر لوحدها مع
+  // رصيد رأس مال الشريك. getAllPartnersWithShares() لسه هي المصدر الوحيد للنسب، بس
+  // دلوقتي بترجّع النسبة الثابتة المسجّلة (أو 0% لو لسه محتاجة تتسجل).
+  const PARTNERS=getAllPartnersWithShares().map(p=>({name:p.name,pct:p.pct}));
+  // "الفرق عن نصيبه من الربح" بيتحسب لايف بنفس معادلة شاشة تنفيذ التسوية (نصيبه من الربح
+  // ناقص اللي سحبه ناقص أي تسوية سابقة اتنفذت) — ده اللي بيتصفّر أو ينزل فعليًا بعد كل
+  // تسوية، عكس إجمالي المسحوبات الخام اللي بيفضل زي ما هو طول السنة مهما اتعمل تسويات
+  let _settlePrev=null;
+  try{_settlePrev=_computeSettlementPreview();}catch(_eSp){}
+  $('treasury-partners-box').innerHTML=PARTNERS.length?`<table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <tr style="background:#f5f5f5;font-weight:bold;"><td style="padding:6px 10px;">الشريك</td><td style="padding:6px 10px;">النسبة (عقد ثابت)</td><td style="padding:6px 10px;">مسحوباته هذا الشهر</td><td style="padding:6px 10px;">الفرق عن نصيبه من الربح (بعد آخر تسوية)</td><td style="padding:6px 10px;">رأس ماله المتراكم</td><td style="padding:6px 10px;">مديونيته المستحقة</td></tr>
     ${PARTNERS.map(p=>{
       const wdM=(DB.withdrawals||[]).filter(w=>isM(w.date)&&w.partner===p.name).reduce((s,w)=>s+(w.amount||0),0);
       const wdY=(DB.withdrawals||[]).filter(w=>isY(w.date)&&w.partner===p.name).reduce((s,w)=>s+(w.amount||0),0);
-      const cap=getPartnerCapitalBefore(p.name,year+1);
-      return `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px 10px;"><strong>${p.name}</strong></td><td style="padding:6px 10px;">${p.pct}%</td><td style="padding:6px 10px;">${fmtN(wdM)} ج</td><td style="padding:6px 10px;">${fmtN(wdY)} ج</td><td style="padding:6px 10px;font-weight:bold;">${fmtN(cap)} ج</td></tr>`;
+      const cap=getPartnerCurrentBalance(p.name);
+      const debt=getPartnerDebtBalance(p.name);
+      const row=_settlePrev?_settlePrev.partnerRows.find(r=>r.name===p.name):null;
+      const outstanding=row?row.newRetained:null;
+      const outstandingHtml=outstanding==null?'—':`<span style="font-weight:bold;color:${outstanding>=0?'#2e7d32':'#c62828'};">${outstanding>=0?'+':'-'}${fmtN(Math.abs(outstanding))} ج${outstanding<0?' (هتبقى مديونية)':''}</span><div style="font-size:10px;color:#999;">إجمالي مسحوباته هذه السنة (خام): ${fmtN(wdY)} ج</div>`;
+      return `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px 10px;"><strong>${p.name}</strong></td><td style="padding:6px 10px;">${p.pct}%${!p.pct?' <span style="color:#c62828;font-size:10px;">⚠ محتاج تسجيل</span>':''}</td><td style="padding:6px 10px;">${fmtN(wdM)} ج</td><td style="padding:6px 10px;">${outstandingHtml}</td><td style="padding:6px 10px;font-weight:bold;">${fmtN(cap)} ج</td><td style="padding:6px 10px;font-weight:bold;color:${debt>0?'#c62828':'#999'};">${debt>0?fmtN(debt)+' ج':'—'}</td></tr>`;
     }).join('')}
   </table>
-  <div style="font-size:10.5px;color:#888;margin-top:8px;">النسب معتمدة باتفاق الشركاء. رأس المال المتراكم بيتحدّث لما تعتمد "تقفيل السنة المالية" من شاشة التقارير.</div>`;
+  <div style="font-size:10.5px;color:#888;margin-top:8px;">النسبة عقد شراكة ثابت بتتسجل يدوي من "🤝 الشركاء ورأس المال" ومتتغيرش لوحدها مع رصيد رأس المال. عمود "الفرق عن نصيبه من الربح" بيوري كام لسه له (أخضر) أو عليه (أحمر) بعد خصم آخر تسوية اتنفذت. عمود "مديونيته المستحقة" بيوري إجمالي اللي عليه فعليًا من تسويات سابقة (سحب أكتر من نصيبه) — ده رقم منفصل عن رأس المال، مش هيتخصم منه ولا هيترحّل تلقائيًا، لحد ما يتسدد صراحة.</div>`:'<div style="color:#999;text-align:center;padding:14px;">لسه مفيش شركاء مسجّلين برأس مال — سجّل رأس المال الأصلي لكل شريك من شاشة الإعدادات "🤝 الشركاء ورأس المال" أولاً</div>';
 
   const wds=(DB.withdrawals||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,20);
   $('treasury-wd-tbl').innerHTML=wds.length?wds.map(w=>`<tr><td>${w.date}</td><td>${w.partner||'—'}</td><td>${w.notes||'سحب من الأرباح'}</td><td>${w.payment||'كاش'}</td><td><strong>${fmtN(w.amount||0)} ج</strong></td></tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:#999;padding:14px;">لا يوجد مسحوبات مسجلة</td></tr>';
@@ -14278,6 +15064,23 @@ function treasurySubTab(view,el){
 // فعلي مقابل ربحية حقيقية)، فمفيش أي تكرار في الخصم غلط.
 function getActiveBanks(){return (DB.banks||[]).filter(b=>b.active!==false);}
 function _bankById(id){return (DB.banks||[]).find(b=>b.id===id)||null;}
+// تجميع البنوك اللي بنفس الاسم (تنضيف مسافات زيادة + تجاهل حالة الأحرف الإنجليزية —
+// أسماء البنوك عادةً عربي، بس بعض الأسماء زي "CIB" ممكن تتكتب بحروف كبيرة/صغيرة مختلفة).
+// ده اكتشف مشكلة حقيقية: قبل ما نصلح مزامنة البنوك بين الأجهزة، كل جهاز كان بيسجّل
+// نفس البنك بـid عشوائي مختلف تمامًا (زي BANK-<وقت>-<حروف عشوائية>)، فمفيش تطابق
+// id يخلي فايربيز يعتبرهم نفس السجل — فبيظهروا كبنوك منفصلة تمامًا رغم إنهم في الواقع
+// بنك واحد بس مسجّل أكتر من مرة.
+function _normBankName(n){return String(n||'').trim().replace(/\s+/g,' ').toLowerCase();}
+function _findDuplicateBankGroups(){
+  const groups={};
+  (DB.banks||[]).forEach(b=>{
+    const k=_normBankName(b.name);
+    if(!k)return;
+    if(!groups[k])groups[k]=[];
+    groups[k].push(b);
+  });
+  return Object.values(groups).filter(g=>g.length>1);
+}
 function _addDaysToDateStr(dateStr,days){
   try{
     const d=dateStr?new Date(dateStr+'T00:00:00'):new Date();
@@ -14294,7 +15097,7 @@ function renderBanksSettings(){
       <strong>${escapeHtml(b.name)}</strong>
       <span style="color:#1565c0;margin-right:6px;">عمولة ${escapeHtml(String(b.commissionPct||0))}%</span>
       ${b.accountNo?`<span style="color:#666;margin-right:6px;">رقم حساب: ${escapeHtml(b.accountNo)}</span>`:''}
-      <span style="color:#888;margin-right:6px;">مدة التحويل ${escapeHtml(String(b.settlementDays||15))} يوم</span>
+      <span style="color:#888;margin-right:6px;">مدة التحويل ${b.settlementDays!=null?escapeHtml(String(b.settlementDays))+' يوم':'غير محددة'}</span>
       ${b.active===false?'<span class="badge b-gy" style="margin-right:6px;">متوقف</span>':''}
     </div>
     <div style="display:flex;gap:4px;">
@@ -14305,6 +15108,27 @@ function renderBanksSettings(){
   </div>`).join('')||'<div style="color:#999;padding:10px;font-size:12px;">لسه مفيش بنوك مُضافة — سجّل أول بنك فوق.</div>';
   // القوايم اللي في شاشات البيع/الصيانة (اختيار البنك) لازم تتحدث كمان أول ما نضيف/نعدّل بنك
   try{ document.querySelectorAll('.bank-select-live').forEach(sel=>_renderBankOptions(sel.id)); }catch(_e2){}
+  // تنبيه لو فيه بنوك مكررة بنفس الاسم (غالبًا من التسجيل المنفصل على كل جهاز قبل
+  // ما مزامنة البنوك بين الأجهزة تتصلح) — مع زرار يدمجهم في ضغطة واحدة
+  const dupeBox=$('banks-dupe-warning');
+  if(dupeBox){
+    const dupes=_findDuplicateBankGroups();
+    if(dupes.length){
+      dupeBox.style.display='block';
+      dupeBox.innerHTML=`⚠ فيه ${dupes.length} بنك مسجّل أكتر من مرة بنفس الاسم (${dupes.map(g=>escapeHtml(g[0].name)).join('، ')}) — غالبًا من ساعة ما كنت بتسجّل نفس البنك على كل جهاز لوحده. <button class="btn btn-sm btn-gold" style="margin-right:6px;" onclick="openMergeDuplicateBanksModal()">🧹 دمج البنوك المكررة</button>`;
+    } else { dupeBox.style.display='none'; dupeBox.innerHTML=''; }
+  }
+}
+// ملحوظة مهمة (طلب صريح من صاحب النظام): مفيش أي قيمة افتراضية بتتحط لـ"مدة التحويل"
+// من غير ما هو يكتبها بنفسه. لو الخانة فاضية، بتتسجل null (مش 15 ولا أي رقم تاني) —
+// وأي حاجة بتستخدم مدة التحويل دي بعد كده (عرض، حساب تاريخ وصول متوقع) لازم تتعامل
+// مع null على إنها "غير محددة"، مش تفترض رقم من عندها.
+function _parseSettlementDaysInput(raw){
+  const s=String(raw==null?'':raw).trim();
+  if(s==='')return null;
+  const n=parseInt(s,10);
+  if(isNaN(n))return null;
+  return Math.max(0,n);
 }
 function _uiAddBank(){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
@@ -14312,13 +15136,13 @@ function _uiAddBank(){
   const name=(nameInp&&nameInp.value||'').trim();
   const pct=Math.max(0,Math.min(100,parseFloat(pctInp&&pctInp.value)||0));
   const accountNo=(acctInp&&acctInp.value||'').trim();
-  const settlementDays=Math.max(0,parseInt(daysInp&&daysInp.value,10)||15);
+  const settlementDays=_parseSettlementDaysInput(daysInp&&daysInp.value);
   if(!name){toast('اكتب اسم البنك الأول','warn');return;}
   if((DB.banks||[]).some(b=>b.name===name)){toast('البنك ده مُضاف بالفعل','warn');return;}
   if(!DB.banks)DB.banks=[];
   DB.banks.push({id:'BANK-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),name,commissionPct:pct,accountNo,settlementDays,active:true,createdAt:Date.now()});
   saveDB();
-  if(nameInp)nameInp.value='';if(pctInp)pctInp.value='';if(acctInp)acctInp.value='';if(daysInp)daysInp.value='15';
+  if(nameInp)nameInp.value='';if(pctInp)pctInp.value='';if(acctInp)acctInp.value='';if(daysInp)daysInp.value='';
   renderBanksSettings();
   toast('✓ اتضاف بنك "'+name+'"');
 }
@@ -14329,12 +15153,12 @@ function _uiEditBank(id){
     {label:'اسم البنك',value:b.name,type:'text'},
     {label:'نسبة العمولة %',value:String(b.commissionPct||0),type:'text'},
     {label:'رقم الحساب (اختياري)',value:b.accountNo||'',type:'text'},
-    {label:'مدة التحويل (بالأيام)',value:String(b.settlementDays||15),type:'text'}
+    {label:'مدة التحويل (بالأيام) — سيبها فاضية لو مش عايز تحدد',value:b.settlementDays!=null?String(b.settlementDays):'',type:'text'}
   ],(values)=>{
     const name=(values&&values[0]||'').trim();
     const pct=Math.max(0,Math.min(100,parseFloat(values&&values[1])||0));
     const accountNo=(values&&values[2]||'').trim();
-    const settlementDays=Math.max(0,parseInt(values&&values[3],10)||15);
+    const settlementDays=_parseSettlementDaysInput(values&&values[3]);
     if(!name){toast('اسم البنك مطلوب','warn');return;}
     b.name=name;b.commissionPct=pct;b.accountNo=accountNo;b.settlementDays=settlementDays;
     saveDB();
@@ -14354,7 +15178,15 @@ function deleteBank(id){
   const b=_bankById(id);if(!b)return;
   const usedCount=(DB.bankTx||[]).filter(t=>t.bankId===id).length;
   const doDelete=()=>{
+    // markDeleted() هنا أساسي جدًا، مش مجرد تنظيف — من غيرها الحذف كان بيفضل محلي بس
+    // على الجهاز اللي عمل الحذف: أول مزامنة بعد كده مع فايربيز كانت بترجّع نفس البنك
+    // تاني تلقائيًا من نسخة السحابة (أو من جهاز تاني لسه معندوش نفس الحذف)، لأن منطق
+    // الدمج (saveToFirebase) بيعتمد كليًا على DB._deleted عشان يعرف السجل ده لازم
+    // يتستبعد من الدمج، مش بس إنه مختفي من المصفوفة المحلية وقت الحذف. ده هو السبب
+    // الحقيقي وراء "بامسح البنك ومش بيتمسح خالص، بيرجع تاني زي ما هو".
+    markDeleted('banks',id);
     DB.banks=(DB.banks||[]).filter(x=>x.id!==id);
+    addLog('حذف بنك: '+b.name);
     saveDB();
     renderBanksSettings();
     toast('✓ اتحذف بنك "'+b.name+'"');
@@ -14364,6 +15196,84 @@ function deleteBank(id){
   } else {
     doDelete();
   }
+}
+// ======= دمج البنوك المكررة (نفس البنك اتسجل منفصل على كذا جهاز قبل إصلاح المزامنة) =======
+// لكل مجموعة بنفس الاسم: بيختار "الأصل" اللي هيفضل (الأكتر استخدامًا في حركات بنكية
+// فعلية، وعند التساوي الأقدم إنشاءً)، وبينقل أي حركة بنكية (DB.bankTx) كانت مربوطة
+// بالنسخ التانية عشان تتبقى مربوطة بالبنك الأصلي، وبعدين يمسح النسخ الزيادة (مع
+// markDeleted عشان الحذف يتزامن صح مع باقي الأجهزة، مش يرجع تاني زي ما كان بيحصل).
+function _pickMergeKeeper(group){
+  const withUsage=group.map(b=>({b,usage:(DB.bankTx||[]).filter(t=>t.bankId===b.id).length}));
+  withUsage.sort((a,z)=>{
+    if(z.usage!==a.usage)return z.usage-a.usage;
+    return (a.b.createdAt||0)-(z.b.createdAt||0);
+  });
+  return {keeper:withUsage[0].b,losers:withUsage.slice(1).map(x=>x.b),usageById:Object.fromEntries(withUsage.map(x=>[x.b.id,x.usage]))};
+}
+function openMergeDuplicateBanksModal(){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
+  const groups=_findDuplicateBankGroups();
+  if(!groups.length){toast('مفيش بنوك مكررة دلوقتي','warn');return;}
+  window._mgbGroups=groups;
+  const M=n=>fmtN(n||0);
+  const box=$('mgb-preview');
+  if(box){
+    box.innerHTML=groups.map(g=>{
+      const {keeper,losers,usageById}=_pickMergeKeeper(g);
+      const pctDiffer=new Set(g.map(b=>b.commissionPct||0)).size>1;
+      const daysDiffer=new Set(g.map(b=>b.settlementDays==null?'—':b.settlementDays)).size>1;
+      return `<div style="border:1px solid #eee;border-radius:6px;padding:10px 12px;margin-bottom:10px;">
+        <div style="font-weight:bold;margin-bottom:6px;">${escapeHtml(g[0].name)} <span style="font-size:11px;color:#888;font-weight:normal;">(${g.length} نسخ)</span></div>
+        <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+          <tr style="background:#f5f5f5;font-weight:bold;"><td style="padding:4px 6px;"></td><td style="padding:4px 6px;">عمولة %</td><td style="padding:4px 6px;">مدة التحويل</td><td style="padding:4px 6px;">رقم الحساب</td><td style="padding:4px 6px;">حركات مربوطة بيه</td></tr>
+          ${g.map(b=>`<tr style="border-bottom:1px solid #f0f0f0;${b.id===keeper.id?'background:#e8f5e9;':''}">
+            <td style="padding:4px 6px;font-weight:bold;">${b.id===keeper.id?'✓ هيفضل':'✕ هيتشال'}</td>
+            <td style="padding:4px 6px;">${M(b.commissionPct)}%</td>
+            <td style="padding:4px 6px;">${b.settlementDays!=null?M(b.settlementDays)+' يوم':'غير محددة'}</td>
+            <td style="padding:4px 6px;">${escapeHtml(b.accountNo||'—')}</td>
+            <td style="padding:4px 6px;">${usageById[b.id]}</td>
+          </tr>`).join('')}
+        </table>
+        ${(pctDiffer||daysDiffer)?`<div style="font-size:10.5px;color:#e65100;margin-top:4px;">⚠ النسخ دي مختلفة في ${pctDiffer?'نسبة العمولة':''}${(pctDiffer&&daysDiffer)?' و':''}${daysDiffer?'مدة التحويل':''} — بعد الدمج راجع بيانات "${escapeHtml(keeper.name)}" وعدّلها لو محتاجة تظبيط (زرار ✏️ تعديل).</div>`:''}
+      </div>`;
+    }).join('')+
+    `<div style="font-size:10.5px;color:#888;margin-top:4px;">أي حركة بنكية (فاتورة بفيزا/تحويل) كانت مربوطة بأي نسخة هتتشال، هتترحّل تلقائيًا للنسخة اللي هتفضل — مفيش أي بيانات تاريخية هتضيع.</div>`;
+  }
+  openM('m-merge-banks');
+}
+function confirmMergeDuplicateBanks(){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
+  const groups=window._mgbGroups;
+  if(!groups||!groups.length){toast('مفيش بنوك مكررة دلوقتي','warn');return;}
+  showDangerConfirm('هيتم دمج '+groups.length+' مجموعة بنوك مكررة في نسخة واحدة لكل بنك، وترحيل كل الحركات البنكية المرتبطة تلقائيًا. الإجراء ده نهائي. متأكد؟',()=>_doMergeDuplicateBanks(groups));
+}
+function _doMergeDuplicateBanks(groups){
+  // مهم: بنحسب "مين هيفضل ومين هيتشال" لكل المجموعات مرة واحدة وقبل أي تعديل، ونحتفظ
+  // بالنتيجة في متغيّر ثابت. لو حسبناها تاني بعد نقل الحركات البنكية (DB.bankTx)، عدد
+  // الحركات المرتبطة بكل بنك هيبقى اتغيّر فعليًا (النسخة اللي هتتشال بقى عندها صفر)،
+  // فـ_pickMergeKeeper ممكن يختار بنك "أصلي" مختلف تمامًا عن اللي فعليًا اتنقلتله
+  // الحركات — وده كان هيسيب البنك الصحيح متمسوح غلط والمكرر هو اللي فاضل.
+  const picks=groups.map(g=>_pickMergeKeeper(g));
+  let mergedCount=0,txMoved=0;
+  picks.forEach(({keeper,losers})=>{
+    losers.forEach(loser=>{
+      (DB.bankTx||[]).forEach(t=>{
+        if(t.bankId===loser.id){t.bankId=keeper.id;t.bankName=keeper.name;txMoved++;}
+      });
+      markDeleted('banks',loser.id);
+      mergedCount++;
+    });
+  });
+  const loserIds=new Set(picks.flatMap(p=>p.losers.map(b=>b.id)));
+  DB.banks=(DB.banks||[]).filter(b=>!loserIds.has(b.id));
+  addLog('دمج '+mergedCount+' بنك مكرر ('+groups.length+' مجموعة) — ترحيل '+txMoved+' حركة بنكية');
+  saveDB();
+  closeM('m-merge-banks');
+  renderBanksSettings();
+  try{renderBankTxTracking();}catch(_e){}
+  try{renderCheckTxTracking();}catch(_e2){}
+  window._mgbGroups=null;
+  toast('✓ تم دمج '+mergedCount+' بنك مكرر');
 }
 function _renderBankOptions(selectId){
   const sel=$(selectId);if(!sel)return;
@@ -14410,8 +15320,10 @@ function _createBankTxIfNeeded(rec,refType,paySelectId,bankSelectId){
     rec.bankId=bank.id; rec.bankName=bank.name;
     const commissionPct=bank.commissionPct||0;
     const commissionAmount=Math.round(amount*commissionPct/100*100)/100;
-    const settlementDays=bank.settlementDays||15;
-    const expectedSettleDate=_addDaysToDateStr(rec.date||todayStr,settlementDays);
+    // لو مدة التحويل مش متسجلة للبنك ده (المستخدم مسجلهاش عمدًا)، منفترضش 15 يوم من
+    // عندنا — بنسيب تاريخ الوصول المتوقع "غير محدد" بدل ما نديله رقم وهمي. الشاشات اللي
+    // بتوري الحركات المعلّقة (renderBankTxTracking) بتتعامل مع ده أصلاً وبتوري "—".
+    const expectedSettleDate=bank.settlementDays!=null?_addDaysToDateStr(rec.date||todayStr,bank.settlementDays):null;
     if(!DB.bankTx)DB.bankTx=[];
     DB.bankTx.unshift({
       id:'BTX-'+Date.now()+'-'+Math.floor(Math.random()*999),
@@ -14707,7 +15619,7 @@ function renderPurch(f){
     const prodCell=multi?`<span class="badge b-bl" style="font-size:9px;">${p.items.length} صنف</span> ${p.items.map(i=>e(i.name)).join('، ')}`:e(p.product||'');
     const buyCell=multi?'—':fmtN(p.unitCost||0)+' ج';
     const sellCell=multi?'—':(p.sellPrice?fmtN(p.sellPrice)+' ج':'—');
-    return`<tr style="${hasRet?'background:#ffebee;':(isDeferred&&remain>0?'background:#fff3e0;':'')}"><td><strong>${e(p.id)}</strong>${hasRet?'<span class="badge b-rd" style="font-size:9px;margin-right:2px;">↩ مرتجع</span>':''}${isDeferred&&remain>0?'<span class="badge b-rd" style="font-size:9px;">آجل</span>':''}</td><td>${e(p.supplier)}</td><td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(multi?p.items.map(i=>i.name+' ×'+i.qty).join(' | '):p.product||'')}">${prodCell}</td><td>${p.qty}</td><td>${buyCell}</td><td>${sellCell}</td><td><strong>${fmtN(tot)} ج</strong></td><td style="color:#2e7d32;">${fmtN(paid)} ج</td><td style="color:${remain>0?'#c62828':'#2e7d32'};font-weight:bold;">${remain>0?fmtN(remain)+' ج':'✓'}</td><td>${e(p.date)}</td><td>${typeBadge(p.type)}</td><td><span class="badge ${isDeferred?'b-rd':p.payment==='فيزا'?'b-bl':p.payment==='كاش'?'b-gn':'b-gy'}">${e(p.payment||'كاش')}</span>${p.pendingName?'<br><span style="font-size:10px;color:#888;">'+e(p.pendingName)+'</span>':''}</td><td style="display:flex;gap:2px;">${isDeferred&&remain>0?`<button class="btn btn-sm btn-g" onclick="openPaymentModal('purch','${p.id}',${tot},'${sup}')" title="تسجيل دفعة آجل">💳</button>`:''}<button class="btn btn-sm" onclick="viewItem('purch','${p.id}')">👁 معاينة</button><button class="btn btn-sm" onclick="printPurch('${p.id}')" title="طباعة الفاتورة">🖨️ طباعة</button>${CURRENT_USER&&CURRENT_USER.role==='admin'?`<button class="btn btn-sm" onclick="openEditPurch('${p.id}')" title="تعديل (مدير)">✏️ تعديل</button>`:''}
+    return`<tr style="${hasRet?'background:#ffebee;':(isDeferred&&remain>0?'background:#fff3e0;':'')}"><td><strong>${e(p.id)}</strong>${hasRet?'<span class="badge b-rd" style="font-size:9px;margin-right:2px;">↩ مرتجع</span>':''}${isDeferred&&remain>0?'<span class="badge b-rd" style="font-size:9px;">آجل</span>':''}</td><td>${e(p.supplier)}</td><td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(multi?p.items.map(i=>i.name+' ×'+i.qty).join(' | '):p.product||'')}">${prodCell}</td><td>${p.qty}</td><td>${buyCell}</td><td>${sellCell}</td><td><strong>${fmtN(tot)} ج</strong></td><td style="color:#2e7d32;">${fmtN(paid)} ج</td><td style="color:${remain>0?'#c62828':'#2e7d32'};font-weight:bold;">${remain>0?fmtN(remain)+' ج':'✓'}</td><td>${e(p.date)}</td><td>${typeBadge(p.type)}</td><td>${isDeferred?pmtBadge(remain,tot,p.payment):`<span class="badge ${p.payment==='فيزا'?'b-bl':p.payment==='كاش'?'b-gn':'b-gy'}">${e(p.payment||'كاش')}</span>`}${p.pendingName?'<br><span style="font-size:10px;color:#888;">'+e(p.pendingName)+'</span>':''}</td><td style="display:flex;gap:2px;">${isDeferred&&remain>0?`<button class="btn btn-sm btn-g" onclick="openPaymentModal('purch','${p.id}',${tot},'${sup}')" title="تسجيل دفعة آجل">💳</button>`:''}<button class="btn btn-sm" onclick="viewItem('purch','${p.id}')">👁 معاينة</button><button class="btn btn-sm" onclick="printPurch('${p.id}')" title="طباعة الفاتورة">🖨️ طباعة</button>${CURRENT_USER&&CURRENT_USER.role==='admin'?`<button class="btn btn-sm" onclick="openEditPurch('${p.id}')" title="تعديل (مدير)">✏️ تعديل</button>`:''}
 </td></tr>`;
   },99,'لا توجد مشتريات');
 }
@@ -16319,6 +17231,82 @@ function saveSalary(){
   SAL_SHORT=0;
   SAL_UNPAID=0;
 }
+// ============================================================
+// ======= تصفية / إنهاء خدمة موظف =======
+// ============================================================
+// بتحسب المستحق تلقائيًا: راتب الشهر الحالي بالتناسب مع أيام الشغل الفعلية + مكافآت
+// معلّقة، ناقص السلف ونواقص الجرد اللي لسه مستحقة عليه — وبتوريك الصافي (له أو عليه)
+// قبل ما تأكد. التنفيذ بيقفل ملفه (غير نشط) ويسوّي كل البنود المعلّقة دي مع بعض.
+function _termCalc(emp){
+  const monthKey=todayStr.slice(0,7);
+  const [ty,tm]=monthKey.split('-').map(Number);
+  const daysInMonth=new Date(ty,tm,0).getDate();
+  const todayDay=parseInt(todayStr.slice(8,10),10)||1;
+  const alreadyPaidThisMonth=(emp.salaryHistory||[]).some(h=>h.month===monthKey);
+  const proratedSalary=alreadyPaidThisMonth?0:Math.round((emp.salary||0)*todayDay/daysInMonth*100)/100;
+  const pendingBonus=(emp.bonuses||[]).filter(x=>!x.settled).reduce((s,x)=>s+(x.amount||0),0);
+  const unsettledAdv=(emp.advances||[]).filter(x=>!x.settled).reduce((s,x)=>s+(x.amount||0),0);
+  const unsettledShort=(emp.stockCharges||[]).filter(x=>!x.settled).reduce((s,x)=>s+(x.amount||0),0);
+  const hireDate=emp.hireDate?new Date(emp.hireDate+'T00:00:00'):null;
+  const tenureDays=hireDate&&!isNaN(hireDate)?Math.max(0,Math.floor((new Date(todayStr+'T00:00:00')-hireDate)/86400000)+1):null;
+  const net=Math.round((proratedSalary+pendingBonus-unsettledAdv-unsettledShort)*100)/100;
+  return{monthKey,daysInMonth,todayDay,alreadyPaidThisMonth,proratedSalary,pendingBonus,unsettledAdv,unsettledShort,tenureDays,net};
+}
+function openTerminateEmployeeModal(id){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin'){toast('للمدير فقط ⚠️','warn');return;}
+  const emp=DB.employees.find(x=>x.id===id);if(!emp)return;
+  if(emp.status!=='active'){toast('الموظف ده مش نشط أصلاً','warn');return;}
+  const c=_termCalc(emp);
+  window._pendingTerminateId=id;
+  $('term-body').innerHTML=`
+    <div style="background:#f5f5f5;border-radius:6px;padding:10px 12px;margin-bottom:10px;">
+      <div><strong>${escapeHtml(emp.name)}</strong> — ${escapeHtml(emp.role||'—')}</div>
+      <div style="font-size:12px;color:#666;margin-top:3px;">تاريخ التعيين: ${escapeHtml(emp.hireDate||'—')}${c.tenureDays!=null?' — إجمالي مدة الخدمة: <strong>'+c.tenureDays+' يوم</strong>':''}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+      <tr><td style="padding:4px 0;">راتب شهر ${e(c.monthKey)} بالتناسب (${c.todayDay} من ${c.daysInMonth} يوم)</td><td style="text-align:left;font-weight:bold;">${fmtN(c.proratedSalary)} ج</td></tr>
+      ${c.alreadyPaidThisMonth?`<tr><td colspan="2" style="color:#e65100;font-size:11.5px;padding-bottom:4px;">⚠ راتب الشهر ده كان اتصرف بالفعل — مفيش راتب إضافي متناسب هنا، راجع الفرق يدويًا لو لازم.</td></tr>`:''}
+      <tr><td style="padding:4px 0;">+ مكافآت معلّقة (لسه ماتصرفتش)</td><td style="text-align:left;font-weight:bold;color:#2e7d32;">${fmtN(c.pendingBonus)} ج</td></tr>
+      <tr><td style="padding:4px 0;">- سلف لسه مستحقة عليه</td><td style="text-align:left;font-weight:bold;color:#c62828;">(${fmtN(c.unsettledAdv)} ج)</td></tr>
+      <tr><td style="padding:4px 0;">- نواقص جرد لسه مستحقة عليه</td><td style="text-align:left;font-weight:bold;color:#c62828;">(${fmtN(c.unsettledShort)} ج)</td></tr>
+      <tr style="border-top:2px solid #333;"><td style="padding:6px 0;font-weight:bold;">الصافي ${c.net>=0?'(للموظف — هيتصرف له من الخزنة)':'(على الموظف — لسه عليه للشركة)'}</td><td style="text-align:left;font-weight:bold;font-size:14px;color:${c.net>=0?'#2e7d32':'#c62828'};">${fmtN(Math.abs(c.net))} ج</td></tr>
+    </table>
+    <div style="font-size:11.5px;color:#777;margin-top:10px;">${c.net>=0?'هيتسجل هذا المبلغ كمصروف "تصفية موظف" ويتخصم من الخزنة فورًا.':'المبلغ ده على الموظف مش هيتحصّل تلقائيًا — البرنامج هيسجله في ملاحظة التصفية بس، وتحصيله بيبقى عليك بطريقتك.'} السلف والمكافآت ونواقص الجرد المعلّقة هتتقفل كلها كـ"متسواة" مع التصفية. الموظف هيتحول لـ"غير نشط" ومينفعش يتصفى تاني.</div>
+  `;
+  const btn=$('term-confirm-btn');if(btn)btn.disabled=false;
+  if($('term-notes'))$('term-notes').value='';
+  openM('m-emp-terminate');
+}
+function confirmTerminateEmployee(){
+  const id=window._pendingTerminateId;
+  const emp=id?DB.employees.find(x=>x.id===id):null;
+  if(!emp){toast('حصل خطأ — افتح شاشة التصفية تاني','warn');return;}
+  if(emp.status!=='active'){toast('الموظف ده اتصفّى بالفعل','warn');closeM('m-emp-terminate');return;}
+  const c=_termCalc(emp);
+  const notes=$('term-notes')?$('term-notes').value.trim():'';
+  // تسوية كل البنود المعلّقة (بدون أي حركة كاش جديدة عنها — هي مسجّلة بالفعل، دي بس تعليم إنها اتحسبت في التصفية)
+  (emp.advances||[]).forEach(a=>{if(!a.settled){a.settled=true;a.settledMonth='تصفية';}});
+  (emp.bonuses||[]).forEach(b=>{if(!b.settled){b.settled=true;b.settledMonth='تصفية';}});
+  (emp.stockCharges||[]).forEach(s=>{if(!s.settled){s.settled=true;s.settledMonth='تصفية';}});
+  emp.status='inactive';
+  emp.terminatedAt=Date.now();
+  emp.terminationDate=todayStr;
+  emp.terminationSettlement={...c,notes,by:(CURRENT_USER&&(CURRENT_USER.username||CURRENT_USER.name))||''};
+  let expenseNote='';
+  if(c.net>0){
+    DB.expenses.unshift({id:nextFreeId('EXP-TERM-','expenses',3),desc:'تصفية موظف — '+emp.name+(notes?' — '+notes:''),type:'تصفية موظفين',amount:c.net,date:todayStr,payment:'كاش',empId:emp.id,notes});
+    expenseNote=' — اتصرفله '+fmtN(c.net)+' ج من الخزنة';
+  }else if(c.net<0){
+    expenseNote=' — عليه '+fmtN(Math.abs(c.net))+' ج للشركة (لسه محتاج تحصيلها بطريقتك)';
+  }
+  addLog('تصفية موظف: '+emp.name+' — الصافي: '+fmtN(c.net)+' ج'+(notes?' ('+notes+')':''));
+  saveDB();
+  try{ if(c.net>0)recalcCashDrawerAtomic('employee_terminate_'+emp.id); }catch(_e_){}
+  closeM('m-emp-terminate');
+  window._pendingTerminateId=null;
+  renderEmployees();try{renderExp();renderExpStats();renderDash();}catch(er){}
+  toast('✓ اتقفل ملف '+emp.name+' (غير نشط)'+expenseNote);
+}
 function renderEmployees(){
   const el=$('emp-tbl');if(!el)return;
   if(!DB.employees)DB.employees=[];
@@ -16333,8 +17321,76 @@ function renderEmployees(){
       return Math.round(total*100)/100;
     }catch(_e){return 0;}
   }
+  // آخر نشاط فعلي على ملف الموظف (راتب/مكافأة/سلفة/نقص جرد/إجازة) — عشان الجدول
+  // يوريك حاجة حقيقية من غير ما تدخل "إجراءات" لكل موظف لوحده، زي ما طلبت
+  function _empLastActivity(e){
+    const events=[];
+    (e.salaryHistory||[]).forEach(h=>events.push({date:h.date||'',label:'💰 راتب '+(h.month||''),amount:h.net,color:'#2e7d32'}));
+    (e.bonuses||[]).forEach(b=>events.push({date:b.date||'',label:'🎁 مكافأة'+(b.settled?'':' (منتظرة)'),amount:b.amount,color:'#7b1fa2'}));
+    (e.advances||[]).forEach(a=>events.push({date:a.date||'',label:'💸 سلفة'+(a.settled?' (اتخصمت)':' (مستحقة)'),amount:a.amount,color:'#e65100'}));
+    (e.stockCharges||[]).forEach(s=>events.push({date:s.date||'',label:'📋 نقص جرد'+(s.settled?' (اتحصّل)':' (معلّق)'),amount:s.amount,color:'#ad1457'}));
+    (e.leaveRequests||[]).forEach(l=>events.push({date:l.from||(l.createdAt||'').slice(0,10),label:'🏖️ إجازة '+((typeof LEAVE_TYPE_LABELS!=='undefined'&&LEAVE_TYPE_LABELS[l.type])||l.type||''),amount:l.days,color:'#00695c',isDays:true}));
+    if(!events.length)return null;
+    events.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    return events[0];
+  }
   const statsEl=$('emp-stats');if(statsEl){const active=DB.employees.filter(e=>e.status==='active'),totalSal=active.reduce((s,e)=>s+(e.salary||0),0);statsEl.innerHTML=`<div class="sc blue"><div class="sl">إجمالي الموظفين</div><div class="sv">${DB.employees.length}</div></div><div class="sc green"><div class="sl">نشطين</div><div class="sv">${active.length}</div></div><div class="sc amber"><div class="sl">إجمالي الرواتب الشهرية</div><div class="sv">${fmtN(totalSal)} ج</div></div>`;}
-  el.innerHTML=DB.employees.map(e=>{const _30c=_last30dComm(e.id);return `<tr><td><code style="font-size:10px;background:#f0f0f0;padding:2px 5px;border-radius:3px;">${e.id}</code></td><td><strong>${e.name}</strong>${(Number(e.commissionPct)>0)?`<div style="font-size:9.5px;color:#00695c;">%${Number(e.commissionPct)} عمولة</div>`:''}</td><td><span class="badge b-bl">${e.role||'—'}</span></td><td><strong>${fmtN(e.salary||0)} ج</strong>${_30c>0?`<div style="font-size:9.5px;color:#1565c0;margin-top:2px;">عمولات آخر 30 يوم: ${fmtN(_30c)} ج</div>`:''}</td><td>${(()=>{const _a=(e.advances||[]);const _tot=_a.reduce((s,x)=>s+(x.amount||0),0);const _rem=_a.filter(x=>!x.settled).reduce((s,x)=>s+(x.amount||0),0);if(_tot<=0)return '—';return _rem>0?`<strong style="color:#c62828;">متبقي عليه: ${fmtN(_rem)} ج</strong>`:`<span style="color:#2e7d32;">✔ متسدد بالكامل</span> <span style="color:#999;font-size:10px;">(إجمالي ما أخذ: ${fmtN(_tot)} ج)</span>`;})()}</td><td>${(()=>{const _b=(e.bonuses||[]);const _bt=_b.reduce((s,x)=>s+(x.amount||0),0);const _bp=_b.filter(x=>!x.settled).reduce((s,x)=>s+(x.amount||0),0);return _bt>0?`<strong style="color:#7b1fa2;">${fmtN(_bt)}</strong> ج${_bp>0?' <span style="font-size:10px;color:#e65100;">(منها '+fmtN(_bp)+' منتظرة)</span>':''}`:'—';})()}</td><td>${(()=>{const _s=(e.stockCharges||[]);const _st=_s.reduce((s,x)=>s+(x.amount||0),0);const _sp=_s.filter(x=>!x.settled).reduce((s,x)=>s+(x.amount||0),0);if(_st<=0)return '—';return `${_sp>0?`<strong style="color:#ad1457;">متبقي: ${fmtN(_sp)} ج</strong>`:`<span style="color:#2e7d32;">✔ اتخصمت بالكامل</span>`}<div><button class="btn btn-sm" style="font-size:10px;padding:1px 6px;margin-top:2px;" onclick="openStockChargesModal('${e.id}')">📋 التفاصيل</button></div>`;})()}</td><td>${e.phone||'—'}</td><td>${e.hireDate||'—'}</td><td><span class="badge ${e.status==='active'?'b-gn':'b-gy'}">${e.status==='active'?'نشط':'غير نشط'}</span></td><td style="display:flex;gap:3px;flex-wrap:wrap;"><button class="btn btn-sm btn-g" onclick="openSalaryModal('${e.id}')" title="صرف راتب">💰 صرف</button><button class="btn btn-sm btn-o" onclick="openAdvanceModal('${e.id}')" title="سلفة">💸 سلفة</button><button class="btn btn-sm" onclick="openBonusModal('${e.id}')" title="مكافأة" style="color:#7b1fa2;">🎁 مكافأة</button>${(()=>{const b=_ensureLeaveBalances(e);return `<button class="btn btn-sm" onclick="openLeavesModal('${e.id}')" title="رصيد الإجازات — سنوي:${b.annual} | مرضي:${b.sick} | عارضة:${b.casual}" style="color:#00695c;">🏖️ إجازات</button>`;})()}${(()=>{const evs=(e.evaluations||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));const last=evs[0];return `<button class="btn btn-sm" onclick="openEvalModal('${e.id}')" title="${last?'آخر تقييم: '+last.avg+'/5':'لسه متقيّمش'}" style="color:#e65100;">⭐ ${last?last.avg+'/5':'تقييم'}</button>`;})()}<button class="btn btn-sm" onclick="editEmployee('${e.id}')">✏️ تعديل</button><button class="btn btn-sm" onclick="viewEmpHistory('${e.id}')">📋 سجل</button></td></tr>`;}).join('');
+  // جدول نضيف للعرض بس — كل الإجراءات والتفاصيل (سلف/مكافآت/نواقص جرد/تقييم) بقت في
+  // مركز إجراءات واحد بدل ما تتزاحم في صف الجدول (زرار "⚙️ إجراءات" بس لكل صف)، بس
+  // عمود "آخر نشاط" هنا بيوريك آخر حاجة حصلت (بدل ما الشاشة تبقى فاضية من أي معلومة)
+  el.innerHTML=DB.employees.map(e=>{const _30c=_last30dComm(e.id);const la=_empLastActivity(e);const laCell=la?`<span style="font-size:11px;">${la.label}<br><span style="color:${la.color};font-weight:bold;">${la.isDays?fmtN(la.amount)+' يوم':fmtN(la.amount)+' ج'}</span> <span style="color:#999;">(${la.date||'—'})</span></span>`:'<span style="color:#bbb;font-size:11px;">لا يوجد نشاط</span>';return `<tr><td><code style="font-size:10px;background:#f0f0f0;padding:2px 5px;border-radius:3px;">${e.id}</code></td><td><strong>${e.name}</strong>${(Number(e.commissionPct)>0)?`<div style="font-size:9.5px;color:#00695c;">%${Number(e.commissionPct)} عمولة</div>`:''}</td><td><span class="badge b-bl">${e.role||'—'}</span></td><td><strong>${fmtN(e.salary||0)} ج</strong>${_30c>0?`<div style="font-size:9.5px;color:#1565c0;margin-top:2px;">عمولات آخر 30 يوم: ${fmtN(_30c)} ج</div>`:''}</td><td>${laCell}</td><td>${e.hireDate||'—'}</td><td><span class="badge ${e.status==='active'?'b-gn':'b-gy'}">${e.status==='active'?'نشط':'غير نشط'}</span></td><td><button class="btn btn-sm btn-p" onclick="openEmpActionsHub('${e.id}')">⚙️ إجراءات</button></td></tr>`;}).join('');
+  const qsel=$('emp-quick-select');
+  if(qsel){
+    const cur=qsel.value;
+    qsel.innerHTML=DB.employees.map(e=>`<option value="${e.id}">${escapeHtml(e.name)}${e.status!=='active'?' (غير نشط)':''}</option>`).join('')||'<option value="">لا يوجد موظفين</option>';
+    if(DB.employees.some(e=>e.id===cur))qsel.value=cur;
+  }
+}
+// مركز إجراءات الموظف: ملخص سريع (سلف/مكافآت/نواقص جرد/تقييم) + كل الإجراءات كأزرار
+// قايمة واحدة، بدل ما تتكدس في صف الجدول
+function openEmpActionsHub(id){
+  const emp=DB.employees.find(x=>x.id===id);if(!emp)return;
+  const adv=(emp.advances||[]);const advTot=adv.reduce((s,x)=>s+(x.amount||0),0);const advRem=adv.filter(x=>!x.settled).reduce((s,x)=>s+(x.amount||0),0);
+  const bon=(emp.bonuses||[]);const bonTot=bon.reduce((s,x)=>s+(x.amount||0),0);
+  const stk=(emp.stockCharges||[]);const stkTot=stk.reduce((s,x)=>s+(x.amount||0),0);const stkRem=stk.filter(x=>!x.settled).reduce((s,x)=>s+(x.amount||0),0);
+  const evs=(emp.evaluations||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));const lastEval=evs[0];
+  const titleEl=$('emp-actions-title');if(titleEl)titleEl.textContent='⚙️ إجراءات — '+emp.name;
+  const body=$('emp-actions-body');if(!body)return;
+  body.innerHTML=`
+    <div style="background:#f5f5f5;border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;line-height:2;">
+      <div>💰 الراتب الأساسي: <strong>${fmtN(emp.salary||0)} ج</strong></div>
+      <div>💸 السلف: ${advTot>0?(advRem>0?`<strong style="color:#c62828;">متبقي عليه ${fmtN(advRem)} ج</strong> (إجمالي ${fmtN(advTot)} ج)`:`<span style="color:#2e7d32;">✔ متسددة بالكامل</span> (إجمالي ${fmtN(advTot)} ج)`):'—'}</div>
+      <div>🎁 المكافآت: ${bonTot>0?fmtN(bonTot)+' ج':'—'}</div>
+      <div>📦⚠️ نواقص جرد: ${stkTot>0?(stkRem>0?`<strong style="color:#ad1457;">متبقي ${fmtN(stkRem)} ج</strong>`:`<span style="color:#2e7d32;">✔ اتخصمت بالكامل</span>`):'—'}</div>
+      <div>⭐ آخر تقييم: ${lastEval?lastEval.avg+'/5':'لسه متقيّمش'}</div>
+      <div>📌 الحالة: <span class="badge ${emp.status==='active'?'b-gn':'b-gy'}">${emp.status==='active'?'نشط':'غير نشط'}</span></div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      <button class="btn btn-g" onclick="closeM('m-emp-actions');openSalaryModal('${id}')">💰 صرف راتب</button>
+      <button class="btn btn-o" onclick="closeM('m-emp-actions');openAdvanceModal('${id}')">💸 سلفة</button>
+      <button class="btn" style="color:#7b1fa2;" onclick="closeM('m-emp-actions');openBonusModal('${id}')">🎁 مكافأة</button>
+      <button class="btn" style="color:#00695c;" onclick="closeM('m-emp-actions');openLeavesModal('${id}')">🏖️ إجازات</button>
+      <button class="btn" style="color:#e65100;" onclick="closeM('m-emp-actions');openEvalModal('${id}')">⭐ تقييم</button>
+      ${stkTot>0?`<button class="btn" style="color:#ad1457;" onclick="closeM('m-emp-actions');openStockChargesModal('${id}')">📋 نواقص الجرد</button>`:''}
+      <button class="btn" onclick="closeM('m-emp-actions');editEmployee('${id}')">✏️ تعديل البيانات</button>
+      <button class="btn" onclick="closeM('m-emp-actions');viewEmpHistory('${id}')">📋 سجل الرواتب</button>
+      ${emp.status==='active'?`<button class="btn btn-r" onclick="closeM('m-emp-actions');openTerminateEmployeeModal('${id}')">🚪 تصفية / إنهاء خدمة</button>`:''}
+    </div>`;
+  openM('m-emp-actions');
+}
+// إجراء سريع من فوق الجدول: نفس مركز الإجراءات، بس اختصار من غير ما تفتحه وتختار منه
+function runEmpQuickAction(){
+  const id=$('emp-quick-select')?$('emp-quick-select').value:'';
+  const act=$('emp-quick-action')?$('emp-quick-action').value:'';
+  if(!id){toast('اختار موظف الأول','warn');return;}
+  const emp=DB.employees.find(x=>x.id===id);if(!emp)return;
+  const map={
+    salary:()=>openSalaryModal(id),advance:()=>openAdvanceModal(id),bonus:()=>openBonusModal(id),
+    leave:()=>openLeavesModal(id),eval:()=>openEvalModal(id),edit:()=>editEmployee(id),
+    history:()=>viewEmpHistory(id),
+    terminate:()=>{if(emp.status!=='active'){toast('الموظف ده مش نشط أصلاً','warn');return;}openTerminateEmployeeModal(id);}
+  };
+  if(map[act])map[act]();
 }
 function viewEmpHistory(id){
   const e=DB.employees.find(x=>x.id===id);if(!e)return;
@@ -19050,6 +20106,108 @@ function cloudMonthlyBackup(payload){
     }).catch(()=>{});
   }catch(e){}
 }
+// === دمج بيانات جدول واحد (محلي + سحابي) مع حماية من "تعارض ترقيم" بين جهازين ===
+// اتفصلت لدالة مستقلة (كانت جوه saveToFirebase مباشرة) عشان تتفحص بسهولة بمعزل عن
+// Firestore نفسه — راجع بلاغ: فاتورة صيانة اتعملت من المحل وفاتورة تانية من الشركة
+// في نفس اللحظة تقريبًا، الاتنين طلعوا بنفس الرقم — واحدة منهم كانت بتختفي بصمت
+// وقت المزامنة، وأمر الشغل بتاعها كان بيرجع "مفتوح" تاني وكأن محدش عمله فاتورة
+// خالص، لأن consumeNum() بيدّي رقم "متفائل" محليًا فورًا من غير ما يستنى تأكيد
+// Firestore، فلو الجهازين اتصادف إنهم طلبوا رقم في نفس اللحظة تقريبًا قبل ما أي
+// حد يتزامن، بياخدوا نفس الرقم. الحل: لو سجلين ليهم نفس الـid بالظبط لكن createdAt
+// مختلف (يعني اتعملوا مستقلين عن بعض، مش تعديل لنفس السجل — تعديل حقيقي بيفضل
+// معاه نفس createdAt الأصلي دايمًا)، نعتبرها تعارض حقيقي: نسيب نسخة السحابة زي
+// ما هي بنفس الرقم القديم (already committed, غالبًا أجهزة تانية شايفاها بالفعل)،
+// ونعيد تسمية نسخة الجهاز ده برقم جديد فريد (بلاحقة الجهاز الثابتة، getDeviceTag)
+// بدل ما تتمسح نهائيًا. الاتنين بيفضلوا موجودين وقابلين للمراجعة، مفيش أي فاتورة
+// بتضيع. بعد كده، بنصلح أي مرجع (أمر شغل/إذن/عمولة فني/دفعة) كان بيشاور على الرقم
+// القديم عشان يتبع الرقم الجديد بدل ما يفضل يتيم.
+function mergeDataAcrossDevices(localData,remoteData,mergedDeleted){
+  const mergedData={};
+  const _idRenames={};
+  const _collisionMsgs=[];
+  // ملحوظة أداء مهمة (السبب الجذري الحقيقي وراء "البرنامج بيتقّل مع الوقت"، موصوف
+  // من المستخدم كإحساس عام بثقل الجهاز أثناء التعديل/الحفظ السريع، مش بس في جدول
+  // المخزن): كان هنا remoteArr.find(...) جوه forEach على localArr — يعني بحث خطي
+  // (O(remote.length)) لكل عنصر محلي، يعني التكلفة الكلية لكل جدول كانت
+  // O(local.length × remote.length). الحل: خريطة (Map) واحدة للعناصر السحابية
+  // بالـid، بحث فيها O(1) بدل O(n) — نفس النتيجة بالظبط، بس التكلفة الكلية بقت
+  // O(local.length + remote.length) مهما كبر حجم البيانات.
+  DB_KEYS.forEach(key=>{
+    const delSet=new Set(mergedDeleted[key]||[]);
+    const localArr=(localData[key]||[]).filter(it=>!(it&&it.id&&delSet.has(it.id)));
+    const remoteArr=remoteData[key]||[];
+    const remoteById=new Map(remoteArr.filter(it=>it&&it.id).map(it=>[it.id,it]));
+    const combined=[];
+    const seenIds=new Set();
+    localArr.forEach(localItem=>{
+      if(!localItem||!localItem.id){combined.push(localItem);return;}
+      const remoteItem=remoteById.get(localItem.id);
+      if(remoteItem){
+        const bothHaveCreatedAt=typeof remoteItem.createdAt==='number'&&typeof localItem.createdAt==='number';
+        const isRealCollision=bothHaveCreatedAt&&remoteItem.createdAt!==localItem.createdAt;
+        if(isRealCollision){
+          const newId=localItem.id+'-'+getDeviceTag();
+          if(!_idRenames[key])_idRenames[key]={};
+          _idRenames[key][localItem.id]=newId;
+          combined.push(Object.assign({},localItem,{id:newId}));
+          combined.push(remoteItem);
+          seenIds.add(localItem.id);
+          _collisionMsgs.push('⚠ تعارض ترقيم بين جهازين اتكشف واتصلح تلقائيًا: '+key+' رقم '+localItem.id+' — نسخة الجهاز ده اتسجلت برقم جديد '+newId+' عشان محدش يضيع، راجعها');
+          return;
+        }
+        if(typeof remoteItem.updatedAt==='number'&&typeof localItem.updatedAt==='number'){
+          combined.push(remoteItem.updatedAt>localItem.updatedAt?remoteItem:localItem);
+        }else{
+          combined.push(localItem);
+        }
+      }else{
+        combined.push(localItem);
+      }
+      seenIds.add(localItem.id);
+    });
+    remoteArr.forEach(remoteItem=>{
+      if(!(remoteItem&&remoteItem.id&&!delSet.has(remoteItem.id)))return;
+      if(seenIds.has(remoteItem.id))return;
+      combined.push(remoteItem);
+    });
+    // تنظيف أي تكرار حرفي قبل الرفع — يمنع رفع نفس التضخم القديم تاني على السحابة
+    mergedData[key]=dedupeIdless(combined);
+  });
+  // إصلاح أي مرجع كان بيشاور على رقم اتغيّر بسبب تعارض ترقيم فوق — عشان محدش يفضل
+  // "يتيم" شايف رقم فاتورة مش موجود، وترجع مشكلة "أمر الشغل بيرجع مفتوح" تاني.
+  // بنستخدم مرجع الفاتورة المُعاد تسميتها نفسها لأمر الشغل/الإذن (woId/rcptId) كمفتاح
+  // دقيق 1:1 — مش استبدال أعمى لأي حد شايف نفس الرقم القديم، عشان لو في أمر شغل
+  // تاني (مالوش دعوة بالتعارض) بيشاور بالصدفة على نفس الرقم القديم، يفضل زي ما هو
+  // من غير ما يتصحح غلط.
+  ['taxInvoices','maintInvoices'].forEach(key=>{
+    const renames=_idRenames[key];
+    if(!renames)return;
+    Object.keys(renames).forEach(oldId=>{
+      const newId=renames[oldId];
+      const renamedInv=(mergedData[key]||[]).find(x=>x&&x.id===newId);
+      if(!renamedInv)return;
+      if(renamedInv.woId){
+        const w=(mergedData.workOrders||[]).find(x=>x&&x.id===renamedInv.woId);
+        if(w){
+          if(w.invId===oldId)w.invId=newId;
+          if(w.invRef===oldId)w.invRef=newId;
+        }
+      }
+      if(renamedInv.rcptId){
+        const rp=(mergedData.receipts||[]).find(x=>x&&x.id===renamedInv.rcptId);
+        if(rp&&rp.invRef===oldId)rp.invRef=newId;
+      }
+    });
+  });
+  // ملحوظة: عمولة الفني (technicianCommissions.srcDocId) ودفعات (payments.refId)
+  // ماعندهمش مرجع عكسي دقيق زي woId/rcptId يربطها 1:1 بفاتورة بعينها، فمفيش طريقة
+  // مضمونة نميّز بيها بعد التعارض أي سجل عمولة/دفعة بيخص الفاتورة الأصلية وأنهي
+  // بيخص النسخة المُعاد تسميتها — فبنسيبهم زي ما هم عمدًا (تصحيح أعمى هنا ممكن
+  // ينسب عمولة أو دفعة لفاتورة غلط، وده أخطر من إنها تفضل مشاورة على الرقم القديم).
+  // القيمة المالية والسجل نفسه مايضيعوش في الحالتين — بس ممكن يحتاج مراجعة يدوية
+  // نادرة لو حصل تعارض فعلي على فاتورة ليها عمولة/دفعة مرتبطة بيها.
+  return {mergedData,idRenames:_idRenames,collisionMsgs:_collisionMsgs};
+}
 function saveToFirebase(localData,overwrite){
   DB_KEYS.forEach(k=>{if(!localData[k])localData[k]=[];});
   if(!FS_DOC){const st=$('db-status');if(st){st.style.color='#ffcc02';st.textContent='● أوفلاين';}return;}
@@ -19087,32 +20245,7 @@ function saveToFirebase(localData,overwrite){
     // الحل: خريطة (Map) واحدة للعناصر السحابية بالـid، بحث فيها O(1) بدل O(n) —
     // نفس النتيجة بالظبط، بس التكلفة الكلية بقت O(local.length + remote.length)
     // مهما كبر حجم البيانات.
-    const mergedData={};
-    DB_KEYS.forEach(key=>{
-      const delSet=new Set(mergedDeleted[key]||[]);
-      const localArr=(localData[key]||[]).filter(it=>!(it&&it.id&&delSet.has(it.id)));
-      const remoteArr=remoteData[key]||[];
-      const remoteById=new Map(remoteArr.filter(it=>it&&it.id).map(it=>[it.id,it]));
-      const combined=[];
-      const seenIds=new Set();
-      localArr.forEach(localItem=>{
-        if(!localItem||!localItem.id){combined.push(localItem);return;}
-        const remoteItem=remoteById.get(localItem.id);
-        if(remoteItem&&typeof remoteItem.updatedAt==='number'&&typeof localItem.updatedAt==='number'){
-          combined.push(remoteItem.updatedAt>localItem.updatedAt?remoteItem:localItem);
-        }else{
-          combined.push(localItem);
-        }
-        seenIds.add(localItem.id);
-      });
-      remoteArr.forEach(remoteItem=>{
-        if(!(remoteItem&&remoteItem.id&&!delSet.has(remoteItem.id)))return;
-        if(seenIds.has(remoteItem.id))return;
-        combined.push(remoteItem);
-      });
-      // تنظيف أي تكرار حرفي قبل الرفع — يمنع رفع نفس التضخم القديم تاني على السحابة
-      mergedData[key]=dedupeIdless(combined);
-    });
+    const {mergedData,collisionMsgs:_collisionMsgs}=mergeDataAcrossDevices(localData,remoteData,mergedDeleted);
     // 3) العدادات والمستخدمون
     const mergedCounters=mergeCountersWithRemote(remoteData._counters);
     const mergedUsers=mergeUsersWithRemote(remoteData._users);
@@ -19131,6 +20264,14 @@ function saveToFirebase(localData,overwrite){
       // تحديث الذاكرة المحلية بالبيانات المدمجة
       DB_KEYS.forEach(k=>{DB[k]=mergedData[k];});
       DB._deleted=mergedDeleted;
+      // نسجّل تعارضات الترقيم (لو حصلت) دلوقتي بس — بعد ما DB.logs بقت فعلاً النسخة
+      // المدموجة فوق، عشان addLog() هنا يضيف على الآخر الصحيح ومايتمسحش. كمان بنعرض
+      // toast فوري عشان اللي قاعد على الجهاز يلاحظ فورًا ويراجع، مش يلاقيها بالصدفة
+      // بعد أسابيع في سجل النشاط.
+      if(_collisionMsgs.length){
+        _collisionMsgs.forEach(m=>{try{addLog(m);}catch(_eL){}});
+        try{toast('⚠ حصل تعارض ترقيم بين جهازين وانصلح تلقائيًا من غير ما تضيع أي فاتورة — راجع سجل النشاط للتفاصيل ('+_collisionMsgs.length+')','warn');}catch(_eT){}
+      }
       // نفس حماية امتلاء localStorage اللي في processFirebaseDoc — من غيرها كان
       // خطأ محلي بحت (مساحة المتصفح امتلأت) بيتفسّر غلط كـ"فشل رفع لفايربيز"، ويشغّل
       // محاولة رفع تانية زيادة من غير أي داعي (الرفع الأصلي في fsWriteAll فوق نجح
